@@ -160,7 +160,7 @@ Generated `.codec.go` files are written next to their `.proto` source.
 Generated Go code imports a single runtime package:
 
 ```go
-import "go.stealthscale.io/protoc-gen-codec/codec"
+import "go.stealthscale.io/protoc-gen-codec/lang/go/codec"
 ```
 
 The package provides wire primitives and sentinel errors. It has no
@@ -182,6 +182,6 @@ Go targets are tested with:
   `UnmarshalCodec` targets a single slab allocation for messages eligible
   for the slab strategy.
 
-The reference fixture lives at `testdata/go/` and exercises enum
+The reference fixture lives at `lang/go/integration/` and exercises enum
 casts, fixed-length byte arrays, repeated strings, and oneof-like
 patterns.

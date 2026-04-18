@@ -1,27 +1,39 @@
-.PHONY: build test test-race lint fmt generate clean
+.PHONY: build test test-race test-fuzz test-bench lint fmt generate clean
 
 GO := go
+FUZZTIME ?= 30s
+BENCHTIME ?= 1s
+BENCHCOUNT ?= 1
 
 build:
 	$(GO) build ./cmd/protoc-gen-codec-go/
 
 test:
-	$(GO) test ./... ./testdata/go/
+	$(GO) test ./...
 
 test-race:
-	$(GO) test -race ./... ./testdata/go/
+	$(GO) test -race ./...
 
+# Discover fuzz targets per package and run each for FUZZTIME.
+# Override with: make test-fuzz FUZZTIME=5m
 test-fuzz:
-	@for target in $$($(GO) test -list '^Fuzz' ./... 2>/dev/null | grep '^Fuzz'); do \
-		pkg=$$($(GO) test -list "^$$target$$" ./... 2>/dev/null | grep -v '^Fuzz' | head -1); \
-		echo "Fuzzing $$target in $$pkg..."; \
-		$(GO) test -run="^$$target$$" -fuzz="^$$target$$" -fuzztime=30s $$pkg || exit 1; \
+	@for pkg in $$($(GO) list ./...); do \
+		targets=$$($(GO) test -list '^Fuzz' $$pkg 2>/dev/null | grep '^Fuzz' || true); \
+		for target in $$targets; do \
+			echo "==> Fuzzing $$target in $$pkg for $(FUZZTIME)"; \
+			$(GO) test -run='^$$' -fuzz="^$$target$$" -fuzztime=$(FUZZTIME) $$pkg || exit 1; \
+		done; \
 	done
 
+# Run all benchmarks with alloc reporting.
+# Override with: make test-bench BENCHTIME=3s BENCHCOUNT=10
+test-bench:
+	$(GO) test -run='^$$' -bench=. -benchmem -benchtime=$(BENCHTIME) -count=$(BENCHCOUNT) ./...
+
 lint: fmt
-	$(GO) vet ./... ./testdata/go/
+	$(GO) vet ./...
 	buf lint
-	golangci-lint run ./... ./testdata/go/
+	golangci-lint run ./...
 
 fmt:
 	$(GO) fmt ./...

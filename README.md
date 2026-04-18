@@ -58,7 +58,7 @@ cmd/protoc-gen-codec-ts/     # TypeScript (future)
 cmd/protoc-gen-codec-rust/   # Rust (future)
 ```
 
-All binaries share `internal/core/` for schema analysis and `codec/options.proto` for annotations. Only the code emission differs per language.
+All binaries share `internal/core/` for schema analysis and `codec/options.proto` for annotations. Language runtimes live under `lang/<lang>/codec/`; only the code emission differs per language.
 
 ## Runtime
 

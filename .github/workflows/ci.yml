@@ -21,8 +21,8 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
       - run: go build ./...
-      - run: go test -race -count=1 ./... ./testdata/go/
-      - run: go vet ./... ./testdata/go/
+      - run: go test -race -count=1 ./...
+      - run: go vet ./...
 
   staleness:
     runs-on: ubuntu-latest
@@ -33,8 +33,8 @@ jobs:
           go-version: '1.24'
       - uses: bufbuild/buf-setup-action@v1
       - run: go build -o bin/protoc-gen-codec-go ./cmd/protoc-gen-codec-go/
-      - run: buf generate --path testdata/go/fixture.proto
-      - run: git diff --exit-code testdata/go/fixture.codec.go
+      - run: buf generate --path lang/go/integration/fixture.proto
+      - run: git diff --exit-code lang/go/integration/fixture.codec.go
 
   lint:
     runs-on: ubuntu-latest

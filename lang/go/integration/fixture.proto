@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 syntax = "proto3";
-package testdata;
-option go_package = "go.stealthscale.io/protoc-gen-codec/testdata/go;testdata";
+package integration;
+option go_package = "go.stealthscale.io/protoc-gen-codec/lang/go/integration";
 
 import "codec/options.proto";
 

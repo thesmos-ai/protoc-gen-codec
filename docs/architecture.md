@@ -101,11 +101,11 @@ wire format directly.
 ## Project Layout
 
 ```
-codec/                        Runtime library + annotation definitions
-  options.proto               Annotation schema (codec.type, codec.field, ...)
-  wire.go                     Wire-format primitives
-  errors.go                   Sentinel errors for errors.Is matching
-  interface.go                Marshaler / Unmarshaler interfaces
+codec/                        Language-neutral annotation schema
+  options.proto               codec.type, codec.field, codec.cast, ...
+
+lang/<language>/codec/        Per-language runtime imported by generated code
+  (e.g. lang/go/codec/)       wire primitives, sentinel errors, interfaces
 
 internal/core/                Language-agnostic schema analysis
   analysis.go                 AnalyzeMessage, analyzeField
@@ -113,7 +113,7 @@ internal/core/                Language-agnostic schema analysis
 
 internal/lang/<language>/     Per-language code emission
 cmd/protoc-gen-codec-<language>/  Per-language plugin binary
-testdata/<language>/          Fixtures and property-based tests
+lang/<language>/integration/  Integration fixtures and property-based tests
 ```
 
 The important split is between `internal/core/` and
@@ -146,7 +146,8 @@ fixed-length values fail here, before any code is written.
 
 ## Runtime Library
 
-Each target language has a small runtime package holding:
+Each target language has a small runtime package at
+`lang/<language>/codec/`, imported by generated code. It holds:
 
 - wire primitives (varint read/write, length-delimited framing, field
   skip)

@@ -8,7 +8,7 @@ import (
 	"math"
 	"testing"
 
-	"go.stealthscale.io/protoc-gen-codec/codec"
+	"go.stealthscale.io/protoc-gen-codec/lang/go/codec"
 	"pgregory.net/rapid"
 )
 

@@ -18,39 +18,39 @@ var (
 	identFmtErrorf        = protogen.GoIdent{GoName: "Errorf", GoImportPath: "fmt"}
 	identErrInvalidLength = protogen.GoIdent{
 		GoName:       "ErrInvalidLength",
-		GoImportPath: "go.stealthscale.io/protoc-gen-codec/codec",
+		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
 	}
 	identErrInvalidWireType = protogen.GoIdent{
 		GoName:       "ErrInvalidWireType",
-		GoImportPath: "go.stealthscale.io/protoc-gen-codec/codec",
+		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
 	}
 	identSov = protogen.GoIdent{
 		GoName:       "Sov",
-		GoImportPath: "go.stealthscale.io/protoc-gen-codec/codec",
+		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
 	}
 	identEncodeVarint = protogen.GoIdent{
 		GoName:       "EncodeVarint",
-		GoImportPath: "go.stealthscale.io/protoc-gen-codec/codec",
+		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
 	}
 	identDecodeVarint = protogen.GoIdent{
 		GoName:       "DecodeVarint",
-		GoImportPath: "go.stealthscale.io/protoc-gen-codec/codec",
+		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
 	}
 	identSkipField = protogen.GoIdent{
 		GoName:       "SkipField",
-		GoImportPath: "go.stealthscale.io/protoc-gen-codec/codec",
+		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
 	}
 	identErrInvalidTag = protogen.GoIdent{
 		GoName:       "ErrInvalidTag",
-		GoImportPath: "go.stealthscale.io/protoc-gen-codec/codec",
+		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
 	}
 	identErrInvalidVarint = protogen.GoIdent{
 		GoName:       "ErrInvalidVarint",
-		GoImportPath: "go.stealthscale.io/protoc-gen-codec/codec",
+		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
 	}
 	identErrBufferTooShort = protogen.GoIdent{
 		GoName:       "ErrBufferTooShort",
-		GoImportPath: "go.stealthscale.io/protoc-gen-codec/codec",
+		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
 	}
 )
 

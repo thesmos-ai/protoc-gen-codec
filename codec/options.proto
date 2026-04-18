@@ -10,7 +10,7 @@
 
 syntax = "proto3";
 package codec;
-option go_package = "go.stealthscale.io/protoc-gen-codec/codec";
+option go_package = "go.stealthscale.io/protoc-gen-codec/lang/go/codec";
 
 import "google/protobuf/descriptor.proto";
 

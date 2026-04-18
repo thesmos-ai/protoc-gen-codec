@@ -1,7 +1,7 @@
 // Copyright 2026 Stealth Scale B.V.
 // SPDX-License-Identifier: Apache-2.0
 
-package testdata
+package integration
 
 type Status uint8
 
