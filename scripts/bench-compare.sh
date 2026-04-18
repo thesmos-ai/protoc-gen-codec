@@ -24,7 +24,9 @@ go test -run='^$' -bench=. -benchmem -benchtime=3s -count=10 \
     ./lang/go/codec/ ./lang/go/integration/ > "$CURRENT"
 
 # benchstat exits 0 regardless of deltas; parse its output ourselves.
-go run golang.org/x/perf/cmd/benchstat@latest -col '.file' "$BASELINE" "$CURRENT" \
+# -row .name strips the -GOMAXPROCS suffix so baselines and CI runs compare
+# even if the GOMAXPROCS values differ between environments.
+go run golang.org/x/perf/cmd/benchstat@latest -col '.file' -row .name "$BASELINE" "$CURRENT" \
     > "$BENCHSTAT_OUT_FILE"
 cat "$BENCHSTAT_OUT_FILE"
 

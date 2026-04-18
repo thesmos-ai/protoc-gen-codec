@@ -17,6 +17,13 @@ fuzz/
 *.swp
 *~
 
+# Claude Code session state
+.claude/
+
+# Bench baseline is regenerated per-run from main in CI (hardware-stable
+# comparison) and refreshed locally with `make bench-baseline`.
+.bench-baseline/
+
 # OS
 .DS_Store
 Thumbs.db

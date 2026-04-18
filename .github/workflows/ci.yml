@@ -42,13 +42,31 @@ jobs:
       - run: make verify-deterministic-gen
 
   bench:
+    # Compare PR-head benchmarks against a baseline generated from main on
+    # the same runner. Same-hardware comparison eliminates the false sec/op
+    # regressions that a committed baseline would produce across CPU types.
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout main for baseline
+        uses: actions/checkout@v4
+        with:
+          ref: main
       - uses: actions/setup-go@v5
         with:
           go-version: '1.23'
-      - run: make bench-compare
+      - name: Generate baseline from main
+        run: |
+          GOMAXPROCS=8 go test -run='^$' -bench=. -benchmem -benchtime=3s -count=10 \
+            ./lang/go/codec/ ./lang/go/integration/ > /tmp/baseline.txt
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          clean: false
+      - name: Compare PR head vs baseline
+        env:
+          BENCH_BASELINE: /tmp/baseline.txt
+        run: make bench-compare
 
   coverage:
     runs-on: ubuntu-latest

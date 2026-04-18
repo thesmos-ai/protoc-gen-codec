@@ -45,9 +45,13 @@ fmt:
 clean:
 	rm -rf bin/
 
+# Pin GOMAXPROCS=8 so the baseline is reproducible across dev machines and
+# stays within memory headroom on high-core boxes (default GOMAXPROCS on a
+# 32-core machine OOM-killed our baseline run). bench-compare uses .name
+# projection so the GOMAXPROCS suffix doesn't break comparisons across envs.
 bench-baseline:
 	mkdir -p .bench-baseline
-	$(GO) test -run='^$$' -bench=. -benchmem -benchtime=3s -count=10 \
+	GOMAXPROCS=8 $(GO) test -run='^$$' -bench=. -benchmem -benchtime=3s -count=10 \
 		./lang/go/codec/ ./lang/go/integration/ > .bench-baseline/main.txt
 	@echo "Baseline refreshed in .bench-baseline/main.txt"
 
