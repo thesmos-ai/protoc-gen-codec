@@ -1,0 +1,61 @@
+version: "2"
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+    - typecheck
+    - gosimple
+    - gocritic
+    - revive
+    - misspell
+    - unconvert
+    - unparam
+    - nolintlint
+    - bodyclose
+    - prealloc
+    - whitespace
+    - gofmt
+    - goimports
+
+  settings:
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+      disabled-checks:
+        - hugeParam
+    revive:
+      rules:
+        - name: exported
+          arguments:
+            - disableStutteringCheck
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+    misspell:
+      locale: US
+    goimports:
+      local-prefixes:
+        - go.stealthscale.io/protoc-gen-codec
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+        - unparam
+    - path: internal/lang/golang/gen_
+      linters:
+        - gocritic

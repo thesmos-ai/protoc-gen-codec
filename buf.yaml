@@ -1,0 +1,16 @@
+version: v2
+modules:
+  - path: .
+    name: buf.build/stealthscale/protoc-gen-codec
+lint:
+  use:
+    - STANDARD
+  except:
+    - PACKAGE_VERSION_SUFFIX
+  ignore:
+    - testdata
+breaking:
+  use:
+    - FILE
+  ignore:
+    - testdata

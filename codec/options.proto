@@ -1,0 +1,44 @@
+// Copyright 2026 Stealth Scale B.V.
+// SPDX-License-Identifier: Apache-2.0
+
+// Annotations for protoc-gen-codec.
+//
+// The codec generator reads these annotations to emit serialization
+// methods on existing hand-written types. No types are generated from
+// proto schemas — the proto file is the schema, the source file is
+// the behavior, the generator bridges them.
+
+syntax = "proto3";
+package codec;
+option go_package = "go.stealthscale.io/protoc-gen-codec/codec";
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.MessageOptions {
+  // type specifies the target type name that this proto message maps to.
+  // The generator emits serialization methods as receivers on this type.
+  // Resolved relative to the language-specific package option.
+  optional string type = 50001;
+}
+
+extend google.protobuf.FieldOptions {
+  // field specifies the struct field name when it differs from standard
+  // protobuf naming conventions (e.g., "TraceID" instead of "TraceId" in Go).
+  optional string field = 50002;
+
+  // cast specifies a type to cast the decoded wire value to. Used for
+  // domain enums, fixed-point math types, and byte array types.
+  // Missing cast on a field with a non-obvious type mapping causes a
+  // generation error.
+  optional string cast = 50003;
+
+  // fixed_len enforces a strict byte-length check during unmarshal.
+  // If the wire length does not exactly match, unmarshal returns an
+  // error. Prevents silent truncation and zero-padding on fixed-size
+  // cryptographic types.
+  optional uint32 fixed_len = 50004;
+
+  // keep_capacity instructs the reset method to preserve slice backing
+  // arrays (e.g., s = s[:0] instead of s = nil) for sync.Pool reuse.
+  optional bool keep_capacity = 50005;
+}

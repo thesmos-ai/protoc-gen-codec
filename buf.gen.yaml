@@ -1,0 +1,5 @@
+version: v2
+plugins:
+  - local: bin/protoc-gen-codec-go
+    out: .
+    opt: paths=source_relative

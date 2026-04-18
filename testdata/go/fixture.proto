@@ -1,0 +1,69 @@
+// Copyright 2026 Stealth Scale B.V.
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+package testdata;
+option go_package = "go.stealthscale.io/protoc-gen-codec/testdata/go;testdata";
+
+import "codec/options.proto";
+
+message Fixture {
+  option (codec.type) = "Fixture";
+
+  string id = 1 [(codec.field) = "ID"];
+  uint32 kind = 2 [(codec.field) = "Kind"];
+  uint32 status = 3 [(codec.field) = "Status", (codec.cast) = "Status"];
+  int64 score = 4 [(codec.field) = "Score"];
+  uint64 sequence = 5 [(codec.field) = "Sequence"];
+  bool enabled = 6 [(codec.field) = "Enabled"];
+  int64 timestamp = 7 [(codec.field) = "Timestamp"];
+  bytes ref = 8 [(codec.field) = "Ref", (codec.cast) = "Digest", (codec.fixed_len) = 32];
+  repeated string tags = 9 [(codec.field) = "Tags"];
+  bytes data = 10 [(codec.field) = "Data"];
+}
+
+message Patch {
+  option (codec.type) = "Patch";
+
+  uint32 kind = 1 [(codec.field) = "Kind", (codec.cast) = "PatchKind"];
+  uint32 vertex_id = 2 [(codec.field) = "VertexID"];
+  uint64 sequence = 3 [(codec.field) = "Sequence"];
+  uint32 source = 4 [(codec.field) = "Source", (codec.cast) = "Source"];
+  string text_val = 5 [(codec.field) = "TextVal"];
+  int64 int_val = 6 [(codec.field) = "IntVal"];
+  sfixed64 fixed64_val = 7 [(codec.field) = "Fixed64Val", (codec.cast) = "Fixed64"];
+  bytes blob_ref = 8 [(codec.field) = "BlobRef", (codec.cast) = "Digest", (codec.fixed_len) = 32];
+}
+
+message Evidence {
+  option (codec.type) = "Evidence";
+
+  uint32 kind = 1 [(codec.field) = "Kind", (codec.cast) = "EvidenceKind"];
+  uint32 durability = 2 [(codec.field) = "Durability", (codec.cast) = "Durability"];
+  uint32 access = 3 [(codec.field) = "Access", (codec.cast) = "AccessTier"];
+  string trace_id = 4 [(codec.field) = "TraceID"];
+  string federation_trace_id = 5 [(codec.field) = "FederationTraceID"];
+  string job_id = 6 [(codec.field) = "JobID"];
+  string thread_id = 7 [(codec.field) = "ThreadID"];
+  string tenant_id = 8 [(codec.field) = "TenantID"];
+  int64 timestamp_ms = 9 [(codec.field) = "TimestampMs"];
+  bytes payload_ref = 10 [(codec.field) = "PayloadRef", (codec.cast) = "Digest", (codec.fixed_len) = 32];
+  repeated string jurisdictions = 11 [(codec.field) = "Jurisdictions"];
+  string retention_policy_id = 12 [(codec.field) = "RetentionPolicyID"];
+}
+
+message Minimal {
+  option (codec.type) = "Minimal";
+
+  string id = 1 [(codec.field) = "ID"];
+}
+
+message NumericOnly {
+  option (codec.type) = "NumericOnly";
+
+  uint32 a = 1 [(codec.field) = "A"];
+  uint64 b = 2 [(codec.field) = "B"];
+  int64 c = 3 [(codec.field) = "C"];
+  sfixed64 d = 4 [(codec.field) = "D", (codec.cast) = "Fixed64"];
+  bool e = 5 [(codec.field) = "E"];
+}

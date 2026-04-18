@@ -1,0 +1,22 @@
+# Binaries
+*.exe
+
+# Build artifacts
+dist/
+bin/
+
+# Test artifacts
+coverage/
+rapid/
+fuzz/
+*.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
