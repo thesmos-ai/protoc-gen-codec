@@ -42,13 +42,14 @@ func AssertRoundtrip[T any, PT interface {
 	}
 }
 
-// AssertReset verifies ResetCodec clears all fields. Scalars must be
-// zero, strings empty, slices and maps length zero (capacity may be
-// preserved by keep_capacity).
+// AssertReset verifies ResetCodec produces a semantically empty receiver:
+// re-marshaling after reset must yield zero wire bytes (the proto3 equivalent
+// of "absent"). Backing storage for slices and maps may be preserved for
+// reuse — this is an optimization invisible on the wire.
 //
-// The input is marshal/unmarshaled first to obtain an independent copy —
-// ResetCodec may mutate shared backing storage (e.g. clear(map) for
-// keep_capacity maps), which would otherwise race with other parallel
+// The input is marshal/unmarshaled first to obtain an independent copy so
+// ResetCodec doesn't mutate shared backing storage (e.g. clear(map) on a
+// keep_capacity map), which would otherwise race with other parallel
 // subtests that share the same underlying map/slice references.
 func AssertReset[T any, PT interface {
 	*T
@@ -67,22 +68,15 @@ func AssertReset[T any, PT interface {
 	}
 	ptr := PT(&owned)
 	ptr.ResetCodec()
-	v := reflect.ValueOf(owned)
-	for i := range v.NumField() {
-		if !v.Type().Field(i).IsExported() {
-			continue
-		}
-		f := v.Field(i)
-		switch f.Kind() {
-		case reflect.Slice, reflect.Map:
-			if f.Len() != 0 {
-				t.Fatalf("field %s: len=%d after ResetCodec", v.Type().Field(i).Name, f.Len())
-			}
-		default:
-			if !f.IsZero() {
-				t.Fatalf("field %s: not zero after ResetCodec", v.Type().Field(i).Name)
-			}
-		}
+	if sz := ptr.SizeCodec(); sz != 0 {
+		t.Fatalf("ResetCodec did not produce empty wire: SizeCodec()=%d", sz)
+	}
+	reBuf, err := ptr.MarshalCodec()
+	if err != nil {
+		t.Fatalf("MarshalCodec after ResetCodec: %v", err)
+	}
+	if len(reBuf) != 0 {
+		t.Fatalf("ResetCodec did not produce empty wire: MarshalCodec len=%d", len(reBuf))
 	}
 }
 

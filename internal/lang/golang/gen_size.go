@@ -58,9 +58,15 @@ func generateFieldSize(g *protogen.GeneratedFile, fileMap map[string]*protogen.F
 
 	if f.IsMessage {
 		if f.UsePointer {
+			// Singular *T: gate on sz > 0 (not just non-nil) so a pooled-but-
+			// reset message — preserved as a non-nil pointer with all fields
+			// at proto3 default — serializes as absent. Phase 4.10 ResetCodec
+			// keeps the *T heap slot for pointer pooling, so the pointer
+			// alone is no longer a presence signal; only field content is.
 			g.P("if ", accessor, " != nil {")
-			g.P("sz := ", accessor, ".SizeCodec()")
+			g.P("if sz := ", accessor, ".SizeCodec(); sz > 0 {")
 			g.P("n += ", ts, " + ", identSov, "(uint64(sz)) + sz")
+			g.P("}")
 			g.P("}")
 		} else {
 			g.P("if sz := (&", accessor, ").SizeCodec(); sz > 0 {")

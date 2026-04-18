@@ -110,23 +110,21 @@ to a `sync.Pool`:
 
 - Scalar fields are set to their zero value.
 - String fields are set to `""` (releases the backing string reference).
-- Slice and map fields are set to `nil`, releasing the backing array.
-- Fields annotated with `(codec.keep_capacity) = true` are reset to
-  zero length while preserving the backing array (`s = s[:0]`) so the
-  next user of the pooled object reuses the same buffer.
+- Slice and bytes fields are reset to zero length while preserving the
+  backing array (`s = s[:0]`) so subsequent unmarshals into the same
+  receiver reuse the same buffer.
+- Map fields are cleared in place via `clear(m)` — entries are removed
+  but the bucket storage is preserved.
+- Singular nested-message fields recurse into their `ResetCodec()` so
+  pooled state at any depth is cleared, while the outer `*T` heap slot
+  is preserved for pointer pooling on the next unmarshal.
+- Repeated nested-message fields recurse into each element's
+  `ResetCodec()`, then truncate the slice with `[:0]`. The cursor-reuse
+  path in `UnmarshalCodec` then re-uses the existing element slots.
 
-After zeroing the serialized fields, `ResetCodec` checks whether the
-receiver implements a `ResetInternal()` method and invokes it if so:
-
-```go
-if ri, ok := any(m).(interface{ ResetInternal() }); ok {
-    ri.ResetInternal()
-}
-```
-
-This gives hand-written types a hook for clearing unexported state
-(caches, indexes) that the schema doesn't know about. Types without
-internal state simply omit the method.
+The `(codec.keep_capacity)` annotation on slice / bytes / map fields is
+accepted for source compatibility with older `.proto` files but is now a
+no-op: backing storage is always preserved.
 
 ## Running the Generator
 

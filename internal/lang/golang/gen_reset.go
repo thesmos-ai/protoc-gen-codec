@@ -20,10 +20,6 @@ func generateResetCodec(g *protogen.GeneratedFile, fileMap map[string]*protogen.
 		generateFieldReset(g, fileMap, f)
 	}
 
-	g.P("if ri, ok := any(m).(interface{ ResetInternal() }); ok {")
-	g.P("ri.ResetInternal()")
-	g.P("}")
-
 	g.P("}")
 }
 
@@ -40,30 +36,46 @@ func generateFieldReset(g *protogen.GeneratedFile, fileMap map[string]*protogen.
 		return
 	}
 
+	// Map reset: always clear entries and preserve bucket storage. The
+	// (codec.keep_capacity) annotation is a no-op on this path since
+	// Phase 4.10 — retained for backward compatibility.
 	if f.IsMap {
-		if f.KeepCapacity {
-			g.P("clear(", accessor, ")")
-		} else {
-			g.P(accessor, " = nil")
-		}
+		g.P("clear(", accessor, ")")
 		return
 	}
 
+	// Repeated (non-map) reset: preserve backing array capacity for reuse.
+	// Recurse into element ResetCodec for nested messages so any per-element
+	// pooled state is cleared in-place. The (codec.keep_capacity) annotation
+	// is a no-op on this path since Phase 4.10 — retained for backward compat.
 	if f.IsRepeated {
-		if f.KeepCapacity {
-			g.P(accessor, " = ", accessor, "[:0]")
-		} else {
-			g.P(accessor, " = nil")
+		if f.IsMessage {
+			if f.UsePointer {
+				g.P("for _, elem := range ", accessor, " {")
+				g.P("if elem != nil { elem.ResetCodec() }")
+				g.P("}")
+			} else {
+				g.P("for idx := range ", accessor, " {")
+				g.P("(&", accessor, "[idx]).ResetCodec()")
+				g.P("}")
+			}
 		}
+		g.P(accessor, " = ", accessor, "[:0]")
 		return
 	}
 
 	if f.IsMessage {
 		if f.UsePointer {
-			g.P(accessor, " = nil")
+			// Recurse into the nested reset so its own pooled slices/maps are
+			// cleared in-place. Preserves the *T heap slot for pointer pooling
+			// on the next unmarshal.
+			g.P("if ", accessor, " != nil {")
+			g.P(accessor, ".ResetCodec()")
+			g.P("}")
 		} else {
-			msgType := goIdentForMessage(g, fileMap, f)
-			g.P(accessor, " = ", msgType, "{}")
+			// Value-inlined message: recurse into its ResetCodec so nested
+			// slices/maps are cleared with capacity preserved.
+			g.P("(&", accessor, ").ResetCodec()")
 		}
 		return
 	}
@@ -82,11 +94,10 @@ func generateFieldReset(g *protogen.GeneratedFile, fileMap map[string]*protogen.
 		g.P(accessor, ` = ""`)
 
 	case f.IsBytes:
-		if f.KeepCapacity {
-			g.P(accessor, " = ", accessor, "[:0]")
-		} else {
-			g.P(accessor, " = nil")
-		}
+		// Variable-length bytes: preserve backing array capacity for reuse.
+		// The (codec.keep_capacity) annotation is a no-op on this path since
+		// Phase 4.10 — retained for backward compatibility.
+		g.P(accessor, " = ", accessor, "[:0]")
 
 	case f.ProtoKind == protoreflect.BoolKind:
 		g.P(accessor, " = false")

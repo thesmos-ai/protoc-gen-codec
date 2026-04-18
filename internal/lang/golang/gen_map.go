@@ -62,7 +62,10 @@ func emitScalarWrite(g *protogen.GeneratedFile, f *core.FieldInfo, v string) {
 // emitScalarRead emits code that decodes a single scalar from the map
 // entry slice data[i:entryEnd] into dst (a pre-declared variable of the
 // correct Go type). All reads are bounded by entryEnd so a malformed
-// entry cannot cause out-of-range access.
+// entry cannot cause out-of-range access. String reads borrow from the
+// shared top-level `slab` so map-entry strings participate in the
+// cross-message slab allocation; `i` advances through the outer buffer,
+// so slab[slabOff+i : ...] is the correct absolute index.
 func emitScalarRead(g *protogen.GeneratedFile, f *core.FieldInfo, dst string) {
 	goType := scalarGoType(f)
 	switch {
@@ -71,7 +74,7 @@ func emitScalarRead(g *protogen.GeneratedFile, f *core.FieldInfo, dst string) {
 		g.P("if sN < 0 { return ", identErrInvalidVarint, " }")
 		g.P("i += sN")
 		g.P("if sVLen > uint64(entryEnd-i) { return ", identErrBufferTooShort, " }")
-		g.P(dst, " = string(data[i:i+int(sVLen)])")
+		g.P(dst, " = slab[slabOff+i : slabOff+i+int(sVLen)]")
 		g.P("i += int(sVLen)")
 	case f.IsBytes:
 		g.P("sVLen, sN := ", identDecodeVarint, "(data[i:entryEnd])")

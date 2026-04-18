@@ -87,14 +87,18 @@ func generateFieldMarshal(g *protogen.GeneratedFile, fileMap map[string]*protoge
 
 	if f.IsMessage {
 		if f.UsePointer {
-			// Singular pointer: *T, nil = absent.
+			// Singular *T: gate on sz > 0 (not just non-nil) for parity with
+			// gen_size's presence rule. After Phase 4.10 ResetCodec the *T
+			// pointer survives in the receiver for pooling, so an empty
+			// (all-zero) reset message must serialize as absent.
 			g.P("if ", accessor, " != nil {")
+			g.P("if sz := ", accessor, ".SizeCodec(); sz > 0 {")
 			emitTag(g, f.ProtoNum, core.WireLenDel, "buf", "n")
-			g.P("sz := ", accessor, ".SizeCodec()")
 			g.P("n += ", identEncodeVarint, "(buf[n:],uint64(sz))")
 			g.P("wn, err := ", accessor, ".MarshalToCodec(buf[n:])")
 			g.P("if err != nil { return 0, err }")
 			g.P("n += wn")
+			g.P("}")
 			g.P("}")
 		} else {
 			// Singular value: T, SizeCodec() > 0 used as presence predicate.

@@ -11,8 +11,6 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-var identStringsBuilder = protogen.GoIdent{GoName: "Builder", GoImportPath: "strings"}
-
 func emitErrVarint(g *protogen.GeneratedFile, fieldNum int32) {
 	g.P("return ", identFmtErrorf, `("field %d: %w", `, fieldNum, ", ", identErrInvalidVarint, ")")
 }
@@ -29,80 +27,34 @@ func emitErrFixedLen(g *protogen.GeneratedFile, fieldNum int32) {
 	g.P("return ", identFmtErrorf, `("field %d: %w", `, fieldNum, ", ", identErrInvalidLength, ")")
 }
 
-type slabMode int
-
-const (
-	slabNone slabMode = iota
-	slabNaive
-	slabSmart
-)
-
-func classifySlab(info *core.MessageInfo) slabMode {
-	hasStr := false
-	hasBytes := false
+// messageNeedsSlab reports whether the public UnmarshalCodec wrapper should
+// allocate a shared string slab (string(data)) before calling the internal
+// decode helper. The slab is threaded through nested unmarshalCodecInternal
+// calls so every string field across the message tree indexes into a single
+// top-level allocation instead of each level paying its own string(data).
+//
+// The check is intentionally local / conservative: we allocate the slab when
+// this message contains any string field (direct or via map key/value) OR
+// any nested-message field. The nested-message case is "maybe has strings";
+// computing the transitive closure would be more precise but for realistic
+// schemas any message tree with strings anywhere wins, and for pure-numeric
+// nested-only trees we only pay one unused string(data) at the top level.
+func messageNeedsSlab(info *core.MessageInfo) bool {
 	for i := range info.Fields {
 		f := &info.Fields[i]
 		if f.IsString {
-			hasStr = true
+			return true
 		}
-		if f.IsBytes {
-			hasBytes = true
+		if f.IsMap && f.MapKey != nil && f.MapValue != nil {
+			if f.MapKey.IsString || f.MapValue.IsString {
+				return true
+			}
 		}
-	}
-	if !hasStr {
-		return slabNone
-	}
-	if !hasBytes {
-		return slabNaive
-	}
-	return slabSmart
-}
-
-func stringFieldNumbers(info *core.MessageInfo) []int32 {
-	var nums []int32
-	for i := range info.Fields {
-		if info.Fields[i].IsString {
-			nums = append(nums, info.Fields[i].ProtoNum)
+		if f.IsMessage {
+			return true
 		}
 	}
-	return nums
-}
-
-// emitWireScan emits a wire-format scan loop. For each string field number
-// in strNums, it calls bodyFn with the field data slice expression.
-func emitWireScan(g *protogen.GeneratedFile, strNums []int32, iterVar string, bodyFn func(num int32)) {
-	g.P(iterVar, " := 0")
-	g.P("for ", iterVar, " < l {")
-	g.P("stag, sn := ", identDecodeVarint, "(data[", iterVar, ":])")
-	g.P("if sn < 0 { break }")
-	g.P(iterVar, " += sn")
-	g.P("swt := stag & 0x7")
-	g.P("sfn := stag >> 3")
-	g.P("switch swt {")
-	g.P("case 0:")
-	g.P("_, sn = ", identDecodeVarint, "(data[", iterVar, ":])")
-	g.P("if sn < 0 { break }")
-	g.P(iterVar, " += sn")
-	g.P("case 1:")
-	g.P("if ", iterVar, "+8 > l { break }")
-	g.P(iterVar, " += 8")
-	g.P("case 2:")
-	g.P("svl, sn := ", identDecodeVarint, "(data[", iterVar, ":])")
-	g.P("if sn < 0 { break }")
-	g.P(iterVar, " += sn")
-	g.P("if svl > uint64(l-", iterVar, ") { break }")
-	g.P("switch sfn {")
-	for _, num := range strNums {
-		g.P("case ", num, ":")
-		bodyFn(num)
-	}
-	g.P("}")
-	g.P(iterVar, " += int(svl)")
-	g.P("case 5:")
-	g.P("if ", iterVar, "+4 > l { break }")
-	g.P(iterVar, " += 4")
-	g.P("}")
-	g.P("}")
+	return false
 }
 
 // isPoolableOptional returns true if a field participates in the
@@ -136,8 +88,6 @@ func hasRepeatedMessageField(info *core.MessageInfo) bool {
 }
 
 func generateUnmarshalCodec(g *protogen.GeneratedFile, fileMap map[string]*protogen.File, info *core.MessageInfo) {
-	mode := classifySlab(info)
-
 	// Detect whether to enable pointer pooling. When enabled, existing *T
 	// heap slots on the receiver are reused instead of allocating fresh on
 	// every unmarshal. A uint64 bitmap tracks which poolable fields were
@@ -165,7 +115,27 @@ func generateUnmarshalCodec(g *protogen.GeneratedFile, fileMap map[string]*proto
 	// Skipped entirely if the message has no repeated-message fields.
 	prescanEnabled := hasRepeatedMessageField(info)
 
+	// Public wrapper: allocates the shared string slab exactly once at the
+	// top of the decode tree, then delegates to unmarshalCodecInternal.
+	// Nested UnmarshalCodec call-sites invoke the internal helper directly
+	// and thread the slab + absolute offset through, so every string field
+	// across the tree indexes into a single string(data) allocation.
 	g.P("func (m *", info.TargetType, ") UnmarshalCodec(data []byte) error {")
+	if messageNeedsSlab(info) {
+		g.P("return m.unmarshalCodecInternal(data, string(data), 0)")
+	} else {
+		g.P(`return m.unmarshalCodecInternal(data, "", 0)`)
+	}
+	g.P("}")
+	g.P()
+
+	// Internal helper: the real decode body. `slab` is the top-level wire
+	// buffer rendered as a string; `slabOff` is this message's start offset
+	// within the top-level buffer. String field reads use
+	// slab[slabOff+i : slabOff+i+int(vLen)] so they share the top slab.
+	g.P("func (m *", info.TargetType, ") unmarshalCodecInternal(data []byte, slab string, slabOff int) error {")
+	g.P("_ = slab")
+	g.P("_ = slabOff")
 	g.P("l := len(data)")
 	g.P("i := 0")
 
@@ -187,13 +157,6 @@ func generateUnmarshalCodec(g *protogen.GeneratedFile, fileMap map[string]*proto
 		generateRepeatedMessagePrescan(g, fileMap, info)
 	}
 
-	switch mode {
-	case slabNaive:
-		g.P("dataStr := string(data)")
-	case slabSmart:
-		generateSmartSlab(g, info)
-	}
-
 	g.P("for i < l {")
 	g.P("tag, n := ", identDecodeVarint, "(data[i:])")
 	g.P("if n < 0 {")
@@ -207,7 +170,7 @@ func generateUnmarshalCodec(g *protogen.GeneratedFile, fileMap map[string]*proto
 
 	for i := range info.Fields {
 		f := &info.Fields[i]
-		generateFieldUnmarshal(g, fileMap, f, mode, poolingEnabled)
+		generateFieldUnmarshal(g, fileMap, f, poolingEnabled)
 	}
 
 	g.P("default:")
@@ -304,35 +267,7 @@ func generateRepeatedMessagePrescan(g *protogen.GeneratedFile, fileMap map[strin
 	g.P("}")
 }
 
-func generateSmartSlab(g *protogen.GeneratedFile, info *core.MessageInfo) {
-	strNums := stringFieldNumbers(info)
-
-	// Pass 1: measure total string bytes
-	g.P("strTotal := 0")
-	g.P("{")
-	emitWireScan(g, strNums, "si", func(_ int32) {
-		g.P("strTotal += int(svl)")
-	})
-	g.P("}")
-	g.P()
-
-	// Pass 2: extract string bytes into slab, then seal
-	g.P("var slab string")
-	g.P("if strTotal > 0 {")
-	g.P("var strSlab ", identStringsBuilder)
-	g.P("strSlab.Grow(strTotal)")
-	g.P("{")
-	emitWireScan(g, strNums, "si", func(_ int32) {
-		g.P("strSlab.Write(data[si : si+int(svl)])")
-	})
-	g.P("}")
-	g.P("slab = strSlab.String()")
-	g.P("}")
-	g.P("slabOff := 0")
-	g.P()
-}
-
-func generateFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*protogen.File, f *core.FieldInfo, mode slabMode, poolingEnabled bool) {
+func generateFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*protogen.File, f *core.FieldInfo, poolingEnabled bool) {
 	accessor := "m." + f.TargetName
 
 	g.P("case ", f.ProtoNum, ":")
@@ -369,7 +304,7 @@ func generateFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*proto
 	}
 
 	if f.IsRepeated {
-		generateRepeatedFieldUnmarshal(g, fileMap, f, mode)
+		generateRepeatedFieldUnmarshal(g, fileMap, f)
 		return
 	}
 
@@ -389,7 +324,7 @@ func generateFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*proto
 			g.P("if ", accessor, " == nil {")
 			g.P(accessor, " = new(", goIdentForMessage(g, fileMap, f), ")")
 			g.P("}")
-			g.P("if err := ", accessor, ".UnmarshalCodec(data[i:i+int(vLen)]); err != nil {")
+			g.P("if err := ", accessor, ".unmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {")
 			g.P("return ", identFmtErrorf, `("field %d: %w", `, f.ProtoNum, ", err)")
 			g.P("}")
 			if poolingEnabled {
@@ -399,7 +334,7 @@ func generateFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*proto
 				g.P("seenOptional |= 1 << ", f.ProtoNum)
 			}
 		} else {
-			g.P("if err := (&", accessor, ").UnmarshalCodec(data[i:i+int(vLen)]); err != nil {")
+			g.P("if err := (&", accessor, ").unmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {")
 			g.P("return ", identFmtErrorf, `("field %d: %w", `, f.ProtoNum, ", err)")
 			g.P("}")
 		}
@@ -474,17 +409,7 @@ func generateFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*proto
 		g.P("if uint64(l-i) < vLen {")
 		emitErrShort(g, f.ProtoNum)
 		g.P("}")
-		switch mode {
-		case slabNaive:
-			g.P(accessor, " = dataStr[i : i+int(vLen)]")
-		case slabSmart:
-			g.P("se := slabOff + int(vLen)")
-			g.P("if se > len(slab) { se = len(slab) }")
-			g.P(accessor, " = slab[slabOff:se]")
-			g.P("slabOff = se")
-		default:
-			g.P(accessor, " = string(data[i : i+int(vLen)])")
-		}
+		g.P(accessor, " = slab[slabOff+i : slabOff+i+int(vLen)]")
 		g.P("i += int(vLen)")
 
 	case f.IsBytes:
@@ -614,7 +539,7 @@ func generatePresenceFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 	}
 }
 
-func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*protogen.File, f *core.FieldInfo, mode slabMode) {
+func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*protogen.File, f *core.FieldInfo) {
 	accessor := "m." + f.TargetName
 
 	if f.IsMessage {
@@ -631,36 +556,36 @@ func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 		g.P("}")
 		elemType := goIdentForMessage(g, fileMap, f)
 		if f.UsePointer {
-			if f.KeepCapacity {
-				// Cursor-reuse path: when keep_capacity leaves the backing
-				// array intact across resets, reuse any existing *T slot in
-				// the spare capacity instead of allocating a fresh one.
-				g.P("var elem *", elemType)
-				g.P("if len(", accessor, ") < cap(", accessor, ") {")
-				g.P(accessor, " = ", accessor, "[:len(", accessor, ")+1]")
-				g.P("elem = ", accessor, "[len(", accessor, ")-1]")
-				g.P("if elem == nil {")
-				g.P("elem = new(", elemType, ")")
-				g.P(accessor, "[len(", accessor, ")-1] = elem")
-				g.P("}")
-				g.P("} else {")
-				g.P("elem = new(", elemType, ")")
-				g.P(accessor, " = append(", accessor, ", elem)")
-				g.P("}")
-				g.P("if err := elem.UnmarshalCodec(data[i:i+int(vLen)]); err != nil {")
-				g.P("return ", identFmtErrorf, `("field %d: %w", `, f.ProtoNum, ", err)")
-				g.P("}")
-			} else {
-				g.P("elem := new(", elemType, ")")
-				g.P("if err := elem.UnmarshalCodec(data[i:i+int(vLen)]); err != nil {")
-				g.P("return ", identFmtErrorf, `("field %d: %w", `, f.ProtoNum, ", err)")
-				g.P("}")
-				g.P(accessor, " = append(", accessor, ", elem)")
-			}
+			// Cursor-reuse is the default since Phase 4.10: reuse existing
+			// *T slots in the slice's spare capacity instead of allocating
+			// fresh ones. Cold path (cap=0) falls through to the else branch,
+			// which matches the original append behavior.
+			g.P("var elem *", elemType)
+			g.P("if len(", accessor, ") < cap(", accessor, ") {")
+			g.P(accessor, " = ", accessor, "[:len(", accessor, ")+1]")
+			g.P("elem = ", accessor, "[len(", accessor, ")-1]")
+			g.P("if elem == nil {")
+			g.P("elem = new(", elemType, ")")
+			g.P(accessor, "[len(", accessor, ")-1] = elem")
+			g.P("}")
+			g.P("} else {")
+			g.P("elem = new(", elemType, ")")
+			g.P(accessor, " = append(", accessor, ", elem)")
+			g.P("}")
+			g.P("if err := elem.unmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {")
+			g.P("return ", identFmtErrorf, `("field %d: %w", `, f.ProtoNum, ", err)")
+			g.P("}")
 		} else {
-			// Zero-alloc: append a zero value, then decode into the last element.
+			// Value-slice cursor reuse: extend into spare capacity when
+			// available, reusing the existing slot (including any pooled
+			// string/slice backing on the nested fields). Fall back to
+			// append(m, T{}) when cap is exhausted (cold path).
+			g.P("if len(", accessor, ") < cap(", accessor, ") {")
+			g.P(accessor, " = ", accessor, "[:len(", accessor, ")+1]")
+			g.P("} else {")
 			g.P(accessor, " = append(", accessor, ", ", elemType, "{})")
-			g.P("if err := ", accessor, "[len(", accessor, ")-1].UnmarshalCodec(data[i:i+int(vLen)]); err != nil {")
+			g.P("}")
+			g.P("if err := ", accessor, "[len(", accessor, ")-1].unmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {")
 			g.P("return ", identFmtErrorf, `("field %d: %w", `, f.ProtoNum, ", err)")
 			g.P("}")
 		}
@@ -681,17 +606,7 @@ func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 		g.P("if uint64(l-i) < vLen {")
 		emitErrShort(g, f.ProtoNum)
 		g.P("}")
-		switch mode {
-		case slabNaive:
-			g.P(accessor, " = append(", accessor, ", dataStr[i:i+int(vLen)])")
-		case slabSmart:
-			g.P("se := slabOff + int(vLen)")
-			g.P("if se > len(slab) { se = len(slab) }")
-			g.P(accessor, " = append(", accessor, ", slab[slabOff:se])")
-			g.P("slabOff = se")
-		default:
-			g.P(accessor, " = append(", accessor, ", string(data[i:i+int(vLen)]))")
-		}
+		g.P(accessor, " = append(", accessor, ", slab[slabOff+i : slabOff+i+int(vLen)])")
 		g.P("i += int(vLen)")
 
 	case f.IsBytes && f.FixedLen > 0:

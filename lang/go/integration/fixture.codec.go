@@ -7,7 +7,6 @@ import (
 	binary "encoding/binary"
 	fmt "fmt"
 	codec "go.stealthscale.io/protoc-gen-codec/lang/go/codec"
-	strings "strings"
 	time "time"
 )
 
@@ -136,6 +135,12 @@ func (m *Fixture) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *Fixture) UnmarshalCodec(data []byte) error {
+	return m.unmarshalCodecInternal(data, string(data), 0)
+}
+
+func (m *Fixture) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+	_ = slab
+	_ = slabOff
 	l := len(data)
 	i := 0
 	m.ID = ""
@@ -146,110 +151,8 @@ func (m *Fixture) UnmarshalCodec(data []byte) error {
 	m.Enabled = false
 	m.Timestamp = 0
 	m.Ref = Digest{}
-	m.Tags = nil
-	m.Data = nil
-	strTotal := 0
-	{
-		si := 0
-		for si < l {
-			stag, sn := codec.DecodeVarint(data[si:])
-			if sn < 0 {
-				break
-			}
-			si += sn
-			swt := stag & 0x7
-			sfn := stag >> 3
-			switch swt {
-			case 0:
-				_, sn = codec.DecodeVarint(data[si:])
-				if sn < 0 {
-					break
-				}
-				si += sn
-			case 1:
-				if si+8 > l {
-					break
-				}
-				si += 8
-			case 2:
-				svl, sn := codec.DecodeVarint(data[si:])
-				if sn < 0 {
-					break
-				}
-				si += sn
-				if svl > uint64(l-si) {
-					break
-				}
-				switch sfn {
-				case 1:
-					strTotal += int(svl)
-				case 9:
-					strTotal += int(svl)
-				}
-				si += int(svl)
-			case 5:
-				if si+4 > l {
-					break
-				}
-				si += 4
-			}
-		}
-	}
-
-	var slab string
-	if strTotal > 0 {
-		var strSlab strings.Builder
-		strSlab.Grow(strTotal)
-		{
-			si := 0
-			for si < l {
-				stag, sn := codec.DecodeVarint(data[si:])
-				if sn < 0 {
-					break
-				}
-				si += sn
-				swt := stag & 0x7
-				sfn := stag >> 3
-				switch swt {
-				case 0:
-					_, sn = codec.DecodeVarint(data[si:])
-					if sn < 0 {
-						break
-					}
-					si += sn
-				case 1:
-					if si+8 > l {
-						break
-					}
-					si += 8
-				case 2:
-					svl, sn := codec.DecodeVarint(data[si:])
-					if sn < 0 {
-						break
-					}
-					si += sn
-					if svl > uint64(l-si) {
-						break
-					}
-					switch sfn {
-					case 1:
-						strSlab.Write(data[si : si+int(svl)])
-					case 9:
-						strSlab.Write(data[si : si+int(svl)])
-					}
-					si += int(svl)
-				case 5:
-					if si+4 > l {
-						break
-					}
-					si += 4
-				}
-			}
-		}
-		slab = strSlab.String()
-	}
-	slabOff := 0
-
+	m.Tags = m.Tags[:0]
+	m.Data = m.Data[:0]
 	for i < l {
 		tag, n := codec.DecodeVarint(data[i:])
 		if n < 0 {
@@ -272,12 +175,7 @@ func (m *Fixture) UnmarshalCodec(data []byte) error {
 			if uint64(l-i) < vLen {
 				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
 			}
-			se := slabOff + int(vLen)
-			if se > len(slab) {
-				se = len(slab)
-			}
-			m.ID = slab[slabOff:se]
-			slabOff = se
+			m.ID = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		case 2:
 			if wireType != 0 {
@@ -368,12 +266,7 @@ func (m *Fixture) UnmarshalCodec(data []byte) error {
 			if uint64(l-i) < vLen {
 				return fmt.Errorf("field %d: %w", 9, codec.ErrBufferTooShort)
 			}
-			se := slabOff + int(vLen)
-			if se > len(slab) {
-				se = len(slab)
-			}
-			m.Tags = append(m.Tags, slab[slabOff:se])
-			slabOff = se
+			m.Tags = append(m.Tags, slab[slabOff+i:slabOff+i+int(vLen)])
 			i += int(vLen)
 		case 10:
 			if wireType != 2 {
@@ -412,11 +305,8 @@ func (m *Fixture) ResetCodec() {
 	m.Enabled = false
 	m.Timestamp = 0
 	m.Ref = Digest{}
-	m.Tags = nil
-	m.Data = nil
-	if ri, ok := any(m).(interface{ ResetInternal() }); ok {
-		ri.ResetInternal()
-	}
+	m.Tags = m.Tags[:0]
+	m.Data = m.Data[:0]
 }
 
 func (m *Patch) SizeCodec() int {
@@ -524,6 +414,12 @@ func (m *Patch) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *Patch) UnmarshalCodec(data []byte) error {
+	return m.unmarshalCodecInternal(data, string(data), 0)
+}
+
+func (m *Patch) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+	_ = slab
+	_ = slabOff
 	l := len(data)
 	i := 0
 	m.Kind = 0
@@ -534,104 +430,6 @@ func (m *Patch) UnmarshalCodec(data []byte) error {
 	m.IntVal = 0
 	m.Fixed64Val = 0
 	m.BlobRef = Digest{}
-	strTotal := 0
-	{
-		si := 0
-		for si < l {
-			stag, sn := codec.DecodeVarint(data[si:])
-			if sn < 0 {
-				break
-			}
-			si += sn
-			swt := stag & 0x7
-			sfn := stag >> 3
-			switch swt {
-			case 0:
-				_, sn = codec.DecodeVarint(data[si:])
-				if sn < 0 {
-					break
-				}
-				si += sn
-			case 1:
-				if si+8 > l {
-					break
-				}
-				si += 8
-			case 2:
-				svl, sn := codec.DecodeVarint(data[si:])
-				if sn < 0 {
-					break
-				}
-				si += sn
-				if svl > uint64(l-si) {
-					break
-				}
-				switch sfn {
-				case 5:
-					strTotal += int(svl)
-				}
-				si += int(svl)
-			case 5:
-				if si+4 > l {
-					break
-				}
-				si += 4
-			}
-		}
-	}
-
-	var slab string
-	if strTotal > 0 {
-		var strSlab strings.Builder
-		strSlab.Grow(strTotal)
-		{
-			si := 0
-			for si < l {
-				stag, sn := codec.DecodeVarint(data[si:])
-				if sn < 0 {
-					break
-				}
-				si += sn
-				swt := stag & 0x7
-				sfn := stag >> 3
-				switch swt {
-				case 0:
-					_, sn = codec.DecodeVarint(data[si:])
-					if sn < 0 {
-						break
-					}
-					si += sn
-				case 1:
-					if si+8 > l {
-						break
-					}
-					si += 8
-				case 2:
-					svl, sn := codec.DecodeVarint(data[si:])
-					if sn < 0 {
-						break
-					}
-					si += sn
-					if svl > uint64(l-si) {
-						break
-					}
-					switch sfn {
-					case 5:
-						strSlab.Write(data[si : si+int(svl)])
-					}
-					si += int(svl)
-				case 5:
-					if si+4 > l {
-						break
-					}
-					si += 4
-				}
-			}
-		}
-		slab = strSlab.String()
-	}
-	slabOff := 0
-
 	for i < l {
 		tag, n := codec.DecodeVarint(data[i:])
 		if n < 0 {
@@ -694,12 +492,7 @@ func (m *Patch) UnmarshalCodec(data []byte) error {
 			if uint64(l-i) < vLen {
 				return fmt.Errorf("field %d: %w", 5, codec.ErrBufferTooShort)
 			}
-			se := slabOff + int(vLen)
-			if se > len(slab) {
-				se = len(slab)
-			}
-			m.TextVal = slab[slabOff:se]
-			slabOff = se
+			m.TextVal = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		case 6:
 			if wireType != 0 {
@@ -760,9 +553,6 @@ func (m *Patch) ResetCodec() {
 	m.IntVal = 0
 	m.Fixed64Val = 0
 	m.BlobRef = Digest{}
-	if ri, ok := any(m).(interface{ ResetInternal() }); ok {
-		ri.ResetInternal()
-	}
 }
 
 func (m *Evidence) SizeCodec() int {
@@ -913,6 +703,12 @@ func (m *Evidence) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *Evidence) UnmarshalCodec(data []byte) error {
+	return m.unmarshalCodecInternal(data, string(data), 0)
+}
+
+func (m *Evidence) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+	_ = slab
+	_ = slabOff
 	l := len(data)
 	i := 0
 	m.Kind = 0
@@ -925,130 +721,8 @@ func (m *Evidence) UnmarshalCodec(data []byte) error {
 	m.TenantID = ""
 	m.TimestampMs = 0
 	m.PayloadRef = Digest{}
-	m.Jurisdictions = nil
+	m.Jurisdictions = m.Jurisdictions[:0]
 	m.RetentionPolicyID = ""
-	strTotal := 0
-	{
-		si := 0
-		for si < l {
-			stag, sn := codec.DecodeVarint(data[si:])
-			if sn < 0 {
-				break
-			}
-			si += sn
-			swt := stag & 0x7
-			sfn := stag >> 3
-			switch swt {
-			case 0:
-				_, sn = codec.DecodeVarint(data[si:])
-				if sn < 0 {
-					break
-				}
-				si += sn
-			case 1:
-				if si+8 > l {
-					break
-				}
-				si += 8
-			case 2:
-				svl, sn := codec.DecodeVarint(data[si:])
-				if sn < 0 {
-					break
-				}
-				si += sn
-				if svl > uint64(l-si) {
-					break
-				}
-				switch sfn {
-				case 4:
-					strTotal += int(svl)
-				case 5:
-					strTotal += int(svl)
-				case 6:
-					strTotal += int(svl)
-				case 7:
-					strTotal += int(svl)
-				case 8:
-					strTotal += int(svl)
-				case 11:
-					strTotal += int(svl)
-				case 12:
-					strTotal += int(svl)
-				}
-				si += int(svl)
-			case 5:
-				if si+4 > l {
-					break
-				}
-				si += 4
-			}
-		}
-	}
-
-	var slab string
-	if strTotal > 0 {
-		var strSlab strings.Builder
-		strSlab.Grow(strTotal)
-		{
-			si := 0
-			for si < l {
-				stag, sn := codec.DecodeVarint(data[si:])
-				if sn < 0 {
-					break
-				}
-				si += sn
-				swt := stag & 0x7
-				sfn := stag >> 3
-				switch swt {
-				case 0:
-					_, sn = codec.DecodeVarint(data[si:])
-					if sn < 0 {
-						break
-					}
-					si += sn
-				case 1:
-					if si+8 > l {
-						break
-					}
-					si += 8
-				case 2:
-					svl, sn := codec.DecodeVarint(data[si:])
-					if sn < 0 {
-						break
-					}
-					si += sn
-					if svl > uint64(l-si) {
-						break
-					}
-					switch sfn {
-					case 4:
-						strSlab.Write(data[si : si+int(svl)])
-					case 5:
-						strSlab.Write(data[si : si+int(svl)])
-					case 6:
-						strSlab.Write(data[si : si+int(svl)])
-					case 7:
-						strSlab.Write(data[si : si+int(svl)])
-					case 8:
-						strSlab.Write(data[si : si+int(svl)])
-					case 11:
-						strSlab.Write(data[si : si+int(svl)])
-					case 12:
-						strSlab.Write(data[si : si+int(svl)])
-					}
-					si += int(svl)
-				case 5:
-					if si+4 > l {
-						break
-					}
-					si += 4
-				}
-			}
-		}
-		slab = strSlab.String()
-	}
-	slabOff := 0
-
 	for i < l {
 		tag, n := codec.DecodeVarint(data[i:])
 		if n < 0 {
@@ -1101,12 +775,7 @@ func (m *Evidence) UnmarshalCodec(data []byte) error {
 			if uint64(l-i) < vLen {
 				return fmt.Errorf("field %d: %w", 4, codec.ErrBufferTooShort)
 			}
-			se := slabOff + int(vLen)
-			if se > len(slab) {
-				se = len(slab)
-			}
-			m.TraceID = slab[slabOff:se]
-			slabOff = se
+			m.TraceID = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		case 5:
 			if wireType != 2 {
@@ -1120,12 +789,7 @@ func (m *Evidence) UnmarshalCodec(data []byte) error {
 			if uint64(l-i) < vLen {
 				return fmt.Errorf("field %d: %w", 5, codec.ErrBufferTooShort)
 			}
-			se := slabOff + int(vLen)
-			if se > len(slab) {
-				se = len(slab)
-			}
-			m.FederationTraceID = slab[slabOff:se]
-			slabOff = se
+			m.FederationTraceID = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		case 6:
 			if wireType != 2 {
@@ -1139,12 +803,7 @@ func (m *Evidence) UnmarshalCodec(data []byte) error {
 			if uint64(l-i) < vLen {
 				return fmt.Errorf("field %d: %w", 6, codec.ErrBufferTooShort)
 			}
-			se := slabOff + int(vLen)
-			if se > len(slab) {
-				se = len(slab)
-			}
-			m.JobID = slab[slabOff:se]
-			slabOff = se
+			m.JobID = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		case 7:
 			if wireType != 2 {
@@ -1158,12 +817,7 @@ func (m *Evidence) UnmarshalCodec(data []byte) error {
 			if uint64(l-i) < vLen {
 				return fmt.Errorf("field %d: %w", 7, codec.ErrBufferTooShort)
 			}
-			se := slabOff + int(vLen)
-			if se > len(slab) {
-				se = len(slab)
-			}
-			m.ThreadID = slab[slabOff:se]
-			slabOff = se
+			m.ThreadID = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		case 8:
 			if wireType != 2 {
@@ -1177,12 +831,7 @@ func (m *Evidence) UnmarshalCodec(data []byte) error {
 			if uint64(l-i) < vLen {
 				return fmt.Errorf("field %d: %w", 8, codec.ErrBufferTooShort)
 			}
-			se := slabOff + int(vLen)
-			if se > len(slab) {
-				se = len(slab)
-			}
-			m.TenantID = slab[slabOff:se]
-			slabOff = se
+			m.TenantID = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		case 9:
 			if wireType != 0 {
@@ -1223,12 +872,7 @@ func (m *Evidence) UnmarshalCodec(data []byte) error {
 			if uint64(l-i) < vLen {
 				return fmt.Errorf("field %d: %w", 11, codec.ErrBufferTooShort)
 			}
-			se := slabOff + int(vLen)
-			if se > len(slab) {
-				se = len(slab)
-			}
-			m.Jurisdictions = append(m.Jurisdictions, slab[slabOff:se])
-			slabOff = se
+			m.Jurisdictions = append(m.Jurisdictions, slab[slabOff+i:slabOff+i+int(vLen)])
 			i += int(vLen)
 		case 12:
 			if wireType != 2 {
@@ -1242,12 +886,7 @@ func (m *Evidence) UnmarshalCodec(data []byte) error {
 			if uint64(l-i) < vLen {
 				return fmt.Errorf("field %d: %w", 12, codec.ErrBufferTooShort)
 			}
-			se := slabOff + int(vLen)
-			if se > len(slab) {
-				se = len(slab)
-			}
-			m.RetentionPolicyID = slab[slabOff:se]
-			slabOff = se
+			m.RetentionPolicyID = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		default:
 			n, err := codec.SkipField(data[i:], wireType)
@@ -1274,11 +913,8 @@ func (m *Evidence) ResetCodec() {
 	m.TenantID = ""
 	m.TimestampMs = 0
 	m.PayloadRef = Digest{}
-	m.Jurisdictions = nil
+	m.Jurisdictions = m.Jurisdictions[:0]
 	m.RetentionPolicyID = ""
-	if ri, ok := any(m).(interface{ ResetInternal() }); ok {
-		ri.ResetInternal()
-	}
 }
 
 func (m *Minimal) SizeCodec() int {
@@ -1327,10 +963,15 @@ func (m *Minimal) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *Minimal) UnmarshalCodec(data []byte) error {
+	return m.unmarshalCodecInternal(data, string(data), 0)
+}
+
+func (m *Minimal) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+	_ = slab
+	_ = slabOff
 	l := len(data)
 	i := 0
 	m.ID = ""
-	dataStr := string(data)
 	for i < l {
 		tag, n := codec.DecodeVarint(data[i:])
 		if n < 0 {
@@ -1353,7 +994,7 @@ func (m *Minimal) UnmarshalCodec(data []byte) error {
 			if uint64(l-i) < vLen {
 				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
 			}
-			m.ID = dataStr[i : i+int(vLen)]
+			m.ID = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		default:
 			n, err := codec.SkipField(data[i:], wireType)
@@ -1371,9 +1012,6 @@ func (m *Minimal) ResetCodec() {
 		return
 	}
 	m.ID = ""
-	if ri, ok := any(m).(interface{ ResetInternal() }); ok {
-		ri.ResetInternal()
-	}
 }
 
 func (m *NumericOnly) SizeCodec() int {
@@ -1500,6 +1138,12 @@ func (m *NumericOnly) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *NumericOnly) UnmarshalCodec(data []byte) error {
+	return m.unmarshalCodecInternal(data, "", 0)
+}
+
+func (m *NumericOnly) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+	_ = slab
+	_ = slabOff
 	l := len(data)
 	i := 0
 	var seenOptional uint64
@@ -1664,9 +1308,6 @@ func (m *NumericOnly) ResetCodec() {
 	m.H = nil
 	m.I = nil
 	m.J = nil
-	if ri, ok := any(m).(interface{ ResetInternal() }); ok {
-		ri.ResetInternal()
-	}
 }
 
 func (m *PackedZigzag) SizeCodec() int {
@@ -1743,10 +1384,16 @@ func (m *PackedZigzag) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *PackedZigzag) UnmarshalCodec(data []byte) error {
+	return m.unmarshalCodecInternal(data, "", 0)
+}
+
+func (m *PackedZigzag) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+	_ = slab
+	_ = slabOff
 	l := len(data)
 	i := 0
-	m.Values32 = nil
-	m.Values64 = nil
+	m.Values32 = m.Values32[:0]
+	m.Values64 = m.Values64[:0]
 	for i < l {
 		tag, n := codec.DecodeVarint(data[i:])
 		if n < 0 {
@@ -1836,11 +1483,8 @@ func (m *PackedZigzag) ResetCodec() {
 	if m == nil {
 		return
 	}
-	m.Values32 = nil
-	m.Values64 = nil
-	if ri, ok := any(m).(interface{ ResetInternal() }); ok {
-		ri.ResetInternal()
-	}
+	m.Values32 = m.Values32[:0]
+	m.Values64 = m.Values64[:0]
 }
 
 func (m *Inner) SizeCodec() int {
@@ -1897,11 +1541,16 @@ func (m *Inner) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *Inner) UnmarshalCodec(data []byte) error {
+	return m.unmarshalCodecInternal(data, string(data), 0)
+}
+
+func (m *Inner) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+	_ = slab
+	_ = slabOff
 	l := len(data)
 	i := 0
 	m.Label = ""
 	m.Count = 0
-	dataStr := string(data)
 	for i < l {
 		tag, n := codec.DecodeVarint(data[i:])
 		if n < 0 {
@@ -1924,7 +1573,7 @@ func (m *Inner) UnmarshalCodec(data []byte) error {
 			if uint64(l-i) < vLen {
 				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
 			}
-			m.Label = dataStr[i : i+int(vLen)]
+			m.Label = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		case 2:
 			if wireType != 0 {
@@ -1953,9 +1602,6 @@ func (m *Inner) ResetCodec() {
 	}
 	m.Label = ""
 	m.Count = 0
-	if ri, ok := any(m).(interface{ ResetInternal() }); ok {
-		ri.ResetInternal()
-	}
 }
 
 func (m *Container) SizeCodec() int {
@@ -1968,8 +1614,9 @@ func (m *Container) SizeCodec() int {
 		n += 1 + codec.Sov(uint64(l)) + l
 	}
 	if m.Inner != nil {
-		sz := m.Inner.SizeCodec()
-		n += 1 + codec.Sov(uint64(sz)) + sz
+		if sz := m.Inner.SizeCodec(); sz > 0 {
+			n += 1 + codec.Sov(uint64(sz)) + sz
+		}
 	}
 	for _, elem := range m.Children {
 		if elem == nil {
@@ -2012,15 +1659,16 @@ func (m *Container) MarshalToCodec(buf []byte) (int, error) {
 		n += copy(buf[n:], m.Name)
 	}
 	if m.Inner != nil {
-		buf[n+0] = 0x12
-		n += 1
-		sz := m.Inner.SizeCodec()
-		n += codec.EncodeVarint(buf[n:], uint64(sz))
-		wn, err := m.Inner.MarshalToCodec(buf[n:])
-		if err != nil {
-			return 0, err
+		if sz := m.Inner.SizeCodec(); sz > 0 {
+			buf[n+0] = 0x12
+			n += 1
+			n += codec.EncodeVarint(buf[n:], uint64(sz))
+			wn, err := m.Inner.MarshalToCodec(buf[n:])
+			if err != nil {
+				return 0, err
+			}
+			n += wn
 		}
-		n += wn
 	}
 	for _, elem := range m.Children {
 		if elem == nil {
@@ -2040,10 +1688,21 @@ func (m *Container) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *Container) UnmarshalCodec(data []byte) error {
+	return m.unmarshalCodecInternal(data, string(data), 0)
+}
+
+func (m *Container) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+	_ = slab
+	_ = slabOff
 	l := len(data)
 	i := 0
 	var seenOptional uint64
 	m.Name = ""
+	for _, elem := range m.Children {
+		if elem != nil {
+			elem.ResetCodec()
+		}
+	}
 	m.Children = m.Children[:0]
 	{
 		var preCount_3 int
@@ -2093,7 +1752,6 @@ func (m *Container) UnmarshalCodec(data []byte) error {
 			m.Children = make([]*Inner, 0, preCount_3)
 		}
 	}
-	dataStr := string(data)
 	for i < l {
 		tag, n := codec.DecodeVarint(data[i:])
 		if n < 0 {
@@ -2116,7 +1774,7 @@ func (m *Container) UnmarshalCodec(data []byte) error {
 			if uint64(l-i) < vLen {
 				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
 			}
-			m.Name = dataStr[i : i+int(vLen)]
+			m.Name = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		case 2:
 			if wireType != 2 {
@@ -2133,7 +1791,7 @@ func (m *Container) UnmarshalCodec(data []byte) error {
 			if m.Inner == nil {
 				m.Inner = new(Inner)
 			}
-			if err := m.Inner.UnmarshalCodec(data[i : i+int(vLen)]); err != nil {
+			if err := m.Inner.unmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {
 				return fmt.Errorf("field %d: %w", 2, err)
 			}
 			seenOptional |= 1 << 2
@@ -2162,7 +1820,7 @@ func (m *Container) UnmarshalCodec(data []byte) error {
 				elem = new(Inner)
 				m.Children = append(m.Children, elem)
 			}
-			if err := elem.UnmarshalCodec(data[i : i+int(vLen)]); err != nil {
+			if err := elem.unmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {
 				return fmt.Errorf("field %d: %w", 3, err)
 			}
 			i += int(vLen)
@@ -2185,11 +1843,15 @@ func (m *Container) ResetCodec() {
 		return
 	}
 	m.Name = ""
-	m.Inner = nil
-	m.Children = m.Children[:0]
-	if ri, ok := any(m).(interface{ ResetInternal() }); ok {
-		ri.ResetInternal()
+	if m.Inner != nil {
+		m.Inner.ResetCodec()
 	}
+	for _, elem := range m.Children {
+		if elem != nil {
+			elem.ResetCodec()
+		}
+	}
+	m.Children = m.Children[:0]
 }
 
 func (m *ValueContainer) SizeCodec() int {
@@ -2268,11 +1930,20 @@ func (m *ValueContainer) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *ValueContainer) UnmarshalCodec(data []byte) error {
+	return m.unmarshalCodecInternal(data, string(data), 0)
+}
+
+func (m *ValueContainer) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+	_ = slab
+	_ = slabOff
 	l := len(data)
 	i := 0
 	m.Name = ""
-	m.Inner = Inner{}
-	m.Items = nil
+	(&m.Inner).ResetCodec()
+	for idx := range m.Items {
+		(&m.Items[idx]).ResetCodec()
+	}
+	m.Items = m.Items[:0]
 	{
 		var preCount_3 int
 		pi := 0
@@ -2321,7 +1992,6 @@ func (m *ValueContainer) UnmarshalCodec(data []byte) error {
 			m.Items = make([]Inner, 0, preCount_3)
 		}
 	}
-	dataStr := string(data)
 	for i < l {
 		tag, n := codec.DecodeVarint(data[i:])
 		if n < 0 {
@@ -2344,7 +2014,7 @@ func (m *ValueContainer) UnmarshalCodec(data []byte) error {
 			if uint64(l-i) < vLen {
 				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
 			}
-			m.Name = dataStr[i : i+int(vLen)]
+			m.Name = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		case 2:
 			if wireType != 2 {
@@ -2358,7 +2028,7 @@ func (m *ValueContainer) UnmarshalCodec(data []byte) error {
 			if uint64(l-i) < vLen {
 				return fmt.Errorf("field %d: %w", 2, codec.ErrBufferTooShort)
 			}
-			if err := (&m.Inner).UnmarshalCodec(data[i : i+int(vLen)]); err != nil {
+			if err := (&m.Inner).unmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {
 				return fmt.Errorf("field %d: %w", 2, err)
 			}
 			i += int(vLen)
@@ -2374,8 +2044,12 @@ func (m *ValueContainer) UnmarshalCodec(data []byte) error {
 			if uint64(l-i) < vLen {
 				return fmt.Errorf("field %d: %w", 3, codec.ErrBufferTooShort)
 			}
-			m.Items = append(m.Items, Inner{})
-			if err := m.Items[len(m.Items)-1].UnmarshalCodec(data[i : i+int(vLen)]); err != nil {
+			if len(m.Items) < cap(m.Items) {
+				m.Items = m.Items[:len(m.Items)+1]
+			} else {
+				m.Items = append(m.Items, Inner{})
+			}
+			if err := m.Items[len(m.Items)-1].unmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {
 				return fmt.Errorf("field %d: %w", 3, err)
 			}
 			i += int(vLen)
@@ -2395,11 +2069,11 @@ func (m *ValueContainer) ResetCodec() {
 		return
 	}
 	m.Name = ""
-	m.Inner = Inner{}
-	m.Items = nil
-	if ri, ok := any(m).(interface{ ResetInternal() }); ok {
-		ri.ResetInternal()
+	(&m.Inner).ResetCodec()
+	for idx := range m.Items {
+		(&m.Items[idx]).ResetCodec()
 	}
+	m.Items = m.Items[:0]
 }
 
 func (m *Tree) SizeCodec() int {
@@ -2469,10 +2143,21 @@ func (m *Tree) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *Tree) UnmarshalCodec(data []byte) error {
+	return m.unmarshalCodecInternal(data, string(data), 0)
+}
+
+func (m *Tree) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+	_ = slab
+	_ = slabOff
 	l := len(data)
 	i := 0
 	m.Label = ""
-	m.Children = nil
+	for _, elem := range m.Children {
+		if elem != nil {
+			elem.ResetCodec()
+		}
+	}
+	m.Children = m.Children[:0]
 	{
 		var preCount_2 int
 		pi := 0
@@ -2521,7 +2206,6 @@ func (m *Tree) UnmarshalCodec(data []byte) error {
 			m.Children = make([]*Tree, 0, preCount_2)
 		}
 	}
-	dataStr := string(data)
 	for i < l {
 		tag, n := codec.DecodeVarint(data[i:])
 		if n < 0 {
@@ -2544,7 +2228,7 @@ func (m *Tree) UnmarshalCodec(data []byte) error {
 			if uint64(l-i) < vLen {
 				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
 			}
-			m.Label = dataStr[i : i+int(vLen)]
+			m.Label = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		case 2:
 			if wireType != 2 {
@@ -2558,11 +2242,21 @@ func (m *Tree) UnmarshalCodec(data []byte) error {
 			if uint64(l-i) < vLen {
 				return fmt.Errorf("field %d: %w", 2, codec.ErrBufferTooShort)
 			}
-			elem := new(Tree)
-			if err := elem.UnmarshalCodec(data[i : i+int(vLen)]); err != nil {
+			var elem *Tree
+			if len(m.Children) < cap(m.Children) {
+				m.Children = m.Children[:len(m.Children)+1]
+				elem = m.Children[len(m.Children)-1]
+				if elem == nil {
+					elem = new(Tree)
+					m.Children[len(m.Children)-1] = elem
+				}
+			} else {
+				elem = new(Tree)
+				m.Children = append(m.Children, elem)
+			}
+			if err := elem.unmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {
 				return fmt.Errorf("field %d: %w", 2, err)
 			}
-			m.Children = append(m.Children, elem)
 			i += int(vLen)
 		default:
 			n, err := codec.SkipField(data[i:], wireType)
@@ -2580,10 +2274,12 @@ func (m *Tree) ResetCodec() {
 		return
 	}
 	m.Label = ""
-	m.Children = nil
-	if ri, ok := any(m).(interface{ ResetInternal() }); ok {
-		ri.ResetInternal()
+	for _, elem := range m.Children {
+		if elem != nil {
+			elem.ResetCodec()
+		}
 	}
+	m.Children = m.Children[:0]
 }
 
 func (m *MapHolder) SizeCodec() int {
@@ -2657,9 +2353,15 @@ func (m *MapHolder) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *MapHolder) UnmarshalCodec(data []byte) error {
+	return m.unmarshalCodecInternal(data, string(data), 0)
+}
+
+func (m *MapHolder) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+	_ = slab
+	_ = slabOff
 	l := len(data)
 	i := 0
-	m.Attrs = nil
+	clear(m.Attrs)
 	clear(m.Counts)
 	for i < l {
 		tag, n := codec.DecodeVarint(data[i:])
@@ -2705,7 +2407,7 @@ func (m *MapHolder) UnmarshalCodec(data []byte) error {
 					if sVLen > uint64(entryEnd-i) {
 						return codec.ErrBufferTooShort
 					}
-					mk = string(data[i : i+int(sVLen)])
+					mk = slab[slabOff+i : slabOff+i+int(sVLen)]
 					i += int(sVLen)
 				case 2:
 					sVLen, sN := codec.DecodeVarint(data[i:entryEnd])
@@ -2716,7 +2418,7 @@ func (m *MapHolder) UnmarshalCodec(data []byte) error {
 					if sVLen > uint64(entryEnd-i) {
 						return codec.ErrBufferTooShort
 					}
-					mv = string(data[i : i+int(sVLen)])
+					mv = slab[slabOff+i : slabOff+i+int(sVLen)]
 					i += int(sVLen)
 				default:
 					sn, err := codec.SkipField(data[i:entryEnd], etag&0x7)
@@ -2764,7 +2466,7 @@ func (m *MapHolder) UnmarshalCodec(data []byte) error {
 					if sVLen > uint64(entryEnd-i) {
 						return codec.ErrBufferTooShort
 					}
-					mk = string(data[i : i+int(sVLen)])
+					mk = slab[slabOff+i : slabOff+i+int(sVLen)]
 					i += int(sVLen)
 				case 2:
 					sV, sN := codec.DecodeVarint(data[i:entryEnd])
@@ -2800,11 +2502,8 @@ func (m *MapHolder) ResetCodec() {
 	if m == nil {
 		return
 	}
-	m.Attrs = nil
+	clear(m.Attrs)
 	clear(m.Counts)
-	if ri, ok := any(m).(interface{ ResetInternal() }); ok {
-		ri.ResetInternal()
-	}
 }
 
 func (m *TimeHolder) SizeCodec() int {
@@ -2871,6 +2570,12 @@ func (m *TimeHolder) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *TimeHolder) UnmarshalCodec(data []byte) error {
+	return m.unmarshalCodecInternal(data, "", 0)
+}
+
+func (m *TimeHolder) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+	_ = slab
+	_ = slabOff
 	l := len(data)
 	i := 0
 	m.CreatedAt = time.Time{}
@@ -2938,9 +2643,6 @@ func (m *TimeHolder) ResetCodec() {
 	}
 	m.CreatedAt = time.Time{}
 	m.Timeout = 0
-	if ri, ok := any(m).(interface{ ResetInternal() }); ok {
-		ri.ResetInternal()
-	}
 }
 
 func (m *BytesPool) SizeCodec() int {
@@ -2989,6 +2691,12 @@ func (m *BytesPool) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *BytesPool) UnmarshalCodec(data []byte) error {
+	return m.unmarshalCodecInternal(data, "", 0)
+}
+
+func (m *BytesPool) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+	_ = slab
+	_ = slabOff
 	l := len(data)
 	i := 0
 	m.Payload = m.Payload[:0]
@@ -3032,7 +2740,4 @@ func (m *BytesPool) ResetCodec() {
 		return
 	}
 	m.Payload = m.Payload[:0]
-	if ri, ok := any(m).(interface{ ResetInternal() }); ok {
-		ri.ResetInternal()
-	}
 }

@@ -177,6 +177,48 @@ func TestContainer_Codec(t *testing.T) {
 	codec.RunTestSuite[integration.Container](t, sampleContainer())
 }
 
+// TestContainer_SlabCorrectness guards the cross-message string slab
+// introduced in Phase 4.9. The top-level UnmarshalCodec allocates a single
+// string(data) slab that every nested unmarshalCodecInternal call indexes
+// into with an absolute slabOff+i offset. A bug in the offset math would
+// either truncate a string, bleed neighbor bytes, or panic — this test
+// exercises strings at the outer level, in a singular nested message, and
+// across multiple repeated nested elements to catch any such regression.
+func TestContainer_SlabCorrectness(t *testing.T) {
+	t.Parallel()
+	c := integration.Container{
+		Name:  "alpha",
+		Inner: &integration.Inner{Label: "child", Count: 1},
+		Children: []*integration.Inner{
+			{Label: "first", Count: 2},
+			{Label: "second", Count: 3},
+		},
+	}
+	buf, err := c.MarshalCodec()
+	if err != nil {
+		t.Fatalf("MarshalCodec: %v", err)
+	}
+	var got integration.Container
+	if err := got.UnmarshalCodec(buf); err != nil {
+		t.Fatalf("UnmarshalCodec: %v", err)
+	}
+	if got.Name != "alpha" {
+		t.Errorf("Name: want %q, got %q", "alpha", got.Name)
+	}
+	if got.Inner == nil || got.Inner.Label != "child" {
+		t.Errorf("Inner.Label: want %q, got %+v", "child", got.Inner)
+	}
+	if len(got.Children) != 2 {
+		t.Fatalf("Children: want 2, got %d", len(got.Children))
+	}
+	if got.Children[0] == nil || got.Children[0].Label != "first" {
+		t.Errorf("Children[0].Label: want %q, got %+v", "first", got.Children[0])
+	}
+	if got.Children[1] == nil || got.Children[1].Label != "second" {
+		t.Errorf("Children[1].Label: want %q, got %+v", "second", got.Children[1])
+	}
+}
+
 func TestValueContainer_Codec(t *testing.T) {
 	codec.RunTestSuite[integration.ValueContainer](t, sampleValueContainer())
 }
@@ -247,17 +289,33 @@ func TestMapHolder_KeepCapacity_Reuse(t *testing.T) {
 	if receiver.Counts == nil {
 		t.Fatal("expected Counts to be non-nil after first unmarshal")
 	}
-	// Reset — keep_capacity map should keep its backing storage.
+	if receiver.Attrs == nil {
+		t.Fatal("expected Attrs to be non-nil after first unmarshal")
+	}
+	// Capture map identities so we can verify clear() preserves them.
+	countsBefore := receiver.Counts
+	attrsBefore := receiver.Attrs
+	// Reset — Phase 4.10 always clears in place; both maps keep their backing
+	// storage regardless of the (now-deprecated) keep_capacity annotation.
 	receiver.ResetCodec()
 	if receiver.Counts == nil {
-		t.Fatal("Counts should be non-nil after ResetCodec (keep_capacity)")
+		t.Fatal("Counts should be non-nil after ResetCodec (Phase 4.10 clear()-in-place)")
 	}
 	if len(receiver.Counts) != 0 {
 		t.Fatalf("Counts should be empty after Reset, got len=%d", len(receiver.Counts))
 	}
-	// Attrs has no keep_capacity — must be nil.
-	if receiver.Attrs != nil {
-		t.Fatalf("Attrs should be nil after Reset (no keep_capacity)")
+	if receiver.Attrs == nil {
+		t.Fatal("Attrs should be non-nil after ResetCodec (Phase 4.10 clear()-in-place)")
+	}
+	if len(receiver.Attrs) != 0 {
+		t.Fatalf("Attrs should be empty after Reset, got len=%d", len(receiver.Attrs))
+	}
+	// Same map header (i.e. same backing buckets) — clear() preserves identity.
+	if reflect.ValueOf(receiver.Counts).Pointer() != reflect.ValueOf(countsBefore).Pointer() {
+		t.Errorf("Counts map identity changed after Reset (clear() should reuse buckets)")
+	}
+	if reflect.ValueOf(receiver.Attrs).Pointer() != reflect.ValueOf(attrsBefore).Pointer() {
+		t.Errorf("Attrs map identity changed after Reset (clear() should reuse buckets)")
 	}
 }
 
@@ -543,12 +601,18 @@ func TestContainer_Roundtrip_PBT(t *testing.T) {
 				}
 			}
 		}
+		// Singular *Inner: when present, force at least one non-default field.
+		// Phase 4.10 normalizes proto3 "all-defaults message" to absent on the
+		// wire (SizeCodec==0 ⇒ skip), so a present-but-empty &Inner{} would
+		// roundtrip back as nil and trip DeepEqual.
 		var inner *integration.Inner
 		if rapid.Bool().Draw(t, "hasInner") {
-			inner = &integration.Inner{
-				Label: rapid.String().Draw(t, "il"),
-				Count: rapid.Int64().Draw(t, "ic"),
+			label := rapid.String().Draw(t, "il")
+			count := rapid.Int64().Draw(t, "ic")
+			if label == "" && count == 0 {
+				count = 1 // ensure non-default content
 			}
+			inner = &integration.Inner{Label: label, Count: count}
 		}
 		codec.AssertRoundtrip[integration.Container](t, integration.Container{
 			Name:     rapid.String().Draw(t, "name"),
@@ -1066,6 +1130,60 @@ func BenchmarkTree_PooledUnmarshal(b *testing.B) {
 	s := sampleTree()
 	data, _ := s.MarshalCodec()
 	var got integration.Tree
+	if err := got.UnmarshalCodec(data); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		got.UnmarshalCodec(data)
+	}
+}
+
+// BenchmarkValueContainer_PooledUnmarshal measures the warm-path cost of
+// decoding a message with a value-inlined nested message and a value-slice of
+// nested messages ([]Inner). Phase 4.10 cursor-reuse on the value slice and
+// recursive ResetCodec drive steady-state allocs to ~1 (the top-level slab).
+func BenchmarkValueContainer_PooledUnmarshal(b *testing.B) {
+	s := sampleValueContainer()
+	data, _ := s.MarshalCodec()
+	var got integration.ValueContainer
+	if err := got.UnmarshalCodec(data); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		got.UnmarshalCodec(data)
+	}
+}
+
+// BenchmarkPackedZigzag_PooledUnmarshal measures the warm-path cost of
+// decoding a message containing only packed-repeated scalars. With the
+// Phase 4.10 [:0] reset preserving the slice backing arrays, steady-state
+// should be 0 allocs (no nested messages, no strings — no slab needed).
+func BenchmarkPackedZigzag_PooledUnmarshal(b *testing.B) {
+	s := samplePackedZigzag()
+	data, _ := s.MarshalCodec()
+	var got integration.PackedZigzag
+	if err := got.UnmarshalCodec(data); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		got.UnmarshalCodec(data)
+	}
+}
+
+// BenchmarkMapHolder_PooledUnmarshal measures the warm-path cost of decoding
+// a message with two map[string]X fields. The clear(m) reset preserves bucket
+// storage, but each entry's key/value strings are still freshly assigned per
+// call — map-entry string allocs are an unavoidable cost of the decode path.
+func BenchmarkMapHolder_PooledUnmarshal(b *testing.B) {
+	s := sampleMapHolder()
+	data, _ := s.MarshalCodec()
+	var got integration.MapHolder
 	if err := got.UnmarshalCodec(data); err != nil {
 		b.Fatal(err)
 	}
