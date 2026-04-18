@@ -30,7 +30,7 @@ func emitErrFixedLen(g *protogen.GeneratedFile, fieldNum int32) {
 
 // messageNeedsSlab reports whether the public UnmarshalCodec wrapper should
 // allocate a shared string slab (string(data)) before calling the internal
-// decode helper. The slab is threaded through nested unmarshalCodecInternal
+// decode helper. The slab is threaded through nested UnmarshalCodecInternal
 // calls so every string field across the message tree indexes into a single
 // top-level allocation instead of each level paying its own string(data).
 //
@@ -117,15 +117,15 @@ func generateUnmarshalCodec(g *protogen.GeneratedFile, fileMap map[string]*proto
 	prescanEnabled := hasRepeatedMessageField(info)
 
 	// Public wrapper: allocates the shared string slab exactly once at the
-	// top of the decode tree, then delegates to unmarshalCodecInternal.
+	// top of the decode tree, then delegates to UnmarshalCodecInternal.
 	// Nested UnmarshalCodec call-sites invoke the internal helper directly
 	// and thread the slab + absolute offset through, so every string field
 	// across the tree indexes into a single string(data) allocation.
 	g.P("func (m *", info.TargetType, ") UnmarshalCodec(data []byte) error {")
 	if messageNeedsSlab(info) {
-		g.P("return m.unmarshalCodecInternal(data, string(data), 0)")
+		g.P("return m.UnmarshalCodecInternal(data, string(data), 0)")
 	} else {
-		g.P(`return m.unmarshalCodecInternal(data, "", 0)`)
+		g.P(`return m.UnmarshalCodecInternal(data, "", 0)`)
 	}
 	g.P("}")
 	g.P()
@@ -134,7 +134,7 @@ func generateUnmarshalCodec(g *protogen.GeneratedFile, fileMap map[string]*proto
 	// buffer rendered as a string; `slabOff` is this message's start offset
 	// within the top-level buffer. String field reads use
 	// slab[slabOff+i : slabOff+i+int(vLen)] so they share the top slab.
-	g.P("func (m *", info.TargetType, ") unmarshalCodecInternal(data []byte, slab string, slabOff int) error {")
+	g.P("func (m *", info.TargetType, ") UnmarshalCodecInternal(data []byte, slab string, slabOff int) error {")
 	g.P("_ = slab")
 	g.P("_ = slabOff")
 	g.P("l := len(data)")
@@ -325,7 +325,7 @@ func generateFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*proto
 			g.P("if ", accessor, " == nil {")
 			g.P(accessor, " = new(", goIdentForMessage(g, fileMap, f), ")")
 			g.P("}")
-			g.P("if err := ", accessor, ".unmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {")
+			g.P("if err := ", accessor, ".UnmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {")
 			g.P("return ", identFmtErrorf, `("field %d: %w", `, f.ProtoNum, ", err)")
 			g.P("}")
 			if poolingEnabled {
@@ -335,7 +335,7 @@ func generateFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*proto
 				g.P("seenOptional |= 1 << ", f.ProtoNum)
 			}
 		} else {
-			g.P("if err := (&", accessor, ").unmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {")
+			g.P("if err := (&", accessor, ").UnmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {")
 			g.P("return ", identFmtErrorf, `("field %d: %w", `, f.ProtoNum, ", err)")
 			g.P("}")
 		}
@@ -575,7 +575,7 @@ func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 			g.P("elem = new(", elemType, ")")
 			g.P(accessor, " = append(", accessor, ", elem)")
 			g.P("}")
-			g.P("if err := elem.unmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {")
+			g.P("if err := elem.UnmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {")
 			g.P("return ", identFmtErrorf, `("field %d: %w", `, f.ProtoNum, ", err)")
 			g.P("}")
 		} else {
@@ -588,7 +588,7 @@ func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 			g.P("} else {")
 			g.P(accessor, " = append(", accessor, ", ", elemType, "{})")
 			g.P("}")
-			g.P("if err := ", accessor, "[len(", accessor, ")-1].unmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {")
+			g.P("if err := ", accessor, "[len(", accessor, ")-1].UnmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {")
 			g.P("return ", identFmtErrorf, `("field %d: %w", `, f.ProtoNum, ", err)")
 			g.P("}")
 		}

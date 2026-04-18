@@ -69,6 +69,8 @@ var (
 		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
 	}
 	identTimeTime        = protogen.GoIdent{GoName: "Time", GoImportPath: "time"}
+	identSlicesSorted    = protogen.GoIdent{GoName: "Sorted", GoImportPath: "slices"}
+	identMapsKeys        = protogen.GoIdent{GoName: "Keys", GoImportPath: "maps"}
 	identSizeTimestamp   = protogen.GoIdent{GoName: "SizeTimestamp", GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec"}
 	identSizeDuration    = protogen.GoIdent{GoName: "SizeDuration", GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec"}
 	identEncodeTimestamp = protogen.GoIdent{GoName: "EncodeTimestamp", GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec"}

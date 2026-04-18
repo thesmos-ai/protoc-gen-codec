@@ -7,6 +7,8 @@ import (
 	binary "encoding/binary"
 	fmt "fmt"
 	codec "go.stealthscale.io/protoc-gen-codec/lang/go/codec"
+	maps "maps"
+	slices "slices"
 	time "time"
 )
 
@@ -135,10 +137,10 @@ func (m *Fixture) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *Fixture) UnmarshalCodec(data []byte) error {
-	return m.unmarshalCodecInternal(data, string(data), 0)
+	return m.UnmarshalCodecInternal(data, string(data), 0)
 }
 
-func (m *Fixture) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+func (m *Fixture) UnmarshalCodecInternal(data []byte, slab string, slabOff int) error {
 	_ = slab
 	_ = slabOff
 	l := len(data)
@@ -414,10 +416,10 @@ func (m *Patch) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *Patch) UnmarshalCodec(data []byte) error {
-	return m.unmarshalCodecInternal(data, string(data), 0)
+	return m.UnmarshalCodecInternal(data, string(data), 0)
 }
 
-func (m *Patch) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+func (m *Patch) UnmarshalCodecInternal(data []byte, slab string, slabOff int) error {
 	_ = slab
 	_ = slabOff
 	l := len(data)
@@ -703,10 +705,10 @@ func (m *Evidence) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *Evidence) UnmarshalCodec(data []byte) error {
-	return m.unmarshalCodecInternal(data, string(data), 0)
+	return m.UnmarshalCodecInternal(data, string(data), 0)
 }
 
-func (m *Evidence) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+func (m *Evidence) UnmarshalCodecInternal(data []byte, slab string, slabOff int) error {
 	_ = slab
 	_ = slabOff
 	l := len(data)
@@ -963,10 +965,10 @@ func (m *Minimal) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *Minimal) UnmarshalCodec(data []byte) error {
-	return m.unmarshalCodecInternal(data, string(data), 0)
+	return m.UnmarshalCodecInternal(data, string(data), 0)
 }
 
-func (m *Minimal) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+func (m *Minimal) UnmarshalCodecInternal(data []byte, slab string, slabOff int) error {
 	_ = slab
 	_ = slabOff
 	l := len(data)
@@ -1138,10 +1140,10 @@ func (m *NumericOnly) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *NumericOnly) UnmarshalCodec(data []byte) error {
-	return m.unmarshalCodecInternal(data, "", 0)
+	return m.UnmarshalCodecInternal(data, "", 0)
 }
 
-func (m *NumericOnly) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+func (m *NumericOnly) UnmarshalCodecInternal(data []byte, slab string, slabOff int) error {
 	_ = slab
 	_ = slabOff
 	l := len(data)
@@ -1384,10 +1386,10 @@ func (m *PackedZigzag) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *PackedZigzag) UnmarshalCodec(data []byte) error {
-	return m.unmarshalCodecInternal(data, "", 0)
+	return m.UnmarshalCodecInternal(data, "", 0)
 }
 
-func (m *PackedZigzag) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+func (m *PackedZigzag) UnmarshalCodecInternal(data []byte, slab string, slabOff int) error {
 	_ = slab
 	_ = slabOff
 	l := len(data)
@@ -1541,10 +1543,10 @@ func (m *Inner) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *Inner) UnmarshalCodec(data []byte) error {
-	return m.unmarshalCodecInternal(data, string(data), 0)
+	return m.UnmarshalCodecInternal(data, string(data), 0)
 }
 
-func (m *Inner) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+func (m *Inner) UnmarshalCodecInternal(data []byte, slab string, slabOff int) error {
 	_ = slab
 	_ = slabOff
 	l := len(data)
@@ -1688,10 +1690,10 @@ func (m *Container) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *Container) UnmarshalCodec(data []byte) error {
-	return m.unmarshalCodecInternal(data, string(data), 0)
+	return m.UnmarshalCodecInternal(data, string(data), 0)
 }
 
-func (m *Container) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+func (m *Container) UnmarshalCodecInternal(data []byte, slab string, slabOff int) error {
 	_ = slab
 	_ = slabOff
 	l := len(data)
@@ -1791,7 +1793,7 @@ func (m *Container) unmarshalCodecInternal(data []byte, slab string, slabOff int
 			if m.Inner == nil {
 				m.Inner = new(Inner)
 			}
-			if err := m.Inner.unmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {
+			if err := m.Inner.UnmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {
 				return fmt.Errorf("field %d: %w", 2, err)
 			}
 			seenOptional |= 1 << 2
@@ -1820,7 +1822,7 @@ func (m *Container) unmarshalCodecInternal(data []byte, slab string, slabOff int
 				elem = new(Inner)
 				m.Children = append(m.Children, elem)
 			}
-			if err := elem.unmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {
+			if err := elem.UnmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {
 				return fmt.Errorf("field %d: %w", 3, err)
 			}
 			i += int(vLen)
@@ -1930,10 +1932,10 @@ func (m *ValueContainer) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *ValueContainer) UnmarshalCodec(data []byte) error {
-	return m.unmarshalCodecInternal(data, string(data), 0)
+	return m.UnmarshalCodecInternal(data, string(data), 0)
 }
 
-func (m *ValueContainer) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+func (m *ValueContainer) UnmarshalCodecInternal(data []byte, slab string, slabOff int) error {
 	_ = slab
 	_ = slabOff
 	l := len(data)
@@ -2028,7 +2030,7 @@ func (m *ValueContainer) unmarshalCodecInternal(data []byte, slab string, slabOf
 			if uint64(l-i) < vLen {
 				return fmt.Errorf("field %d: %w", 2, codec.ErrBufferTooShort)
 			}
-			if err := (&m.Inner).unmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {
+			if err := (&m.Inner).UnmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {
 				return fmt.Errorf("field %d: %w", 2, err)
 			}
 			i += int(vLen)
@@ -2049,7 +2051,7 @@ func (m *ValueContainer) unmarshalCodecInternal(data []byte, slab string, slabOf
 			} else {
 				m.Items = append(m.Items, Inner{})
 			}
-			if err := m.Items[len(m.Items)-1].unmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {
+			if err := m.Items[len(m.Items)-1].UnmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {
 				return fmt.Errorf("field %d: %w", 3, err)
 			}
 			i += int(vLen)
@@ -2143,10 +2145,10 @@ func (m *Tree) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *Tree) UnmarshalCodec(data []byte) error {
-	return m.unmarshalCodecInternal(data, string(data), 0)
+	return m.UnmarshalCodecInternal(data, string(data), 0)
 }
 
-func (m *Tree) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+func (m *Tree) UnmarshalCodecInternal(data []byte, slab string, slabOff int) error {
 	_ = slab
 	_ = slabOff
 	l := len(data)
@@ -2254,7 +2256,7 @@ func (m *Tree) unmarshalCodecInternal(data []byte, slab string, slabOff int) err
 				elem = new(Tree)
 				m.Children = append(m.Children, elem)
 			}
-			if err := elem.unmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {
+			if err := elem.UnmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {
 				return fmt.Errorf("field %d: %w", 2, err)
 			}
 			i += int(vLen)
@@ -2322,7 +2324,8 @@ func (m *MapHolder) MarshalToCodec(buf []byte) (int, error) {
 		return 0, codec.ErrBufferTooShort
 	}
 	n := 0
-	for k, v := range m.Attrs {
+	for _, k := range slices.Sorted(maps.Keys(m.Attrs)) {
+		v := m.Attrs[k]
 		buf[n+0] = 0x0a
 		n += 1
 		entrySz := 1 + codec.Sov(uint64(len(k))) + len(k) + 1 + codec.Sov(uint64(len(v))) + len(v)
@@ -2336,7 +2339,8 @@ func (m *MapHolder) MarshalToCodec(buf []byte) (int, error) {
 		n += codec.EncodeVarint(buf[n:], uint64(len(v)))
 		n += copy(buf[n:], v)
 	}
-	for k, v := range m.Counts {
+	for _, k := range slices.Sorted(maps.Keys(m.Counts)) {
+		v := m.Counts[k]
 		buf[n+0] = 0x12
 		n += 1
 		entrySz := 1 + codec.Sov(uint64(len(k))) + len(k) + 1 + codec.Sov(uint64(v))
@@ -2353,10 +2357,10 @@ func (m *MapHolder) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *MapHolder) UnmarshalCodec(data []byte) error {
-	return m.unmarshalCodecInternal(data, string(data), 0)
+	return m.UnmarshalCodecInternal(data, string(data), 0)
 }
 
-func (m *MapHolder) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+func (m *MapHolder) UnmarshalCodecInternal(data []byte, slab string, slabOff int) error {
 	_ = slab
 	_ = slabOff
 	l := len(data)
@@ -2570,10 +2574,10 @@ func (m *TimeHolder) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *TimeHolder) UnmarshalCodec(data []byte) error {
-	return m.unmarshalCodecInternal(data, "", 0)
+	return m.UnmarshalCodecInternal(data, "", 0)
 }
 
-func (m *TimeHolder) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+func (m *TimeHolder) UnmarshalCodecInternal(data []byte, slab string, slabOff int) error {
 	_ = slab
 	_ = slabOff
 	l := len(data)
@@ -2691,10 +2695,10 @@ func (m *BytesPool) MarshalToCodec(buf []byte) (int, error) {
 }
 
 func (m *BytesPool) UnmarshalCodec(data []byte) error {
-	return m.unmarshalCodecInternal(data, "", 0)
+	return m.UnmarshalCodecInternal(data, "", 0)
 }
 
-func (m *BytesPool) unmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+func (m *BytesPool) UnmarshalCodecInternal(data []byte, slab string, slabOff int) error {
 	_ = slab
 	_ = slabOff
 	l := len(data)

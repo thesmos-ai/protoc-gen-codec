@@ -127,7 +127,7 @@ semantics in all three cases.
 
 The slab is threaded into nested messages as well: `UnmarshalCodec` on
 the outer receiver allocates one backing string, and nested
-`unmarshalCodecInternal` calls carve their string fields out of the same
+`UnmarshalCodecInternal` calls carve their string fields out of the same
 allocation. A deeply nested unmarshal therefore does not scale
 allocations with tree depth.
 

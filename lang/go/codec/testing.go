@@ -4,6 +4,7 @@
 package codec
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -211,6 +212,14 @@ func RunBenchSuite[T any, PT interface {
 }
 
 // RunFuzzRoundtrip registers seeds and runs a roundtrip fuzz target.
+//
+// The invariant is wire-format stability under repeated marshal/unmarshal
+// cycles: after one full cycle the codec must reach a fixed point. This is a
+// stronger property than reflect.DeepEqual on decoded structs, which would
+// false-positive on proto3-equivalent shapes (e.g. []byte{} vs nil for an
+// empty bytes field — both encode to the empty wire stream, but DeepEqual
+// distinguishes them).
+//
 // Usage: func FuzzVertexDef(f *testing.F) { codec.RunFuzzRoundtrip[T](f, sample1, sample2) }
 func RunFuzzRoundtrip[T any, PT interface {
 	*T
@@ -229,16 +238,20 @@ func RunFuzzRoundtrip[T any, PT interface {
 		if err := PT(&first).UnmarshalCodec(data); err != nil {
 			return
 		}
-		re, err := PT(&first).MarshalCodec()
+		re1, err := PT(&first).MarshalCodec()
 		if err != nil {
-			t.Fatalf("re-MarshalCodec: %v", err)
+			t.Fatalf("first re-MarshalCodec: %v", err)
 		}
 		var second T
-		if err := PT(&second).UnmarshalCodec(re); err != nil {
-			t.Fatalf("second UnmarshalCodec: %v", err)
+		if uerr := PT(&second).UnmarshalCodec(re1); uerr != nil {
+			t.Fatalf("second UnmarshalCodec: %v", uerr)
 		}
-		if !reflect.DeepEqual(first, second) {
-			t.Fatal("roundtrip mismatch")
+		re2, merr := PT(&second).MarshalCodec()
+		if merr != nil {
+			t.Fatalf("second re-MarshalCodec: %v", merr)
+		}
+		if !bytes.Equal(re1, re2) {
+			t.Fatalf("wire not stable after one cycle:\n  re1=%x\n  re2=%x", re1, re2)
 		}
 	})
 }

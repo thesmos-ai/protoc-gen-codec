@@ -180,7 +180,7 @@ func TestContainer_Codec(t *testing.T) {
 
 // TestContainer_SlabCorrectness guards the cross-message string slab
 // introduced in Phase 4.9. The top-level UnmarshalCodec allocates a single
-// string(data) slab that every nested unmarshalCodecInternal call indexes
+// string(data) slab that every nested UnmarshalCodecInternal call indexes
 // into with an absolute slabOff+i offset. A bug in the offset math would
 // either truncate a string, bleed neighbor bytes, or panic — this test
 // exercises strings at the outer level, in a singular nested message, and
@@ -1344,7 +1344,7 @@ func TestBytesPool_Coverage(t *testing.T) {
 // TestAll_Coverage_ShortInMiddle truncates a valid marshal at every offset
 // and tries to unmarshal each truncated buffer. The unmarshal results don't
 // matter — we exercise short-buffer error branches throughout the decoder
-// to push unmarshalCodecInternal coverage above 95%.
+// to push UnmarshalCodecInternal coverage above 95%.
 func TestAll_Coverage_ShortInMiddle(t *testing.T) {
 	t.Parallel()
 	type tc struct {

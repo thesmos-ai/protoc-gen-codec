@@ -210,17 +210,40 @@ func generateFieldMarshal(g *protogen.GeneratedFile, fileMap map[string]*protoge
 	}
 }
 
+// generateMapFieldMarshal emits a deterministic map encoder. Keys are visited
+// in sorted order so the wire output is byte-stable across calls — important
+// for content-addressable hashing, signing, and reproducible builds. Cost:
+// one slice allocation per map per Marshal call for ordered key kinds (the
+// sorted key slice). Bool keys use an explicit false-then-true sequence and
+// stay zero-alloc.
 func generateMapFieldMarshal(g *protogen.GeneratedFile, f *core.FieldInfo, accessor string) {
 	keySize := scalarSizeExpr(g, f.MapKey, "k")
 	valSize := scalarSizeExpr(g, f.MapValue, "v")
 	keyTagSize := core.TagSize(f.MapKey.ProtoNum)
 	valTagSize := core.TagSize(f.MapValue.ProtoNum)
-	g.P("for k, v := range ", accessor, " {")
-	emitTag(g, f.ProtoNum, core.WireLenDel)
-	g.P("entrySz := ", keyTagSize, " + ", keySize, " + ", valTagSize, " + ", valSize)
-	g.P("n += ", identEncodeVarint, "(buf[n:],uint64(entrySz))")
-	emitScalarWrite(g, f.MapKey, "k")
-	emitScalarWrite(g, f.MapValue, "v")
+
+	emitBody := func() {
+		g.P("v := ", accessor, "[k]")
+		emitTag(g, f.ProtoNum, core.WireLenDel)
+		g.P("entrySz := ", keyTagSize, " + ", keySize, " + ", valTagSize, " + ", valSize)
+		g.P("n += ", identEncodeVarint, "(buf[n:],uint64(entrySz))")
+		emitScalarWrite(g, f.MapKey, "k")
+		emitScalarWrite(g, f.MapValue, "v")
+	}
+
+	if f.MapKey.ProtoKind == protoreflect.BoolKind {
+		// Two possible keys; emit in canonical false→true order.
+		for _, kv := range []string{"false", "true"} {
+			g.P("if _, ok := ", accessor, "[", kv, "]; ok {")
+			g.P("k := ", kv)
+			emitBody()
+			g.P("}")
+		}
+		return
+	}
+
+	g.P("for _, k := range ", identSlicesSorted, "(", identMapsKeys, "(", accessor, ")) {")
+	emitBody()
 	g.P("}")
 }
 
