@@ -6,9 +6,10 @@ package golang
 import (
 	"fmt"
 
-	"go.stealthscale.io/protoc-gen-codec/internal/core"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/reflect/protoreflect"
+
+	"go.stealthscale.io/protoc-gen-codec/internal/core"
 )
 
 func emitErrVarint(g *protogen.GeneratedFile, fieldNum int32) {
@@ -373,13 +374,13 @@ func generateFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*proto
 		emitErrVarint(g, f.ProtoNum)
 		g.P("}")
 		g.P("i += n")
-		switch {
-		case f.ProtoKind == protoreflect.BoolKind:
+		switch f.ProtoKind {
+		case protoreflect.BoolKind:
 			g.P(accessor, " = v != 0")
-		case f.ProtoKind == protoreflect.Sint32Kind:
-			g.P(accessor, " = ", castExpr(g, fileMap, f, fmt.Sprintf("%s(uint32(v))", g.QualifiedGoIdent(identZigzagDecode32))))
-		case f.ProtoKind == protoreflect.Sint64Kind:
-			g.P(accessor, " = ", castExpr(g, fileMap, f, fmt.Sprintf("%s(v)", g.QualifiedGoIdent(identZigzagDecode64))))
+		case protoreflect.Sint32Kind:
+			g.P(accessor, " = ", castExpr(g, fileMap, f, g.QualifiedGoIdent(identZigzagDecode32)+"(uint32(v))"))
+		case protoreflect.Sint64Kind:
+			g.P(accessor, " = ", castExpr(g, fileMap, f, g.QualifiedGoIdent(identZigzagDecode64)+"(v)"))
 		default:
 			g.P(accessor, " = ", castExpr(g, fileMap, f, "v"))
 		}
@@ -388,7 +389,7 @@ func generateFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*proto
 		g.P("if l-i < 8 {")
 		emitErrShort(g, f.ProtoNum)
 		g.P("}")
-		readExpr := fmt.Sprintf("%s.Uint64(data[i:])", g.QualifiedGoIdent(identBinaryLE))
+		readExpr := g.QualifiedGoIdent(identBinaryLE) + ".Uint64(data[i:])"
 		g.P(accessor, " = ", castExpr64(g, fileMap, f, readExpr))
 		g.P("i += 8")
 
@@ -396,7 +397,7 @@ func generateFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*proto
 		g.P("if l-i < 4 {")
 		emitErrShort(g, f.ProtoNum)
 		g.P("}")
-		readExpr := fmt.Sprintf("%s.Uint32(data[i:])", g.QualifiedGoIdent(identBinaryLE))
+		readExpr := g.QualifiedGoIdent(identBinaryLE) + ".Uint32(data[i:])"
 		g.P(accessor, " = ", castExpr32(g, fileMap, f, readExpr))
 		g.P("i += 4")
 
@@ -488,6 +489,7 @@ func generatePresenceFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 	g.P("}")
 
 	var rhs string
+	//nolint:exhaustive // proto3 optional applies only to scalar wire kinds; WireLenDel is handled elsewhere.
 	switch f.Wire {
 	case core.WireVarint:
 		g.P("v, n := ", identDecodeVarint, "(data[i:])")
@@ -499,9 +501,9 @@ func generatePresenceFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 		case protoreflect.BoolKind:
 			rhs = "v != 0"
 		case protoreflect.Sint32Kind:
-			rhs = castExpr(g, fileMap, f, fmt.Sprintf("%s(uint32(v))", g.QualifiedGoIdent(identZigzagDecode32)))
+			rhs = castExpr(g, fileMap, f, g.QualifiedGoIdent(identZigzagDecode32)+"(uint32(v))")
 		case protoreflect.Sint64Kind:
-			rhs = castExpr(g, fileMap, f, fmt.Sprintf("%s(v)", g.QualifiedGoIdent(identZigzagDecode64)))
+			rhs = castExpr(g, fileMap, f, g.QualifiedGoIdent(identZigzagDecode64)+"(v)")
 		default:
 			rhs = castExpr(g, fileMap, f, "v")
 		}
@@ -509,13 +511,13 @@ func generatePresenceFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 		g.P("if l-i < 8 {")
 		emitErrShort(g, f.ProtoNum)
 		g.P("}")
-		readExpr := fmt.Sprintf("%s.Uint64(data[i:])", g.QualifiedGoIdent(identBinaryLE))
+		readExpr := g.QualifiedGoIdent(identBinaryLE) + ".Uint64(data[i:])"
 		rhs = castExpr64(g, fileMap, f, readExpr)
 	case core.WireFixed32:
 		g.P("if l-i < 4 {")
 		emitErrShort(g, f.ProtoNum)
 		g.P("}")
-		readExpr := fmt.Sprintf("%s.Uint32(data[i:])", g.QualifiedGoIdent(identBinaryLE))
+		readExpr := g.QualifiedGoIdent(identBinaryLE) + ".Uint32(data[i:])"
 		rhs = castExpr32(g, fileMap, f, readExpr)
 	}
 
@@ -531,6 +533,7 @@ func generatePresenceFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 	}
 
 	// Trailing index bump for fixed-width wires (varint already advanced).
+	//nolint:exhaustive // WireVarint already advanced i above; WireLenDel unreachable for proto3 optional scalars.
 	switch f.Wire {
 	case core.WireFixed64:
 		g.P("i += 8")
@@ -655,9 +658,9 @@ func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 		var elemExpr string
 		switch f.ProtoKind {
 		case protoreflect.Sint32Kind:
-			elemExpr = castExpr(g, fileMap, f, fmt.Sprintf("%s(uint32(v))", g.QualifiedGoIdent(identZigzagDecode32)))
+			elemExpr = castExpr(g, fileMap, f, g.QualifiedGoIdent(identZigzagDecode32)+"(uint32(v))")
 		case protoreflect.Sint64Kind:
-			elemExpr = castExpr(g, fileMap, f, fmt.Sprintf("%s(v)", g.QualifiedGoIdent(identZigzagDecode64)))
+			elemExpr = castExpr(g, fileMap, f, g.QualifiedGoIdent(identZigzagDecode64)+"(v)")
 		default:
 			elemExpr = castExpr(g, fileMap, f, "v")
 		}
@@ -694,7 +697,7 @@ func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 		g.P("}")
 
 	case f.Wire == core.WireFixed64:
-		readExpr := fmt.Sprintf("%s.Uint64(data[i:])", g.QualifiedGoIdent(identBinaryLE))
+		readExpr := g.QualifiedGoIdent(identBinaryLE) + ".Uint64(data[i:])"
 		g.P("if wireType == 2 {")
 		g.P("pLen, n := ", identDecodeVarint, "(data[i:])")
 		g.P("if n < 0 {")
@@ -723,7 +726,7 @@ func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 		g.P("}")
 
 	case f.Wire == core.WireFixed32:
-		readExpr := fmt.Sprintf("%s.Uint32(data[i:])", g.QualifiedGoIdent(identBinaryLE))
+		readExpr := g.QualifiedGoIdent(identBinaryLE) + ".Uint32(data[i:])"
 		g.P("if wireType == 2 {")
 		g.P("pLen, n := ", identDecodeVarint, "(data[i:])")
 		g.P("if n < 0 {")
@@ -801,7 +804,7 @@ func defaultCast(k protoreflect.Kind, varName string) string {
 	case protoreflect.Uint64Kind:
 		return varName
 	case protoreflect.BoolKind:
-		return fmt.Sprintf("%s != 0", varName)
+		return varName + " != 0"
 	default:
 		return varName
 	}

@@ -8,8 +8,9 @@ import (
 	"math"
 	"testing"
 
-	"go.stealthscale.io/protoc-gen-codec/lang/go/codec"
 	"pgregory.net/rapid"
+
+	"go.stealthscale.io/protoc-gen-codec/lang/go/codec"
 )
 
 // ---------------------------------------------------------------------------
@@ -475,7 +476,7 @@ func BenchmarkSkipField_Varint(b *testing.B) {
 	n := codec.EncodeVarint(buf[:], 12345)
 	data := buf[:n]
 	for range b.N {
-		codec.SkipField(data, 0)
+		_, _ = codec.SkipField(data, 0)
 	}
 }
 
@@ -485,7 +486,7 @@ func BenchmarkSkipField_LenDelimited(b *testing.B) {
 	copy(buf[n:], "hello world")
 	data := buf[:n+11]
 	for range b.N {
-		codec.SkipField(data, 2)
+		_, _ = codec.SkipField(data, 2)
 	}
 }
 

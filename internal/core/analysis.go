@@ -15,6 +15,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -211,7 +212,7 @@ func analyzeField(
 		fi.IsMessage = true
 		msgDesc := field.Message
 		if msgDesc == nil {
-			return fi, fmt.Errorf("message kind with nil Message descriptor")
+			return fi, errors.New("message kind with nil Message descriptor")
 		}
 		if !field.Desc.IsMap() {
 			// Well-known types (Timestamp, Duration) lack (codec.type) but
@@ -234,7 +235,7 @@ func analyzeField(
 						msgDesc.Desc.FullName(),
 					)
 				}
-				declFile := string(msgDesc.Desc.ParentFile().Path())
+				declFile := msgDesc.Desc.ParentFile().Path()
 				ref := &MessageRef{
 					FullName:   string(msgDesc.Desc.FullName()),
 					TargetType: targetType,
@@ -292,7 +293,7 @@ func analyzeField(
 
 		if isSelfRef {
 			if present && !explicit {
-				return fi, fmt.Errorf("self-referential message field requires pointer semantics; cannot set (codec.use_pointer) = false")
+				return fi, errors.New("self-referential message field requires pointer semantics; cannot set (codec.use_pointer) = false")
 			}
 			fi.UsePointer = true
 		} else if present {
@@ -302,7 +303,7 @@ func analyzeField(
 
 	if v, present := fieldFixedLen(field); present {
 		if v == 0 {
-			return fi, fmt.Errorf("(codec.fixed_len) must be > 0")
+			return fi, errors.New("(codec.fixed_len) must be > 0")
 		}
 		if field.Desc.Kind() != protoreflect.BytesKind {
 			return fi, fmt.Errorf(
@@ -323,7 +324,7 @@ func analyzeField(
 			)
 		}
 		if field.Desc.Kind() == protoreflect.MessageKind {
-			return fi, fmt.Errorf("(codec.cast) is not valid on message-type fields")
+			return fi, errors.New("(codec.cast) is not valid on message-type fields")
 		}
 		ref, err := resolveCast(fileMap, file, cast, aliasOf)
 		if err != nil {
@@ -349,13 +350,13 @@ func resolveCast(
 	cast string,
 	aliasOf AliasLookup,
 ) (CastRef, error) {
-	dotIdx := strings.IndexByte(cast, '.')
-	if dotIdx < 0 {
+	before, after, ok := strings.Cut(cast, ".")
+	if !ok {
 		return CastRef{Name: cast}, nil
 	}
 
-	pkgAlias := cast[:dotIdx]
-	typeName := cast[dotIdx+1:]
+	pkgAlias := before
+	typeName := after
 
 	for _, dep := range file.Proto.GetDependency() {
 		depFile, ok := fileMap[dep]

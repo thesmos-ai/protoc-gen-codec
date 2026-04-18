@@ -32,13 +32,13 @@ type uninterpretedOptions struct {
 
 func buildField(f fieldFixture) *descriptorpb.FieldDescriptorProto {
 	fd := &descriptorpb.FieldDescriptorProto{
-		Name:   proto.String(f.name),
-		Number: proto.Int32(f.num),
+		Name:   new(f.name),
+		Number: new(f.num),
 		Type:   f.kind.Enum(),
 		Label:  f.label.Enum(),
 	}
 	if f.typeName != "" {
-		fd.TypeName = proto.String(f.typeName)
+		fd.TypeName = new(f.typeName)
 	}
 	if f.options != nil {
 		fd.Options = encodeFieldOptions(f.options)
@@ -103,7 +103,7 @@ func appendUvarint(raw []byte, v uint64) []byte {
 // AnalyzeMessage on M. withMessageOpts controls whether M has (codec.type) set.
 func runAnalyzeMessage(t *testing.T, withMessageOpts bool, fields ...fieldFixture) (*MessageInfo, error) {
 	t.Helper()
-	var fds []*descriptorpb.FieldDescriptorProto
+	fds := make([]*descriptorpb.FieldDescriptorProto, 0, len(fields))
 	for _, f := range fields {
 		fds = append(fds, buildField(f))
 	}
@@ -113,13 +113,13 @@ func runAnalyzeMessage(t *testing.T, withMessageOpts bool, fields ...fieldFixtur
 	}
 	innerName := "Inner"
 	fd := &descriptorpb.FileDescriptorProto{
-		Name:    proto.String("t.proto"),
-		Syntax:  proto.String("proto3"),
-		Package: proto.String("t"),
-		Options: &descriptorpb.FileOptions{GoPackage: proto.String("example.com/t")},
+		Name:    new("t.proto"),
+		Syntax:  new("proto3"),
+		Package: new("t"),
+		Options: &descriptorpb.FileOptions{GoPackage: new("example.com/t")},
 		MessageType: []*descriptorpb.DescriptorProto{
 			{
-				Name:    proto.String("M"),
+				Name:    new("M"),
 				Field:   fds,
 				Options: msgOpts,
 			},
@@ -186,26 +186,26 @@ func runAnalyzeMessageWithOneof(t *testing.T) (*MessageInfo, error) {
 	oneofName := "value"
 	oneofIdx := int32(0)
 	fd := &descriptorpb.FileDescriptorProto{
-		Name:    proto.String("t.proto"),
-		Syntax:  proto.String("proto3"),
-		Package: proto.String("t"),
-		Options: &descriptorpb.FileOptions{GoPackage: proto.String("example.com/t")},
+		Name:    new("t.proto"),
+		Syntax:  new("proto3"),
+		Package: new("t"),
+		Options: &descriptorpb.FileOptions{GoPackage: new("example.com/t")},
 		MessageType: []*descriptorpb.DescriptorProto{
 			{
-				Name:    proto.String("M"),
+				Name:    new("M"),
 				Options: encodeMessageOptions("M"),
 				OneofDecl: []*descriptorpb.OneofDescriptorProto{
 					{Name: &oneofName},
 				},
 				Field: []*descriptorpb.FieldDescriptorProto{
 					{
-						Name: proto.String("text_val"), Number: proto.Int32(1),
+						Name: new("text_val"), Number: proto.Int32(1),
 						Type:       descriptorpb.FieldDescriptorProto_TYPE_STRING.Enum(),
 						Label:      descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL.Enum(),
 						OneofIndex: &oneofIdx,
 					},
 					{
-						Name: proto.String("int_val"), Number: proto.Int32(2),
+						Name: new("int_val"), Number: proto.Int32(2),
 						Type:       descriptorpb.FieldDescriptorProto_TYPE_INT64.Enum(),
 						Label:      descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL.Enum(),
 						OneofIndex: &oneofIdx,
@@ -237,20 +237,20 @@ func runAnalyzeMessageWithSyntheticOneof(t *testing.T) (*MessageInfo, error) {
 	oneofIdx := int32(0)
 	proto3Optional := true
 	fd := &descriptorpb.FileDescriptorProto{
-		Name:    proto.String("t.proto"),
-		Syntax:  proto.String("proto3"),
-		Package: proto.String("t"),
-		Options: &descriptorpb.FileOptions{GoPackage: proto.String("example.com/t")},
+		Name:    new("t.proto"),
+		Syntax:  new("proto3"),
+		Package: new("t"),
+		Options: &descriptorpb.FileOptions{GoPackage: new("example.com/t")},
 		MessageType: []*descriptorpb.DescriptorProto{
 			{
-				Name:    proto.String("M"),
+				Name:    new("M"),
 				Options: encodeMessageOptions("M"),
 				OneofDecl: []*descriptorpb.OneofDescriptorProto{
 					{Name: &oneofName},
 				},
 				Field: []*descriptorpb.FieldDescriptorProto{
 					{
-						Name: proto.String("x"), Number: proto.Int32(1),
+						Name: new("x"), Number: proto.Int32(1),
 						Type:           descriptorpb.FieldDescriptorProto_TYPE_INT32.Enum(),
 						Label:          descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL.Enum(),
 						OneofIndex:     &oneofIdx,

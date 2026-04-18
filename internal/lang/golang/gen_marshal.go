@@ -4,9 +4,10 @@
 package golang
 
 import (
-	"go.stealthscale.io/protoc-gen-codec/internal/core"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/reflect/protoreflect"
+
+	"go.stealthscale.io/protoc-gen-codec/internal/core"
 )
 
 func generateMarshalCodec(g *protogen.GeneratedFile, info *core.MessageInfo) {
@@ -57,7 +58,7 @@ func generateFieldMarshal(g *protogen.GeneratedFile, fileMap map[string]*protoge
 		g.P("{")
 		g.P("var zero ", identTimeTime)
 		g.P("if ", accessor, " != zero {")
-		emitTag(g, f.ProtoNum, core.WireLenDel, "buf", "n")
+		emitTag(g, f.ProtoNum, core.WireLenDel)
 		g.P("sz := ", identSizeTimestamp, "(", accessor, ")")
 		g.P("n += ", identEncodeVarint, "(buf[n:],uint64(sz))")
 		g.P("n += ", identEncodeTimestamp, "(buf[n:], ", accessor, ")")
@@ -67,7 +68,7 @@ func generateFieldMarshal(g *protogen.GeneratedFile, fileMap map[string]*protoge
 	}
 	if f.WellKnown == core.WKTDuration {
 		g.P("if ", accessor, " != 0 {")
-		emitTag(g, f.ProtoNum, core.WireLenDel, "buf", "n")
+		emitTag(g, f.ProtoNum, core.WireLenDel)
 		g.P("sz := ", identSizeDuration, "(", accessor, ")")
 		g.P("n += ", identEncodeVarint, "(buf[n:],uint64(sz))")
 		g.P("n += ", identEncodeDuration, "(buf[n:], ", accessor, ")")
@@ -93,7 +94,7 @@ func generateFieldMarshal(g *protogen.GeneratedFile, fileMap map[string]*protoge
 			// (all-zero) reset message must serialize as absent.
 			g.P("if ", accessor, " != nil {")
 			g.P("if sz := ", accessor, ".SizeCodec(); sz > 0 {")
-			emitTag(g, f.ProtoNum, core.WireLenDel, "buf", "n")
+			emitTag(g, f.ProtoNum, core.WireLenDel)
 			g.P("n += ", identEncodeVarint, "(buf[n:],uint64(sz))")
 			g.P("wn, err := ", accessor, ".MarshalToCodec(buf[n:])")
 			g.P("if err != nil { return 0, err }")
@@ -103,7 +104,7 @@ func generateFieldMarshal(g *protogen.GeneratedFile, fileMap map[string]*protoge
 		} else {
 			// Singular value: T, SizeCodec() > 0 used as presence predicate.
 			g.P("if sz := (&", accessor, ").SizeCodec(); sz > 0 {")
-			emitTag(g, f.ProtoNum, core.WireLenDel, "buf", "n")
+			emitTag(g, f.ProtoNum, core.WireLenDel)
 			g.P("n += ", identEncodeVarint, "(buf[n:],uint64(sz))")
 			g.P("wn, err := (&", accessor, ").MarshalToCodec(buf[n:])")
 			g.P("if err != nil { return 0, err }")
@@ -116,29 +117,30 @@ func generateFieldMarshal(g *protogen.GeneratedFile, fileMap map[string]*protoge
 	if f.IsProto3Optional {
 		derefAccessor := "*" + accessor
 		g.P("if ", accessor, " != nil {")
+		//nolint:exhaustive // proto3 optional applies only to scalar wire kinds; WireLenDel is handled elsewhere.
 		switch f.Wire {
 		case core.WireVarint:
 			switch f.ProtoKind {
 			case protoreflect.BoolKind:
-				emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+				emitTag(g, f.ProtoNum, f.Wire)
 				g.P("if ", derefAccessor, " { buf[n] = 1 } else { buf[n] = 0 }")
 				g.P("n++")
 			case protoreflect.Sint32Kind:
-				emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+				emitTag(g, f.ProtoNum, f.Wire)
 				g.P("n += ", identEncodeVarint, "(buf[n:],uint64(", identZigzagEncode32, "(int32(", derefAccessor, "))))")
 			case protoreflect.Sint64Kind:
-				emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+				emitTag(g, f.ProtoNum, f.Wire)
 				g.P("n += ", identEncodeVarint, "(buf[n:],", identZigzagEncode64, "(int64(", derefAccessor, ")))")
 			default:
-				emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+				emitTag(g, f.ProtoNum, f.Wire)
 				g.P("n += ", identEncodeVarint, "(buf[n:],uint64(", derefAccessor, "))")
 			}
 		case core.WireFixed64:
-			emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+			emitTag(g, f.ProtoNum, f.Wire)
 			g.P(identBinaryLE, ".PutUint64(buf[n:], uint64(", derefAccessor, "))")
 			g.P("n += 8")
 		case core.WireFixed32:
-			emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+			emitTag(g, f.ProtoNum, f.Wire)
 			g.P(identBinaryLE, ".PutUint32(buf[n:], uint32(", derefAccessor, "))")
 			g.P("n += 4")
 		}
@@ -150,58 +152,58 @@ func generateFieldMarshal(g *protogen.GeneratedFile, fileMap map[string]*protoge
 	case f.FixedLen > 0:
 		zeroType := goCastName(g, fileMap, f)
 		g.P("if ", accessor, " != (", zeroType, "{}) {")
-		emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+		emitTag(g, f.ProtoNum, f.Wire)
 		g.P("n += ", identEncodeVarint, "(buf[n:],", f.FixedLen, ")")
 		g.P("copy(buf[n:], ", accessor, "[:])")
 		g.P("n += ", f.FixedLen)
 		g.P("}")
 
 	case f.Wire == core.WireVarint:
-		switch {
-		case f.ProtoKind == protoreflect.BoolKind:
+		switch f.ProtoKind {
+		case protoreflect.BoolKind:
 			g.P("if ", accessor, " {")
-			emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+			emitTag(g, f.ProtoNum, f.Wire)
 			g.P("buf[n] = 1")
 			g.P("n++")
-		case f.ProtoKind == protoreflect.Sint32Kind:
+		case protoreflect.Sint32Kind:
 			g.P("if ", accessor, " != 0 {")
-			emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+			emitTag(g, f.ProtoNum, f.Wire)
 			g.P("n += ", identEncodeVarint, "(buf[n:],uint64(", identZigzagEncode32, "(int32(", accessor, "))))")
-		case f.ProtoKind == protoreflect.Sint64Kind:
+		case protoreflect.Sint64Kind:
 			g.P("if ", accessor, " != 0 {")
-			emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+			emitTag(g, f.ProtoNum, f.Wire)
 			g.P("n += ", identEncodeVarint, "(buf[n:],", identZigzagEncode64, "(int64(", accessor, ")))")
 		default:
 			g.P("if ", accessor, " != 0 {")
-			emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+			emitTag(g, f.ProtoNum, f.Wire)
 			g.P("n += ", identEncodeVarint, "(buf[n:],uint64(", accessor, "))")
 		}
 		g.P("}")
 
 	case f.Wire == core.WireFixed64:
 		g.P("if ", accessor, " != 0 {")
-		emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+		emitTag(g, f.ProtoNum, f.Wire)
 		g.P(identBinaryLE, ".PutUint64(buf[n:], uint64(", accessor, "))")
 		g.P("n += 8")
 		g.P("}")
 
 	case f.Wire == core.WireFixed32:
 		g.P("if ", accessor, " != 0 {")
-		emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+		emitTag(g, f.ProtoNum, f.Wire)
 		g.P(identBinaryLE, ".PutUint32(buf[n:], uint32(", accessor, "))")
 		g.P("n += 4")
 		g.P("}")
 
 	case f.IsString:
 		g.P("if len(", accessor, ") > 0 {")
-		emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+		emitTag(g, f.ProtoNum, f.Wire)
 		g.P("n += ", identEncodeVarint, "(buf[n:],uint64(len(", accessor, ")))")
 		g.P("n += copy(buf[n:], ", accessor, ")")
 		g.P("}")
 
 	case f.IsBytes:
 		g.P("if len(", accessor, ") > 0 {")
-		emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+		emitTag(g, f.ProtoNum, f.Wire)
 		g.P("n += ", identEncodeVarint, "(buf[n:],uint64(len(", accessor, ")))")
 		g.P("n += copy(buf[n:], ", accessor, ")")
 		g.P("}")
@@ -214,7 +216,7 @@ func generateMapFieldMarshal(g *protogen.GeneratedFile, f *core.FieldInfo, acces
 	keyTagSize := core.TagSize(f.MapKey.ProtoNum)
 	valTagSize := core.TagSize(f.MapValue.ProtoNum)
 	g.P("for k, v := range ", accessor, " {")
-	emitTag(g, f.ProtoNum, core.WireLenDel, "buf", "n")
+	emitTag(g, f.ProtoNum, core.WireLenDel)
 	g.P("entrySz := ", keyTagSize, " + ", keySize, " + ", valTagSize, " + ", valSize)
 	g.P("n += ", identEncodeVarint, "(buf[n:],uint64(entrySz))")
 	emitScalarWrite(g, f.MapKey, "k")
@@ -230,7 +232,7 @@ func generateRepeatedFieldMarshal(g *protogen.GeneratedFile, _ map[string]*proto
 			// Pointer slice: skip nil entries, marshal via pointer receiver.
 			g.P("for _, elem := range ", accessor, " {")
 			g.P("if elem == nil { continue }")
-			emitTag(g, f.ProtoNum, core.WireLenDel, "buf", "n")
+			emitTag(g, f.ProtoNum, core.WireLenDel)
 			g.P("sz := elem.SizeCodec()")
 			g.P("n += ", identEncodeVarint, "(buf[n:],uint64(sz))")
 			g.P("wn, err := elem.MarshalToCodec(buf[n:])")
@@ -241,7 +243,7 @@ func generateRepeatedFieldMarshal(g *protogen.GeneratedFile, _ map[string]*proto
 			// Value slice: take address of element for pointer-receiver methods.
 			g.P("for idx := range ", accessor, " {")
 			g.P("elem := &", accessor, "[idx]")
-			emitTag(g, f.ProtoNum, core.WireLenDel, "buf", "n")
+			emitTag(g, f.ProtoNum, core.WireLenDel)
 			g.P("sz := elem.SizeCodec()")
 			g.P("n += ", identEncodeVarint, "(buf[n:],uint64(sz))")
 			g.P("wn, err := elem.MarshalToCodec(buf[n:])")
@@ -255,14 +257,14 @@ func generateRepeatedFieldMarshal(g *protogen.GeneratedFile, _ map[string]*proto
 	switch {
 	case f.IsString:
 		g.P("for _, s := range ", accessor, " {")
-		emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+		emitTag(g, f.ProtoNum, f.Wire)
 		g.P("n += ", identEncodeVarint, "(buf[n:],uint64(len(s)))")
 		g.P("n += copy(buf[n:], s)")
 		g.P("}")
 
 	case f.IsBytes && f.FixedLen > 0:
 		g.P("for _, b := range ", accessor, " {")
-		emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+		emitTag(g, f.ProtoNum, f.Wire)
 		g.P("n += ", identEncodeVarint, "(buf[n:],", f.FixedLen, ")")
 		g.P("copy(buf[n:], b[:])")
 		g.P("n += ", f.FixedLen)
@@ -270,14 +272,14 @@ func generateRepeatedFieldMarshal(g *protogen.GeneratedFile, _ map[string]*proto
 
 	case f.IsBytes:
 		g.P("for _, b := range ", accessor, " {")
-		emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+		emitTag(g, f.ProtoNum, f.Wire)
 		g.P("n += ", identEncodeVarint, "(buf[n:],uint64(len(b)))")
 		g.P("n += copy(buf[n:], b)")
 		g.P("}")
 
 	case f.Wire == core.WireVarint:
 		g.P("if len(", accessor, ") > 0 {")
-		emitTag(g, f.ProtoNum, core.WireLenDel, "buf", "n")
+		emitTag(g, f.ProtoNum, core.WireLenDel)
 		g.P("l := 0")
 		switch f.ProtoKind {
 		case protoreflect.Sint32Kind:
@@ -312,7 +314,7 @@ func generateRepeatedFieldMarshal(g *protogen.GeneratedFile, _ map[string]*proto
 
 	case f.Wire == core.WireFixed64:
 		g.P("if len(", accessor, ") > 0 {")
-		emitTag(g, f.ProtoNum, core.WireLenDel, "buf", "n")
+		emitTag(g, f.ProtoNum, core.WireLenDel)
 		g.P("n += ", identEncodeVarint, "(buf[n:],uint64(len(", accessor, ")*8))")
 		g.P("for _, v := range ", accessor, " {")
 		g.P(identBinaryLE, ".PutUint64(buf[n:], uint64(v))")
@@ -322,7 +324,7 @@ func generateRepeatedFieldMarshal(g *protogen.GeneratedFile, _ map[string]*proto
 
 	case f.Wire == core.WireFixed32:
 		g.P("if len(", accessor, ") > 0 {")
-		emitTag(g, f.ProtoNum, core.WireLenDel, "buf", "n")
+		emitTag(g, f.ProtoNum, core.WireLenDel)
 		g.P("n += ", identEncodeVarint, "(buf[n:],uint64(len(", accessor, ")*4))")
 		g.P("for _, v := range ", accessor, " {")
 		g.P(identBinaryLE, ".PutUint32(buf[n:], uint32(v))")

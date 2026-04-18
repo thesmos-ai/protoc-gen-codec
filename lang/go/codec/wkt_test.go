@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"go.stealthscale.io/protoc-gen-codec/lang/go/codec"
 	"pgregory.net/rapid"
+
+	"go.stealthscale.io/protoc-gen-codec/lang/go/codec"
 )
 
 func TestTimestamp_Roundtrip_PBT(t *testing.T) {

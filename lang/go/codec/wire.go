@@ -10,10 +10,13 @@ import (
 
 const maxVarintBytes = 10
 
+// Sov returns the number of bytes a uint64 takes when encoded as a varint.
 func Sov(x uint64) int {
 	return (bits.Len64(x|1) + 6) / 7
 }
 
+// EncodeVarint writes x into buf as a proto3 varint and returns the number
+// of bytes written. The caller is responsible for ensuring buf has room.
 func EncodeVarint(buf []byte, x uint64) int {
 	i := 0
 	for x >= 0x80 {
@@ -25,6 +28,9 @@ func EncodeVarint(buf []byte, x uint64) int {
 	return i + 1
 }
 
+// DecodeVarint reads a proto3 varint from the start of data and returns the
+// decoded value plus the number of bytes consumed. A negative byte count
+// signals a malformed varint.
 func DecodeVarint(data []byte) (uint64, int) {
 	if len(data) > 0 && data[0] < 0x80 {
 		return uint64(data[0]), 1
@@ -62,6 +68,9 @@ func ZigzagDecode64(v uint64) int64 {
 	return int64(v>>1) ^ -int64(v&1)
 }
 
+// SkipField consumes and discards a single proto3 field of the given wire
+// type from data, returning the number of bytes consumed. It is used on the
+// decode path to skip over unknown fields.
 func SkipField(data []byte, wireType uint64) (int, error) {
 	switch wireType {
 	case 0:

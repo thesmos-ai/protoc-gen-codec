@@ -64,8 +64,8 @@ func AssertReset[T any, PT interface {
 	}
 	var owned T
 	if buf != nil {
-		if err := PT(&owned).UnmarshalCodec(buf); err != nil {
-			t.Fatalf("UnmarshalCodec: %v", err)
+		if uerr := PT(&owned).UnmarshalCodec(buf); uerr != nil {
+			t.Fatalf("UnmarshalCodec: %v", uerr)
 		}
 	}
 	ptr := PT(&owned)
@@ -154,16 +154,16 @@ func RunTestSuite[T any, PT interface {
 		if valid == nil {
 			return
 		}
-		for i := range len(valid) {
+		for i := range valid {
 			var got T
-			PT(&got).UnmarshalCodec(valid[:i])
+			_ = PT(&got).UnmarshalCodec(valid[:i])
 		}
-		for i := range len(valid) {
+		for i := range valid {
 			corrupted := make([]byte, len(valid))
 			copy(corrupted, valid)
 			corrupted[i] ^= 0xFF
 			var got T
-			PT(&got).UnmarshalCodec(corrupted)
+			_ = PT(&got).UnmarshalCodec(corrupted)
 		}
 	})
 }
@@ -180,7 +180,7 @@ func RunBenchSuite[T any, PT interface {
 		buf := make([]byte, ptr.SizeCodec())
 		b.ResetTimer()
 		for range b.N {
-			ptr.MarshalToCodec(buf)
+			_, _ = ptr.MarshalToCodec(buf)
 		}
 	})
 
@@ -190,13 +190,13 @@ func RunBenchSuite[T any, PT interface {
 		b.ResetTimer()
 		for range b.N {
 			var got T
-			PT(&got).UnmarshalCodec(data)
+			_ = PT(&got).UnmarshalCodec(data)
 		}
 	})
 
 	b.Run("JSON/Marshal", func(b *testing.B) {
 		for range b.N {
-			json.Marshal(sample)
+			_, _ = json.Marshal(sample)
 		}
 	})
 
@@ -205,7 +205,7 @@ func RunBenchSuite[T any, PT interface {
 		b.ResetTimer()
 		for range b.N {
 			var got T
-			json.Unmarshal(data, &got)
+			_ = json.Unmarshal(data, &got)
 		}
 	})
 }
@@ -343,7 +343,7 @@ func AssertUnknownFieldSkipped[T any, PT interface {
 		t.Fatalf("MarshalCodec: %v", err)
 	}
 	// Append a varint-wire unknown field: tag = (num<<3 | 0), value = 0.
-	tag := uint64(unknownFieldNum)<<3 | 0
+	tag := uint64(unknownFieldNum) << 3
 	var tagBuf [10]byte
 	tn := EncodeVarint(tagBuf[:], tag)
 	buf = append(buf, tagBuf[:tn]...)
@@ -448,7 +448,6 @@ func RunCoverageSuite[T any, PT interface {
 		AssertShortBuffer[T, PT](t, sample)
 	})
 	for _, wm := range wireMismatches {
-		wm := wm
 		t.Run(fmt.Sprintf("WireTypeMismatch_Field%d_Wire%d", wm.FieldNum, wm.WrongWireType), func(t *testing.T) {
 			t.Parallel()
 			AssertWireTypeMismatch[T, PT](t, wm.FieldNum, wm.WrongWireType)

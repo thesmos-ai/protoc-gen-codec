@@ -19,18 +19,15 @@ const (
 )
 
 func messageGoType(msg *protogen.Message) string {
-	v, _ := extractString(msg.Desc.Options(), optGoType)
-	return v
+	return extractString(msg.Desc.Options(), optGoType)
 }
 
 func fieldGoField(field *protogen.Field) string {
-	v, _ := extractString(field.Desc.Options(), optGoField)
-	return v
+	return extractString(field.Desc.Options(), optGoField)
 }
 
 func fieldGoCast(field *protogen.Field) string {
-	v, _ := extractString(field.Desc.Options(), optGoCast)
-	return v
+	return extractString(field.Desc.Options(), optGoCast)
 }
 
 func fieldFixedLen(field *protogen.Field) (uint32, bool) {
@@ -46,39 +43,39 @@ func fieldUsePointer(field *protogen.Field) (bool, bool) {
 	return extractBool(field.Desc.Options(), optUsePointer)
 }
 
-func extractString(pm protoreflect.ProtoMessage, num protowire.Number) (string, bool) {
+func extractString(pm protoreflect.ProtoMessage, num protowire.Number) string {
 	if pm == nil {
-		return "", false
+		return ""
 	}
 	raw := pm.ProtoReflect().GetUnknown()
 	if len(raw) == 0 {
-		return "", false
+		return ""
 	}
 	for len(raw) > 0 {
 		fnum, wtype, n := protowire.ConsumeTag(raw)
 		if n < 0 {
-			return "", false
+			return ""
 		}
 		raw = raw[n:]
 		switch wtype {
 		case protowire.BytesType:
 			val, vn := protowire.ConsumeBytes(raw)
 			if vn < 0 {
-				return "", false
+				return ""
 			}
 			raw = raw[vn:]
 			if fnum == num {
-				return string(val), true
+				return string(val)
 			}
 		default:
 			vn := consumeFieldValue(raw, wtype)
 			if vn < 0 {
-				return "", false
+				return ""
 			}
 			raw = raw[vn:]
 		}
 	}
-	return "", false
+	return ""
 }
 
 func extractUint32(pm protoreflect.ProtoMessage, num protowire.Number) (uint32, bool) {

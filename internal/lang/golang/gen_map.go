@@ -35,7 +35,7 @@ func scalarSizeExpr(g *protogen.GeneratedFile, f *core.FieldInfo, v string) stri
 // emitScalarWrite emits code that writes a tag+value for a synthetic
 // map entry sub-field into buf[n:].
 func emitScalarWrite(g *protogen.GeneratedFile, f *core.FieldInfo, v string) {
-	emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+	emitTag(g, f.ProtoNum, f.Wire)
 	switch {
 	case f.IsString:
 		g.P("n += ", identEncodeVarint, "(buf[n:],uint64(len(", v, ")))")

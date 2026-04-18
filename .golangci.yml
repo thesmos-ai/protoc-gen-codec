@@ -7,24 +7,34 @@ run:
 linters:
   default: none
   enable:
+    # Correctness
     - errcheck
     - govet
     - staticcheck
     - unused
     - ineffassign
-    - typecheck
-    - gosimple
+    - errorlint       # enforce errors.Is / errors.As on sentinels
+    - nilerr          # catch silently swallowed errors
+    - exhaustive      # enum / wire-kind switch coverage
+    - durationcheck   # duration arithmetic bugs (WKT Duration path)
+    - protogetter     # prefer .GetX() on protoreflect types
+
+    # Performance (zero-alloc is a project goal)
+    - perfsprint      # strconv over fmt.Sprintf
+    - prealloc
+    - makezero        # make([]T, N) + append pitfall
+
+    # Style / modernization
     - gocritic
     - revive
     - misspell
     - unconvert
     - unparam
     - nolintlint
-    - bodyclose
-    - prealloc
     - whitespace
-    - gofmt
-    - goimports
+    - intrange        # Go 1.22+ range-over-int
+    - copyloopvar     # redundant loopvar captures
+    - modernize       # gopls modernization suite (maps, slices, etc.)
 
   settings:
     gocritic:
@@ -38,12 +48,27 @@ linters:
         - name: exported
           arguments:
             - disableStutteringCheck
+        - name: unused-parameter
+        - name: early-return
+        - name: superfluous-else
     govet:
       enable-all: true
       disable:
         - fieldalignment
     misspell:
       locale: US
+    exhaustive:
+      default-signifies-exhaustive: true
+    errorlint:
+      errorf: true
+      asserts: true
+      comparison: true
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
     goimports:
       local-prefixes:
         - go.stealthscale.io/protoc-gen-codec

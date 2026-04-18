@@ -1,28 +1,38 @@
 // Copyright 2026 Stealth Scale B.V.
 // SPDX-License-Identifier: Apache-2.0
 
+// Package integration contains the reference fixtures exercised by the Go
+// codec test suite. The types in this file are hand-written targets for the
+// generated MarshalCodec/UnmarshalCodec/SizeCodec/ResetCodec methods.
 package integration
 
 import "time"
 
+// Status is a fixture enum exercising proto uint32-backed codec.cast.
 type Status uint8
 
+// Status values.
 const (
 	StatusPending   Status = 1
 	StatusRunning   Status = 2
 	StatusCompleted Status = 3
 )
 
+// Digest is a fixed-length byte array target for codec.fixed_len.
 type Digest [32]byte
 
+// IsZero reports whether the digest is the zero value.
 func (d Digest) IsZero() bool {
 	return d == Digest{}
 }
 
+// Fixed64 is a named int64 used to exercise codec.cast on sfixed64 fields.
 type Fixed64 int64
 
+// PatchKind is a fixture enum for the Patch message.
 type PatchKind uint8
 
+// PatchKind values.
 const (
 	PatchKindText    PatchKind = 1
 	PatchKindInt     PatchKind = 2
@@ -30,31 +40,39 @@ const (
 	PatchKindBlob    PatchKind = 4
 )
 
+// Source is a fixture enum for provenance classification.
 type Source uint8
 
+// Source values.
 const (
 	SourceInference Source = 1
 	SourceGate      Source = 2
 	SourceExternal  Source = 3
 )
 
+// EvidenceKind is a fixture enum for evidence classification.
 type EvidenceKind uint8
 
+// EvidenceKind values.
 const (
 	EvidenceDecision       EvidenceKind = 1
 	EvidenceHumanOversight EvidenceKind = 2
 	EvidenceDataProvenance EvidenceKind = 3
 )
 
+// Durability is a fixture enum for persistence mode.
 type Durability uint8
 
+// Durability values.
 const (
 	DurabilitySoft Durability = 0
 	DurabilityHard Durability = 1
 )
 
+// AccessTier is a fixture enum for access policy.
 type AccessTier uint8
 
+// AccessTier values.
 const (
 	AccessTierOpen      AccessTier = 1
 	AccessTierTenantKey AccessTier = 2

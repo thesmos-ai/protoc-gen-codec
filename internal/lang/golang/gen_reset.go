@@ -4,9 +4,10 @@
 package golang
 
 import (
-	"go.stealthscale.io/protoc-gen-codec/internal/core"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/reflect/protoreflect"
+
+	"go.stealthscale.io/protoc-gen-codec/internal/core"
 )
 
 func generateResetCodec(g *protogen.GeneratedFile, fileMap map[string]*protogen.File, info *core.MessageInfo) {

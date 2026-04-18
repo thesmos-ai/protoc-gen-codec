@@ -4,9 +4,10 @@
 package golang
 
 import (
-	"go.stealthscale.io/protoc-gen-codec/internal/core"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/reflect/protoreflect"
+
+	"go.stealthscale.io/protoc-gen-codec/internal/core"
 )
 
 func generateSizeCodec(g *protogen.GeneratedFile, fileMap map[string]*protogen.File, info *core.MessageInfo) {
@@ -79,6 +80,7 @@ func generateFieldSize(g *protogen.GeneratedFile, fileMap map[string]*protogen.F
 	if f.IsProto3Optional {
 		derefAccessor := "*" + accessor
 		g.P("if ", accessor, " != nil {")
+		//nolint:exhaustive // proto3 optional applies only to scalar wire kinds; WireLenDel is handled elsewhere.
 		switch f.Wire {
 		case core.WireVarint:
 			switch f.ProtoKind {
@@ -108,14 +110,14 @@ func generateFieldSize(g *protogen.GeneratedFile, fileMap map[string]*protogen.F
 		g.P("}")
 
 	case f.Wire == core.WireVarint:
-		switch {
-		case f.ProtoKind == protoreflect.BoolKind:
+		switch f.ProtoKind {
+		case protoreflect.BoolKind:
 			g.P("if ", accessor, " {")
 			g.P("n += ", ts+1)
-		case f.ProtoKind == protoreflect.Sint32Kind:
+		case protoreflect.Sint32Kind:
 			g.P("if ", accessor, " != 0 {")
 			g.P("n += ", ts, " + ", identSov, "(uint64(", identZigzagEncode32, "(int32(", accessor, "))))")
-		case f.ProtoKind == protoreflect.Sint64Kind:
+		case protoreflect.Sint64Kind:
 			g.P("if ", accessor, " != 0 {")
 			g.P("n += ", ts, " + ", identSov, "(", identZigzagEncode64, "(int64(", accessor, ")))")
 		default:

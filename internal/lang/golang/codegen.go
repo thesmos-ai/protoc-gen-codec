@@ -111,10 +111,10 @@ func emitGoFile(
 	return nil
 }
 
-func emitTag(g *protogen.GeneratedFile, fieldNum int32, wk core.WireKind, bufVar string, offsetVar string) {
+func emitTag(g *protogen.GeneratedFile, fieldNum int32, wk core.WireKind) {
 	tb := core.TagBytes(fieldNum, wk)
 	for i, b := range tb {
-		g.P(bufVar, "[", offsetVar, "+", i, "] = ", fmt.Sprintf("0x%02x", b))
+		g.P("buf[n+", i, "] = ", fmt.Sprintf("0x%02x", b))
 	}
-	g.P(offsetVar, " += ", len(tb))
+	g.P("n += ", len(tb))
 }

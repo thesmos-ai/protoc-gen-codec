@@ -5,6 +5,8 @@ package codec
 
 import "errors"
 
+// Sentinel errors returned by generated UnmarshalCodec methods and the wire
+// primitives exposed from this package. Callers match these with errors.Is.
 var (
 	ErrInvalidLength   = errors.New("codec: invalid wire length")
 	ErrInvalidWireType = errors.New("codec: invalid wire type")

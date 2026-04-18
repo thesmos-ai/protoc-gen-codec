@@ -10,9 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"pgregory.net/rapid"
+
 	"go.stealthscale.io/protoc-gen-codec/lang/go/codec"
 	"go.stealthscale.io/protoc-gen-codec/lang/go/integration"
-	"pgregory.net/rapid"
 )
 
 // ---------------------------------------------------------------------------
@@ -259,7 +260,7 @@ func TestMapHolder_Roundtrip_PBT(t *testing.T) {
 		var attrs map[string]string
 		if nA > 0 {
 			attrs = make(map[string]string, nA)
-			for i := 0; i < nA; i++ {
+			for range nA {
 				attrs[rapid.String().Draw(t, "k")] = rapid.String().Draw(t, "v")
 			}
 		}
@@ -267,7 +268,7 @@ func TestMapHolder_Roundtrip_PBT(t *testing.T) {
 		var counts map[string]int64
 		if nC > 0 {
 			counts = make(map[string]int64, nC)
-			for i := 0; i < nC; i++ {
+			for range nC {
 				counts[rapid.String().Draw(t, "ck")] = rapid.Int64().Draw(t, "cv")
 			}
 		}
@@ -420,7 +421,7 @@ func BenchmarkNumericOnly_PooledUnmarshal(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		got.UnmarshalCodec(data)
+		_ = got.UnmarshalCodec(data)
 	}
 }
 
@@ -554,7 +555,7 @@ func TestTree_Roundtrip_PBT(t *testing.T) {
 			n := integration.Tree{Label: rapid.String().Draw(t, "l")}
 			if depth < 3 {
 				nc := rapid.IntRange(0, 2).Draw(t, "nc")
-				for i := 0; i < nc; i++ {
+				for range nc {
 					n.Children = append(n.Children, gen(depth+1))
 				}
 			}
@@ -594,7 +595,7 @@ func TestContainer_Roundtrip_PBT(t *testing.T) {
 		var children []*integration.Inner
 		if nChildren > 0 {
 			children = make([]*integration.Inner, nChildren)
-			for i := 0; i < nChildren; i++ {
+			for i := range nChildren {
 				children[i] = &integration.Inner{
 					Label: rapid.String().Draw(t, "l"),
 					Count: rapid.Int64().Draw(t, "c"),
@@ -767,7 +768,7 @@ func TestFixture_Roundtrip_NilSlicesStayNil(t *testing.T) {
 	t.Parallel()
 	// Regression: a sparse Fixture (only Timestamp set, Tags/Data nil) must
 	// roundtrip back to a value that reflect.DeepEqual's equal to itself.
-	// UnmarshalCodec must not materialise empty-but-non-nil slices from a
+	// UnmarshalCodec must not materialize empty-but-non-nil slices from a
 	// wire stream that carried no length-delimited records for those fields.
 	f := integration.Fixture{Timestamp: 1}
 	codec.AssertRoundtrip[integration.Fixture](t, f)
@@ -1117,8 +1118,8 @@ func BenchmarkContainer_PooledUnmarshal(b *testing.B) {
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		got.UnmarshalCodec(data)
+	for range b.N {
+		_ = got.UnmarshalCodec(data)
 	}
 }
 
@@ -1135,8 +1136,8 @@ func BenchmarkTree_PooledUnmarshal(b *testing.B) {
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		got.UnmarshalCodec(data)
+	for range b.N {
+		_ = got.UnmarshalCodec(data)
 	}
 }
 
@@ -1153,8 +1154,8 @@ func BenchmarkValueContainer_PooledUnmarshal(b *testing.B) {
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		got.UnmarshalCodec(data)
+	for range b.N {
+		_ = got.UnmarshalCodec(data)
 	}
 }
 
@@ -1171,8 +1172,8 @@ func BenchmarkPackedZigzag_PooledUnmarshal(b *testing.B) {
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		got.UnmarshalCodec(data)
+	for range b.N {
+		_ = got.UnmarshalCodec(data)
 	}
 }
 
@@ -1189,8 +1190,8 @@ func BenchmarkMapHolder_PooledUnmarshal(b *testing.B) {
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		got.UnmarshalCodec(data)
+	for range b.N {
+		_ = got.UnmarshalCodec(data)
 	}
 }
 
@@ -1201,7 +1202,7 @@ func BenchmarkMapHolder_PooledUnmarshal(b *testing.B) {
 // testing.AllocsPerRun panics inside a t.Parallel() test.
 func TestContainer_PreScanCapacityHint(t *testing.T) {
 	many := integration.Container{Name: "many"}
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		many.Children = append(many.Children, &integration.Inner{Label: "x", Count: int64(i)})
 	}
 	buf, _ := many.MarshalCodec()

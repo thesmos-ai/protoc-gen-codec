@@ -12,6 +12,8 @@ import (
 	"go.stealthscale.io/protoc-gen-codec/internal/core"
 )
 
+// Run executes the protoc-gen-codec-go plugin over the current protoc input
+// stream. It is intended to be invoked from main.
 func Run() {
 	protogen.Options{}.Run(func(plugin *protogen.Plugin) error {
 		plugin.SupportedFeatures = uint64(pluginpb.CodeGeneratorResponse_FEATURE_PROTO3_OPTIONAL)
