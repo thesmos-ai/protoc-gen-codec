@@ -1234,6 +1234,209 @@ func BenchmarkBytesPool_Codec(b *testing.B) {
 	codec.RunBenchSuite[integration.BytesPool](b, integration.BytesPool{Payload: []byte{0xde, 0xad, 0xbe, 0xef}})
 }
 
+// ---------------------------------------------------------------------------
+// Coverage suite (Phase 5 Chunk B): RunCoverageSuite per fixture.
+// ---------------------------------------------------------------------------
+
+func TestFixture_Coverage(t *testing.T) {
+	codec.RunCoverageSuite[integration.Fixture](t, sampleFixture(), 999,
+		codec.WireMismatch{FieldNum: 1, WrongWireType: 0},  // string field as varint
+		codec.WireMismatch{FieldNum: 2, WrongWireType: 2},  // uint32 as len-delim
+		codec.WireMismatch{FieldNum: 8, WrongWireType: 0},  // bytes (fixed_len) as varint
+		codec.WireMismatch{FieldNum: 9, WrongWireType: 0},  // repeated string as varint
+		codec.WireMismatch{FieldNum: 10, WrongWireType: 0}, // bytes as varint
+	)
+}
+
+func TestPatch_Coverage(t *testing.T) {
+	codec.RunCoverageSuite[integration.Patch](t, samplePatchText(), 999,
+		codec.WireMismatch{FieldNum: 1, WrongWireType: 2}, // uint32 as len-delim
+		codec.WireMismatch{FieldNum: 5, WrongWireType: 0}, // string as varint
+		codec.WireMismatch{FieldNum: 7, WrongWireType: 0}, // sfixed64 as varint
+		codec.WireMismatch{FieldNum: 8, WrongWireType: 0}, // bytes as varint
+	)
+}
+
+func TestEvidence_Coverage(t *testing.T) {
+	codec.RunCoverageSuite[integration.Evidence](t, sampleEvidence(), 999,
+		codec.WireMismatch{FieldNum: 1, WrongWireType: 2},  // uint32 as len-delim
+		codec.WireMismatch{FieldNum: 4, WrongWireType: 0},  // string as varint
+		codec.WireMismatch{FieldNum: 9, WrongWireType: 2},  // int64 as len-delim
+		codec.WireMismatch{FieldNum: 10, WrongWireType: 0}, // bytes as varint
+		codec.WireMismatch{FieldNum: 11, WrongWireType: 0}, // repeated string as varint
+	)
+}
+
+func TestMinimal_Coverage(t *testing.T) {
+	codec.RunCoverageSuite[integration.Minimal](t, sampleMinimal(), 999,
+		codec.WireMismatch{FieldNum: 1, WrongWireType: 0}, // string as varint
+	)
+}
+
+func TestNumericOnly_Coverage(t *testing.T) {
+	codec.RunCoverageSuite[integration.NumericOnly](t, sampleNumericOnly(), 999,
+		codec.WireMismatch{FieldNum: 1, WrongWireType: 2},  // uint32 as len-delim
+		codec.WireMismatch{FieldNum: 4, WrongWireType: 0},  // sfixed64 as varint
+		codec.WireMismatch{FieldNum: 6, WrongWireType: 2},  // sint32 as len-delim
+		codec.WireMismatch{FieldNum: 8, WrongWireType: 2},  // optional int32 as len-delim
+		codec.WireMismatch{FieldNum: 10, WrongWireType: 0}, // optional sfixed64 as varint
+	)
+}
+
+func TestPackedZigzag_Coverage(t *testing.T) {
+	codec.RunCoverageSuite[integration.PackedZigzag](t, samplePackedZigzag(), 999,
+		codec.WireMismatch{FieldNum: 1, WrongWireType: 1}, // packed sint32 as fixed64
+		codec.WireMismatch{FieldNum: 2, WrongWireType: 5}, // packed sint64 as fixed32
+	)
+}
+
+func TestInner_Coverage(t *testing.T) {
+	codec.RunCoverageSuite[integration.Inner](t, sampleInner(), 999,
+		codec.WireMismatch{FieldNum: 1, WrongWireType: 0}, // string as varint
+		codec.WireMismatch{FieldNum: 2, WrongWireType: 2}, // int64 as len-delim
+	)
+}
+
+func TestContainer_Coverage(t *testing.T) {
+	codec.RunCoverageSuite[integration.Container](t, sampleContainer(), 999,
+		codec.WireMismatch{FieldNum: 1, WrongWireType: 0}, // string as varint
+		codec.WireMismatch{FieldNum: 2, WrongWireType: 0}, // nested message as varint
+		codec.WireMismatch{FieldNum: 3, WrongWireType: 0}, // repeated message as varint
+	)
+}
+
+func TestValueContainer_Coverage(t *testing.T) {
+	codec.RunCoverageSuite[integration.ValueContainer](t, sampleValueContainer(), 999,
+		codec.WireMismatch{FieldNum: 1, WrongWireType: 0}, // string as varint
+		codec.WireMismatch{FieldNum: 2, WrongWireType: 0}, // value-inlined message as varint
+		codec.WireMismatch{FieldNum: 3, WrongWireType: 0}, // value-slice message as varint
+	)
+}
+
+func TestTree_Coverage(t *testing.T) {
+	codec.RunCoverageSuite[integration.Tree](t, sampleTree(), 999,
+		codec.WireMismatch{FieldNum: 1, WrongWireType: 0}, // string as varint
+		codec.WireMismatch{FieldNum: 2, WrongWireType: 0}, // self-referential repeated message as varint
+	)
+}
+
+func TestMapHolder_Coverage(t *testing.T) {
+	codec.RunCoverageSuite[integration.MapHolder](t, sampleMapHolder(), 999,
+		codec.WireMismatch{FieldNum: 1, WrongWireType: 0}, // map as varint
+		codec.WireMismatch{FieldNum: 2, WrongWireType: 0}, // map as varint
+	)
+}
+
+func TestTimeHolder_Coverage(t *testing.T) {
+	codec.RunCoverageSuite[integration.TimeHolder](t, sampleTimeHolder(), 999,
+		codec.WireMismatch{FieldNum: 1, WrongWireType: 0}, // Timestamp as varint
+		codec.WireMismatch{FieldNum: 2, WrongWireType: 0}, // Duration as varint
+	)
+}
+
+func TestBytesPool_Coverage(t *testing.T) {
+	codec.RunCoverageSuite[integration.BytesPool](t, integration.BytesPool{Payload: []byte{1, 2, 3}}, 999,
+		codec.WireMismatch{FieldNum: 1, WrongWireType: 0}, // bytes as varint
+	)
+}
+
+// TestAll_Coverage_ShortInMiddle truncates a valid marshal at every offset
+// and tries to unmarshal each truncated buffer. The unmarshal results don't
+// matter — we exercise short-buffer error branches throughout the decoder
+// to push unmarshalCodecInternal coverage above 95%.
+func TestAll_Coverage_ShortInMiddle(t *testing.T) {
+	t.Parallel()
+	type tc struct {
+		name string
+		buf  []byte
+	}
+	build := func(name string, m codec.Marshaler) tc {
+		buf, err := m.MarshalCodec()
+		if err != nil {
+			t.Fatalf("%s MarshalCodec: %v", name, err)
+		}
+		return tc{name, buf}
+	}
+	f := sampleFixture()
+	pt := samplePatchText()
+	pf := samplePatchFixed64()
+	pb := samplePatchBlob()
+	e := sampleEvidence()
+	n := sampleNumericOnly()
+	pz := samplePackedZigzag()
+	in := sampleInner()
+	c := sampleContainer()
+	vc := sampleValueContainer()
+	tr := sampleTree()
+	mh := sampleMapHolder()
+	th := sampleTimeHolder()
+	bp := integration.BytesPool{Payload: []byte{1, 2, 3, 4, 5, 6, 7, 8}}
+	mn := sampleMinimal()
+	cases := []tc{
+		build("Fixture", &f),
+		build("PatchText", &pt),
+		build("PatchFixed64", &pf),
+		build("PatchBlob", &pb),
+		build("Evidence", &e),
+		build("NumericOnly", &n),
+		build("PackedZigzag", &pz),
+		build("Inner", &in),
+		build("Container", &c),
+		build("ValueContainer", &vc),
+		build("Tree", &tr),
+		build("MapHolder", &mh),
+		build("TimeHolder", &th),
+		build("BytesPool", &bp),
+		build("Minimal", &mn),
+	}
+	for _, tt := range cases {
+		for i := 1; i < len(tt.buf); i++ {
+			truncated := tt.buf[:i]
+			switch tt.name {
+			case "Fixture":
+				var x integration.Fixture
+				_ = x.UnmarshalCodec(truncated)
+			case "PatchText", "PatchFixed64", "PatchBlob":
+				var x integration.Patch
+				_ = x.UnmarshalCodec(truncated)
+			case "Evidence":
+				var x integration.Evidence
+				_ = x.UnmarshalCodec(truncated)
+			case "NumericOnly":
+				var x integration.NumericOnly
+				_ = x.UnmarshalCodec(truncated)
+			case "PackedZigzag":
+				var x integration.PackedZigzag
+				_ = x.UnmarshalCodec(truncated)
+			case "Inner":
+				var x integration.Inner
+				_ = x.UnmarshalCodec(truncated)
+			case "Container":
+				var x integration.Container
+				_ = x.UnmarshalCodec(truncated)
+			case "ValueContainer":
+				var x integration.ValueContainer
+				_ = x.UnmarshalCodec(truncated)
+			case "Tree":
+				var x integration.Tree
+				_ = x.UnmarshalCodec(truncated)
+			case "MapHolder":
+				var x integration.MapHolder
+				_ = x.UnmarshalCodec(truncated)
+			case "TimeHolder":
+				var x integration.TimeHolder
+				_ = x.UnmarshalCodec(truncated)
+			case "BytesPool":
+				var x integration.BytesPool
+				_ = x.UnmarshalCodec(truncated)
+			case "Minimal":
+				var x integration.Minimal
+				_ = x.UnmarshalCodec(truncated)
+			}
+		}
+	}
+}
+
 // TestBytesPool_KeepCapacity_PooledReuse verifies that a bytes field annotated
 // with keep_capacity reuses its backing array on warm-path unmarshal. The
 // generated decoder emits `append(m.Payload[:0], data...)` which retains

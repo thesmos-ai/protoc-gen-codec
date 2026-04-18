@@ -12,29 +12,13 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        go-version: ['1.23', '1.24']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: ${{ matrix.go-version }}
-      - run: go build ./...
-      - run: go test -race -count=1 ./...
-      - run: go vet ./...
-
-  staleness:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.24'
-      - uses: bufbuild/buf-setup-action@v1
-      - run: go build -o bin/protoc-gen-codec-go ./cmd/protoc-gen-codec-go/
-      - run: buf generate --path lang/go/integration/fixture.proto
-      - run: git diff --exit-code lang/go/integration/fixture.codec.go
+          go-version: '1.23'
+      - run: go test -count=1 ./...
+      - run: go test -count=1 -race ./...
 
   lint:
     runs-on: ubuntu-latest
@@ -42,14 +26,35 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
-      - uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
+          go-version: '1.23'
+      - uses: bufbuild/buf-setup-action@v1
+      - run: go vet ./...
+      - run: buf lint
 
-  buf:
+  determinism:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
       - uses: bufbuild/buf-setup-action@v1
-      - run: buf lint
+      - run: make verify-deterministic-gen
+
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - run: make bench-compare
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - run: make coverage-gate

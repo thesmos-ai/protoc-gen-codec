@@ -5,6 +5,8 @@ package codec
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -293,5 +295,163 @@ func AssertCrossFormatConsistency[T any, PT interface {
 
 	if !reflect.DeepEqual(fromCodec, fromJSON) {
 		t.Fatalf("cross-format mismatch:\n  codec: %+v\n  json:  %+v", fromCodec, fromJSON)
+	}
+}
+
+// AssertZeroMarshal verifies that a zero-value message marshals to the
+// empty wire and unmarshals back cleanly. Exercises the size==0 branch
+// of MarshalCodec and the all-absent decode path of UnmarshalCodec.
+func AssertZeroMarshal[T any, PT interface {
+	*T
+	Marshaler
+}](t TB) {
+	t.Helper()
+	var zero T
+	ptr := PT(&zero)
+	if sz := ptr.SizeCodec(); sz != 0 {
+		t.Fatalf("SizeCodec on zero value: want 0, got %d", sz)
+	}
+	buf, err := ptr.MarshalCodec()
+	if err != nil {
+		t.Fatalf("MarshalCodec on zero value: %v", err)
+	}
+	if len(buf) != 0 {
+		t.Fatalf("MarshalCodec on zero value produced %d bytes", len(buf))
+	}
+	// Decode empty wire must succeed and produce zero value.
+	var got T
+	if err := PT(&got).UnmarshalCodec(nil); err != nil {
+		t.Fatalf("UnmarshalCodec(nil): %v", err)
+	}
+}
+
+// AssertUnknownFieldSkipped appends a synthetic wire record for a field
+// number the target doesn't know about and verifies the decoder skips it
+// cleanly while preserving the known fields. Exercises the default case
+// of the decode switch (SkipField code path).
+//
+// unknownFieldNum MUST not be declared in the target message — pick a
+// number well above the highest field number in the schema (e.g., 999).
+func AssertUnknownFieldSkipped[T any, PT interface {
+	*T
+	Marshaler
+}](t TB, sample T, unknownFieldNum int32) {
+	t.Helper()
+	ptr := PT(&sample)
+	buf, err := ptr.MarshalCodec()
+	if err != nil {
+		t.Fatalf("MarshalCodec: %v", err)
+	}
+	// Append a varint-wire unknown field: tag = (num<<3 | 0), value = 0.
+	tag := uint64(unknownFieldNum)<<3 | 0
+	var tagBuf [10]byte
+	tn := EncodeVarint(tagBuf[:], tag)
+	buf = append(buf, tagBuf[:tn]...)
+	buf = append(buf, 0x00) // varint value 0
+	// Decode must succeed.
+	var got T
+	if err := PT(&got).UnmarshalCodec(buf); err != nil {
+		t.Fatalf("UnmarshalCodec with unknown field: %v", err)
+	}
+	// Known fields must be intact.
+	if !reflect.DeepEqual(sample, got) {
+		t.Fatalf("unknown field corrupted known fields:\n  want: %+v\n  got:  %+v", sample, got)
+	}
+}
+
+// AssertWireTypeMismatch crafts a wire record with the wrong wire type
+// for the given field number and verifies ErrInvalidWireType is returned.
+// Exercises the wire-type-check error arms in UnmarshalCodec case switches.
+//
+// fieldNum is the proto field number; wrongWireType is any wire type other
+// than the one declared for that field (e.g., field is length-delimited but
+// we send a varint).
+func AssertWireTypeMismatch[T any, PT interface {
+	*T
+	Marshaler
+}](t TB, fieldNum int32, wrongWireType uint64) {
+	t.Helper()
+	tag := uint64(fieldNum)<<3 | (wrongWireType & 0x7)
+	var tagBuf [10]byte
+	tn := EncodeVarint(tagBuf[:], tag)
+	// Append a minimal payload for the wrong wire type.
+	data := append([]byte{}, tagBuf[:tn]...)
+	switch wrongWireType {
+	case 0: // varint
+		data = append(data, 0x00)
+	case 1: // fixed64
+		data = append(data, 0, 0, 0, 0, 0, 0, 0, 0)
+	case 2: // len-delimited
+		data = append(data, 0x00) // zero-length
+	case 5: // fixed32
+		data = append(data, 0, 0, 0, 0)
+	}
+	var got T
+	err := PT(&got).UnmarshalCodec(data)
+	if !errors.Is(err, ErrInvalidWireType) {
+		t.Fatalf("field %d wire %d: want ErrInvalidWireType, got %v", fieldNum, wrongWireType, err)
+	}
+}
+
+// AssertShortBuffer verifies MarshalToCodec returns ErrBufferTooShort when
+// the caller provides a buffer smaller than SizeCodec().
+func AssertShortBuffer[T any, PT interface {
+	*T
+	Marshaler
+}](t TB, sample T) {
+	t.Helper()
+	ptr := PT(&sample)
+	size := ptr.SizeCodec()
+	if size <= 0 {
+		// Sample marshals to empty — short-buffer test inapplicable.
+		return
+	}
+	short := make([]byte, size-1)
+	_, err := ptr.MarshalToCodec(short)
+	if !errors.Is(err, ErrBufferTooShort) {
+		t.Fatalf("MarshalToCodec into undersized buffer: want ErrBufferTooShort, got %v", err)
+	}
+}
+
+// WireMismatch describes one (field number, wrong wire type) pair for
+// RunCoverageSuite. The wrong wire type must differ from the declared
+// wire type of the field — e.g., if field 4 is a string (wire 2), use
+// WireMismatch{4, 0} to send a varint instead.
+type WireMismatch struct {
+	FieldNum      int32
+	WrongWireType uint64
+}
+
+// RunCoverageSuite extends RunTestSuite with branch-coverage-focused
+// sub-tests. Consumers add this to hit higher coverage on generated
+// code without hand-rolling the sub-tests.
+//
+// unknownFieldNum should be a field number not declared on T (e.g., 999
+// or any number above the highest declared field). For wire-type mismatch
+// testing, provide (knownFieldNum, wrongWireType) pairs covering at least
+// one varint field and one length-delimited field when applicable.
+func RunCoverageSuite[T any, PT interface {
+	*T
+	Marshaler
+}](t *testing.T, sample T, unknownFieldNum int32, wireMismatches ...WireMismatch) {
+	t.Helper()
+	t.Run("ZeroMarshal", func(t *testing.T) {
+		t.Parallel()
+		AssertZeroMarshal[T, PT](t)
+	})
+	t.Run("UnknownFieldSkipped", func(t *testing.T) {
+		t.Parallel()
+		AssertUnknownFieldSkipped[T, PT](t, sample, unknownFieldNum)
+	})
+	t.Run("ShortBuffer", func(t *testing.T) {
+		t.Parallel()
+		AssertShortBuffer[T, PT](t, sample)
+	})
+	for _, wm := range wireMismatches {
+		wm := wm
+		t.Run(fmt.Sprintf("WireTypeMismatch_Field%d_Wire%d", wm.FieldNum, wm.WrongWireType), func(t *testing.T) {
+			t.Parallel()
+			AssertWireTypeMismatch[T, PT](t, wm.FieldNum, wm.WrongWireType)
+		})
 	}
 }

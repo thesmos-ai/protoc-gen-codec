@@ -1,4 +1,4 @@
-.PHONY: build test test-race test-fuzz test-bench lint fmt generate clean
+.PHONY: build test test-race test-fuzz test-bench lint fmt generate clean bench-baseline bench-compare verify-deterministic-gen coverage-gate
 
 GO := go
 FUZZTIME ?= 30s
@@ -44,5 +44,20 @@ fmt:
 
 clean:
 	rm -rf bin/
+
+bench-baseline:
+	mkdir -p .bench-baseline
+	$(GO) test -run='^$$' -bench=. -benchmem -benchtime=3s -count=10 \
+		./lang/go/codec/ ./lang/go/integration/ > .bench-baseline/main.txt
+	@echo "Baseline refreshed in .bench-baseline/main.txt"
+
+bench-compare:
+	./scripts/bench-compare.sh
+
+verify-deterministic-gen:
+	./scripts/verify-deterministic-gen.sh
+
+coverage-gate:
+	./scripts/coverage-gate.sh
 
 .DEFAULT_GOAL := build
