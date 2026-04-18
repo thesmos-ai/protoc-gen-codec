@@ -45,12 +45,15 @@ field and, where relevant, a cast. Annotations are defined in
 | `codec.field`         | Field   | Target field name override                          |
 | `codec.cast`          | Field   | Cast decoded wire value to a named type             |
 | `codec.fixed_len`     | Field   | Strict byte-length guard on unmarshal               |
-| `codec.keep_capacity` | Field   | Preserve slice backing array on reset               |
+| `codec.use_pointer`   | Field   | Override pointer vs. value representation for nested messages |
+| `codec.keep_capacity` | Field   | Intent to preserve slice backing array on reset (advisory per-language) |
 
-Missing annotations on fields with non-obvious mappings cause a
-**generation error**. Silent fallbacks are deliberately avoided: schema
-and source must agree, and the generator enforces that agreement at
-build time.
+Messages without `codec.type` are silently skipped — a single `.proto`
+file may mix codec-annotated messages alongside schema-only ones. For
+messages that *are* annotated, fields with non-obvious mappings must
+declare a cast: missing casts on ambiguous types, mismatched
+fixed-length values, or conflicting `use_pointer` requirements fail at
+generation, not at run time.
 
 ### Memory safety over zero-copy
 
@@ -78,9 +81,11 @@ object can be returned to a pool. Because the reset is generated from
 the proto field list, adding a new field cannot leave stale data behind
 — the reset stays complete as the schema evolves.
 
-Fields annotated `codec.keep_capacity` preserve their backing array on
-reset so slice-heavy messages can be recycled without releasing their
-buffers.
+`codec.keep_capacity` is an advisory hint: slice-heavy messages can be
+recycled without releasing their backing buffers. Individual generators
+may treat preservation as the unconditional default (the Go generator
+does), in which case the annotation is accepted for source compatibility
+but has no additional effect.
 
 ### DoS resistance
 
@@ -137,8 +142,12 @@ normalised field list. For each field it resolves:
   proto field name)
 - declared cast type (from `codec.cast`)
 - fixed-length guards (`codec.fixed_len`)
+- pointer vs. value representation for nested messages
+  (`codec.use_pointer`, with cardinality-dependent defaults and forced
+  pointer for self-referential types)
 - reset behaviour (`codec.keep_capacity`)
 - repeated / packed / map / oneof metadata
+- well-known-type recognition (Timestamp, Duration)
 
 The analyser is the point at which the schema is validated against the
 annotation contract — missing casts on ambiguous types or mismatched
@@ -168,8 +177,23 @@ Each generator is expected to verify, at minimum:
   the marshaled output.
 - **Reset completeness** — after reset, the object is indistinguishable
   from its zero value for every serialized field.
+- **Cross-format consistency** — decoded objects agree with an
+  independent serialization (e.g. JSON) of the same source data, giving
+  field-mapping verification without relying on a parallel generator.
 - **Property-based fuzzing** — randomised inputs exercise varint
   boundaries, packed encoding, length prefixes, and fixed-length guards.
+- **Corruption handling** — truncated buffers, invalid wire types, and
+  unknown fields produce typed errors or are skipped per proto3 rules.
 
-Generators also benchmark marshal/unmarshal paths, with an explicit
+Generators also benchmark marshal/unmarshal paths with an explicit
 zero-allocation target for the pre-allocated marshal path.
+
+CI enforces the suite through standing regression gates:
+
+- **Bench regression** — `benchstat` compares against a committed
+  baseline and fails on any allocation-count increase or wall-clock
+  regression above a small threshold.
+- **Coverage floor** — per-file coverage on generated `.codec.*` sources
+  must stay at or above a declared minimum (95% for Go).
+- **Deterministic generation** — running the generator twice produces
+  byte-identical output.

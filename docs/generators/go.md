@@ -49,6 +49,28 @@ directly to the native Go type (`int64` → `int64`, `string` → `string`,
 etc.). A field whose Go target is not the obvious wire-type mapping must
 declare a cast — otherwise generation fails.
 
+## Nested Messages
+
+Singular and repeated nested-message fields default to different Go
+representations, driven by what produces the fewest heap escapes in
+each case:
+
+| Proto declaration                  | Default Go shape | Rationale                                                         |
+|------------------------------------|------------------|-------------------------------------------------------------------|
+| `Inner inner = 1;`                 | `*Inner`         | Singular messages are optional in proto3 — pointer models absence. |
+| `repeated Inner items = 2;`        | `[]Inner`        | Value slices keep the backing array contiguous and GC-free.        |
+| self-referential (`Tree children`) | `[]*Tree`        | Value semantics would make the type infinite-size.                 |
+
+Use `codec.use_pointer` to override either default:
+
+```protobuf
+Inner inner = 1 [(codec.use_pointer) = false];          // force Inner (value)
+repeated Inner items = 2 [(codec.use_pointer) = true];  // force []*Inner (slice of pointers)
+```
+
+Self-referential fields ignore a `false` setting: the generator forces
+pointer representation to keep the Go type finite.
+
 ## Enums
 
 Proto enums map to Go integer enums by cast:
@@ -102,6 +124,29 @@ The classification is performed once per message from the schema, so
 the hot path carries no runtime branching to pick a strategy. The
 selected mode is an implementation detail — callers see identical
 semantics in all three cases.
+
+The slab is threaded into nested messages as well: `UnmarshalCodec` on
+the outer receiver allocates one backing string, and nested
+`unmarshalCodecInternal` calls carve their string fields out of the same
+allocation. A deeply nested unmarshal therefore does not scale
+allocations with tree depth.
+
+## Pointer Pooling and Cursor Reuse
+
+Generated `UnmarshalCodec` preserves allocated pointers across calls
+into the same receiver:
+
+- **Singular `*T` fields** — the existing pointer is reused when
+  present; a new one is allocated only on first unmarshal. A
+  `seenOptional` bitmap (one bit per field, field numbers ≤ 63)
+  distinguishes "never seen" from "wire value was the zero value", so
+  optional scalars with presence semantics decode correctly without
+  allocating on the hot path.
+- **Repeated `[]*T` fields** — unmarshal pre-scans the wire to count
+  elements, grows the slice to that length, then reuses in-place cursor
+  slots rather than `append(s, new(T))` for each element.
+- **Repeated `[]T` value fields** — pre-scan gives an exact `make` size
+  so the slice never reallocates during decode.
 
 ## Reset Semantics
 
@@ -166,20 +211,52 @@ dependencies beyond the standard library.
 
 ## Testing
 
-Go targets are tested with:
+The runtime package `lang/go/codec/` ships composite helpers that
+downstream consumers can reuse against their own types:
+
+| Helper                    | What it checks                                                                 |
+|---------------------------|--------------------------------------------------------------------------------|
+| `RunTestSuite[T,PT]`      | Roundtrip, zero value, reset, nil-safe methods, cross-format, corruption       |
+| `RunBenchSuite[T,PT]`     | Marshal / size / unmarshal benchmarks with `benchmem`                          |
+| `RunFuzzRoundtrip[T,PT]`  | `pgregory.net/rapid`-driven property-based roundtrip                           |
+| `RunCoverageSuite[T,PT]`  | Zero marshal, unknown-field skip, wire-type mismatch, short-buffer handling    |
+
+Individual assertions are exposed for targeted tests:
+`AssertRoundtrip`, `AssertReset`, `AssertNilSafe`,
+`AssertCrossFormatConsistency`, `AssertWireSmallerThanJSON`,
+`AssertZeroMarshal`, `AssertUnknownFieldSkipped`,
+`AssertWireTypeMismatch`, `AssertShortBuffer`.
+
+Goals enforced by the suite:
 
 - **Roundtrip** — `MarshalCodec` → `UnmarshalCodec` yields a struct equal
   to the input under `reflect.DeepEqual`.
 - **Size accuracy** — `SizeCodec()` equals `len(b)` from `MarshalCodec`.
-- **Reset completeness** — after `ResetCodec`, the receiver equals its
-  zero value for all serialized fields.
-- **Property-based fuzzing** — `pgregory.net/rapid` generates
-  randomised inputs covering varint boundaries, packed scalars, oneof
-  branches, and fixed-length guards.
+- **Reset completeness** — after `ResetCodec`, `SizeCodec()` is zero and
+  `MarshalCodec` produces no bytes, so the receiver is wire-equivalent
+  to its zero value.
+- **Cross-format consistency** — the codec and `encoding/json` agree on
+  the data when round-tripped through each.
+- **Property-based fuzzing** — randomised inputs cover varint
+  boundaries, packed scalars, oneof branches, and fixed-length guards.
 - **Benchmarks** — `MarshalToCodec` targets zero allocations;
-  `UnmarshalCodec` targets a single slab allocation for messages eligible
-  for the slab strategy.
+  `UnmarshalCodec` targets a single slab allocation for messages
+  eligible for the slab strategy.
+
+CI enforces non-regression through standing gates in `Makefile` +
+`.github/workflows/ci.yml`:
+
+| Target                       | What it enforces                                                               |
+|------------------------------|--------------------------------------------------------------------------------|
+| `make verify-deterministic-gen` | Running the generator twice produces byte-identical output.                 |
+| `make bench-compare`         | `benchstat` vs. `.bench-baseline/main.txt`; any alloc increase or >5% ns increase fails. |
+| `make coverage-gate`         | Per-file coverage on `*.codec.go` stays ≥95%.                                  |
+| `make test-race`             | All tests pass under `-race`.                                                  |
+| `make test-fuzz`             | Every fuzz target runs for `FUZZTIME` (default 30s) without finding a failure. |
 
 The reference fixture lives at `lang/go/integration/` and exercises enum
-casts, fixed-length byte arrays, repeated strings, and oneof-like
-patterns.
+casts, fixed-length byte arrays, repeated strings, packed zigzag,
+map fields, well-known Timestamp/Duration, and self-referential nested
+messages. Benchmark baselines are committed at `.bench-baseline/main.txt`
+and refreshed with `make bench-baseline` when a deliberate change
+shifts numbers.

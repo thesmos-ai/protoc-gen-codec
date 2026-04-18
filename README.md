@@ -23,6 +23,7 @@ Defined in `codec/options.proto`:
 | `codec.field` | Field | Explicit field name override |
 | `codec.cast` | Field | Type cast (enums, fixed-point, byte arrays) |
 | `codec.fixed_len` | Field | Strict byte-length guard on unmarshal |
+| `codec.use_pointer` | Field (message) | Override pointer vs. value representation for nested messages |
 | `codec.keep_capacity` | Field | Preserve slice capacity on reset |
 
 ## Usage
