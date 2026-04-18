@@ -6,10 +6,11 @@ package golang
 import (
 	"go.stealthscale.io/protoc-gen-codec/internal/core"
 	"google.golang.org/protobuf/compiler/protogen"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-func generateSizeCodec(g *protogen.GeneratedFile, info *core.MessageInfo) {
-	g.P("func (m *", info.GoType, ") SizeCodec() int {")
+func generateSizeCodec(g *protogen.GeneratedFile, fileMap map[string]*protogen.File, info *core.MessageInfo) {
+	g.P("func (m *", info.TargetType, ") SizeCodec() int {")
 	g.P("if m == nil {")
 	g.P("return 0")
 	g.P("}")
@@ -17,34 +18,101 @@ func generateSizeCodec(g *protogen.GeneratedFile, info *core.MessageInfo) {
 
 	for i := range info.Fields {
 		f := &info.Fields[i]
-		generateFieldSize(g, f)
+		generateFieldSize(g, fileMap, f)
 	}
 
 	g.P("return n")
 	g.P("}")
 }
 
-func generateFieldSize(g *protogen.GeneratedFile, f *core.FieldInfo) {
+func generateFieldSize(g *protogen.GeneratedFile, fileMap map[string]*protogen.File, f *core.FieldInfo) {
 	ts := core.TagSize(f.ProtoNum)
-	accessor := "m." + f.GoName
+	accessor := "m." + f.TargetName
+
+	// WKT dispatch must precede IsMessage/IsMap checks; see generateFieldMarshal.
+	if f.WellKnown == core.WKTTimestamp {
+		g.P("{ var zero ", identTimeTime)
+		g.P("if ", accessor, " != zero {")
+		g.P("sz := ", identSizeTimestamp, "(", accessor, ")")
+		g.P("n += ", ts, " + ", identSov, "(uint64(sz)) + sz")
+		g.P("} }")
+		return
+	}
+	if f.WellKnown == core.WKTDuration {
+		g.P("if ", accessor, " != 0 {")
+		g.P("sz := ", identSizeDuration, "(", accessor, ")")
+		g.P("n += ", ts, " + ", identSov, "(uint64(sz)) + sz")
+		g.P("}")
+		return
+	}
+
+	if f.IsMap {
+		generateMapFieldSize(g, f, accessor, ts)
+		return
+	}
 
 	if f.IsRepeated {
-		generateRepeatedFieldSize(g, f, ts)
+		generateRepeatedFieldSize(g, fileMap, f, ts)
+		return
+	}
+
+	if f.IsMessage {
+		if f.UsePointer {
+			g.P("if ", accessor, " != nil {")
+			g.P("sz := ", accessor, ".SizeCodec()")
+			g.P("n += ", ts, " + ", identSov, "(uint64(sz)) + sz")
+			g.P("}")
+		} else {
+			g.P("if sz := (&", accessor, ").SizeCodec(); sz > 0 {")
+			g.P("n += ", ts, " + ", identSov, "(uint64(sz)) + sz")
+			g.P("}")
+		}
+		return
+	}
+
+	if f.IsProto3Optional {
+		derefAccessor := "*" + accessor
+		g.P("if ", accessor, " != nil {")
+		switch f.Wire {
+		case core.WireVarint:
+			switch f.ProtoKind {
+			case protoreflect.BoolKind:
+				g.P("n += ", ts+1)
+			case protoreflect.Sint32Kind:
+				g.P("n += ", ts, " + ", identSov, "(uint64(", identZigzagEncode32, "(int32(", derefAccessor, "))))")
+			case protoreflect.Sint64Kind:
+				g.P("n += ", ts, " + ", identSov, "(", identZigzagEncode64, "(int64(", derefAccessor, ")))")
+			default:
+				g.P("n += ", ts, " + ", identSov, "(uint64(", derefAccessor, "))")
+			}
+		case core.WireFixed64:
+			g.P("n += ", ts+8)
+		case core.WireFixed32:
+			g.P("n += ", ts+4)
+		}
+		g.P("}")
 		return
 	}
 
 	switch {
 	case f.FixedLen > 0:
-		zeroType := f.QualifiedZeroType(g)
+		zeroType := goCastName(g, fileMap, f)
 		g.P("if ", accessor, " != (", zeroType, "{}) {")
 		g.P("n += ", ts+core.SovLocal(uint64(f.FixedLen))+int(f.FixedLen))
 		g.P("}")
 
 	case f.Wire == core.WireVarint:
-		if f.ProtoKind.String() == "bool" {
+		switch {
+		case f.ProtoKind == protoreflect.BoolKind:
 			g.P("if ", accessor, " {")
 			g.P("n += ", ts+1)
-		} else {
+		case f.ProtoKind == protoreflect.Sint32Kind:
+			g.P("if ", accessor, " != 0 {")
+			g.P("n += ", ts, " + ", identSov, "(uint64(", identZigzagEncode32, "(int32(", accessor, "))))")
+		case f.ProtoKind == protoreflect.Sint64Kind:
+			g.P("if ", accessor, " != 0 {")
+			g.P("n += ", ts, " + ", identSov, "(", identZigzagEncode64, "(int64(", accessor, ")))")
+		default:
 			g.P("if ", accessor, " != 0 {")
 			g.P("n += ", ts, " + ", identSov, "(uint64(", accessor, "))")
 		}
@@ -74,8 +142,36 @@ func generateFieldSize(g *protogen.GeneratedFile, f *core.FieldInfo) {
 	}
 }
 
-func generateRepeatedFieldSize(g *protogen.GeneratedFile, f *core.FieldInfo, ts int) {
-	accessor := "m." + f.GoName
+func generateMapFieldSize(g *protogen.GeneratedFile, f *core.FieldInfo, accessor string, ts int) {
+	keySize := scalarSizeExpr(g, f.MapKey, "k")
+	valSize := scalarSizeExpr(g, f.MapValue, "v")
+	keyTagSize := core.TagSize(f.MapKey.ProtoNum)
+	valTagSize := core.TagSize(f.MapValue.ProtoNum)
+	g.P("for k, v := range ", accessor, " {")
+	g.P("entrySz := ", keyTagSize, " + ", keySize, " + ", valTagSize, " + ", valSize)
+	g.P("n += ", ts, " + ", identSov, "(uint64(entrySz)) + entrySz")
+	g.P("}")
+}
+
+func generateRepeatedFieldSize(g *protogen.GeneratedFile, _ map[string]*protogen.File, f *core.FieldInfo, ts int) {
+	accessor := "m." + f.TargetName
+
+	if f.IsMessage {
+		if f.UsePointer {
+			g.P("for _, elem := range ", accessor, " {")
+			g.P("if elem == nil { continue }")
+			g.P("sz := elem.SizeCodec()")
+			g.P("n += ", ts, " + ", identSov, "(uint64(sz)) + sz")
+			g.P("}")
+		} else {
+			g.P("for idx := range ", accessor, " {")
+			g.P("elem := &", accessor, "[idx]")
+			g.P("sz := elem.SizeCodec()")
+			g.P("n += ", ts, " + ", identSov, "(uint64(sz)) + sz")
+			g.P("}")
+		}
+		return
+	}
 
 	switch {
 	case f.IsString:
@@ -97,9 +193,20 @@ func generateRepeatedFieldSize(g *protogen.GeneratedFile, f *core.FieldInfo, ts 
 	case f.Wire == core.WireVarint:
 		g.P("if len(", accessor, ") > 0 {")
 		g.P("l := 0")
-		g.P("for _, v := range ", accessor, " {")
-		g.P("l += ", identSov, "(uint64(v))")
-		g.P("}")
+		switch f.ProtoKind {
+		case protoreflect.Sint32Kind:
+			g.P("for _, v := range ", accessor, " {")
+			g.P("l += ", identSov, "(uint64(", identZigzagEncode32, "(int32(v))))")
+			g.P("}")
+		case protoreflect.Sint64Kind:
+			g.P("for _, v := range ", accessor, " {")
+			g.P("l += ", identSov, "(", identZigzagEncode64, "(int64(v)))")
+			g.P("}")
+		default:
+			g.P("for _, v := range ", accessor, " {")
+			g.P("l += ", identSov, "(uint64(v))")
+			g.P("}")
+		}
 		g.P("n += ", ts, " + ", identSov, "(uint64(l)) + l")
 		g.P("}")
 

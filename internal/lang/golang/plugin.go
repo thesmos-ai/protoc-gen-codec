@@ -4,23 +4,31 @@
 package golang
 
 import (
+	"fmt"
+
 	"google.golang.org/protobuf/compiler/protogen"
+	"google.golang.org/protobuf/types/pluginpb"
 
 	"go.stealthscale.io/protoc-gen-codec/internal/core"
 )
 
 func Run() {
 	protogen.Options{}.Run(func(plugin *protogen.Plugin) error {
+		plugin.SupportedFeatures = uint64(pluginpb.CodeGeneratorResponse_FEATURE_PROTO3_OPTIONAL)
 		fileMap := buildFileMap(plugin)
+		var firstErr error
 		for _, f := range plugin.Files {
 			if !f.Generate {
 				continue
 			}
 			if err := generateFile(plugin, f, fileMap); err != nil {
-				return err
+				plugin.Error(fmt.Errorf("%s: %w", f.Desc.Path(), err))
+				if firstErr == nil {
+					firstErr = err
+				}
 			}
 		}
-		return nil
+		return firstErr
 	})
 }
 
@@ -54,14 +62,16 @@ func generateFileImpl(
 	file *protogen.File,
 	fileMap map[string]*protogen.File,
 ) error {
+	aliasOf := func(dep *protogen.File) string { return string(dep.GoPackageName) }
+
 	var messages []*core.MessageInfo
 	for _, msg := range file.Messages {
-		info, err := core.AnalyzeMessage(msg, fileMap, file)
+		info, err := core.AnalyzeMessage(msg, fileMap, file, aliasOf)
 		if err != nil {
 			return err
 		}
 		if info == nil {
-			continue
+			continue // message not annotated for codec
 		}
 		messages = append(messages, info)
 	}
@@ -70,5 +80,5 @@ func generateFileImpl(
 		return nil
 	}
 
-	return emitGoFile(plugin, file, messages)
+	return emitGoFile(plugin, file, fileMap, messages)
 }

@@ -41,4 +41,11 @@ extend google.protobuf.FieldOptions {
   // keep_capacity instructs the reset method to preserve slice backing
   // arrays (e.g., s = s[:0] instead of s = nil) for sync.Pool reuse.
   optional bool keep_capacity = 50005;
+
+  // use_pointer controls whether a message-kind field's Go target is a
+  // pointer. Defaults differ by cardinality:
+  //   singular: default true (*T, preserves proto3 presence)
+  //   repeated: default false ([]T, avoids per-element heap allocation)
+  // Self-referential message fields are forced to true regardless.
+  optional bool use_pointer = 50006;
 }

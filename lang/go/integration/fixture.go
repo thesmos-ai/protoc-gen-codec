@@ -3,6 +3,8 @@
 
 package integration
 
+import "time"
+
 type Status uint8
 
 const (
@@ -109,9 +111,70 @@ type Minimal struct {
 
 // NumericOnly has no string fields (tests no-slab path).
 type NumericOnly struct {
-	A uint32  `json:"a"`
-	B uint64  `json:"b"`
-	C int64   `json:"c"`
-	D Fixed64 `json:"d"`
-	E bool    `json:"e"`
+	A uint32   `json:"a"`
+	B uint64   `json:"b"`
+	C int64    `json:"c"`
+	D Fixed64  `json:"d"`
+	E bool     `json:"e"`
+	F int32    `json:"f"`
+	G int64    `json:"g"`
+	H *int32   `json:"h,omitempty"`
+	I *bool    `json:"i,omitempty"`
+	J *Fixed64 `json:"j,omitempty"`
+}
+
+// PackedZigzag exercises the packed-repeated sint path of the generator.
+type PackedZigzag struct {
+	Values32 []int32 `json:"values32"`
+	Values64 []int64 `json:"values64"`
+}
+
+// Inner is a nested-message leaf type.
+type Inner struct {
+	Label string `json:"label"`
+	Count int64  `json:"count"`
+}
+
+// Container holds a singular and a repeated nested message.
+type Container struct {
+	Name     string   `json:"name"`
+	Inner    *Inner   `json:"inner,omitempty"`
+	Children []*Inner `json:"children"`
+}
+
+// ValueContainer exercises value-semantics for both singular and repeated messages.
+type ValueContainer struct {
+	Name  string  `json:"name"`
+	Inner Inner   `json:"inner"`
+	Items []Inner `json:"items"`
+}
+
+// Tree exercises the self-reference force: a self-referential message field
+// is always emitted as []*Tree because value semantics would produce an
+// infinite-size type.
+type Tree struct {
+	Label    string  `json:"label"`
+	Children []*Tree `json:"children"`
+}
+
+// MapHolder exercises proto3 map<K,V> fields.
+type MapHolder struct {
+	Attrs  map[string]string `json:"attrs,omitempty"`
+	Counts map[string]int64  `json:"counts,omitempty"`
+}
+
+// TimeHolder exercises the google.protobuf.Timestamp and Duration WKT paths,
+// which map to Go value types (time.Time and time.Duration) and must encode
+// and decode without any heap allocations.
+type TimeHolder struct {
+	CreatedAt time.Time     `json:"created_at"`
+	Timeout   time.Duration `json:"timeout"`
+}
+
+// BytesPool exercises (codec.keep_capacity) = true on a single []byte field.
+// On warm-path unmarshal into a primed receiver, the backing array must be
+// reused (decode is `append(m.Payload[:0], data...)`), leaving cap() intact
+// and keeping allocs at zero.
+type BytesPool struct {
+	Payload []byte `json:"payload"`
 }

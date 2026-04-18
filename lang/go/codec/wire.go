@@ -42,6 +42,26 @@ func DecodeVarint(data []byte) (uint64, int) {
 	return 0, -1
 }
 
+// ZigzagEncode32 encodes a signed int32 to a uint32 varint using zigzag.
+func ZigzagEncode32(v int32) uint32 {
+	return uint32(v<<1) ^ uint32(v>>31)
+}
+
+// ZigzagEncode64 encodes a signed int64 to a uint64 varint using zigzag.
+func ZigzagEncode64(v int64) uint64 {
+	return uint64(v<<1) ^ uint64(v>>63)
+}
+
+// ZigzagDecode32 decodes a zigzag-encoded uint32 varint to signed int32.
+func ZigzagDecode32(v uint32) int32 {
+	return int32(v>>1) ^ -int32(v&1)
+}
+
+// ZigzagDecode64 decodes a zigzag-encoded uint64 varint to signed int64.
+func ZigzagDecode64(v uint64) int64 {
+	return int64(v>>1) ^ -int64(v&1)
+}
+
 func SkipField(data []byte, wireType uint64) (int, error) {
 	switch wireType {
 	case 0:

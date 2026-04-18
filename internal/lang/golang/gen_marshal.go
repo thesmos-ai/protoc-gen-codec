@@ -10,7 +10,7 @@ import (
 )
 
 func generateMarshalCodec(g *protogen.GeneratedFile, info *core.MessageInfo) {
-	g.P("func (m *", info.GoType, ") MarshalCodec() ([]byte, error) {")
+	g.P("func (m *", info.TargetType, ") MarshalCodec() ([]byte, error) {")
 	g.P("if m == nil {")
 	g.P("return nil, nil")
 	g.P("}")
@@ -27,33 +27,124 @@ func generateMarshalCodec(g *protogen.GeneratedFile, info *core.MessageInfo) {
 	g.P("}")
 }
 
-func generateMarshalToCodec(g *protogen.GeneratedFile, info *core.MessageInfo) {
-	g.P("func (m *", info.GoType, ") MarshalToCodec(buf []byte) (int, error) {")
+func generateMarshalToCodec(g *protogen.GeneratedFile, fileMap map[string]*protogen.File, info *core.MessageInfo) {
+	g.P("func (m *", info.TargetType, ") MarshalToCodec(buf []byte) (int, error) {")
 	g.P("if m == nil {")
 	g.P("return 0, nil")
+	g.P("}")
+	g.P("if len(buf) < m.SizeCodec() {")
+	g.P("return 0, ", identErrBufferTooShort)
 	g.P("}")
 	g.P("n := 0")
 
 	for i := range info.Fields {
 		f := &info.Fields[i]
-		generateFieldMarshal(g, f)
+		generateFieldMarshal(g, fileMap, f)
 	}
 
 	g.P("return n, nil")
 	g.P("}")
 }
 
-func generateFieldMarshal(g *protogen.GeneratedFile, f *core.FieldInfo) {
-	accessor := "m." + f.GoName
+func generateFieldMarshal(g *protogen.GeneratedFile, fileMap map[string]*protogen.File, f *core.FieldInfo) {
+	accessor := "m." + f.TargetName
+
+	// WKT dispatch must precede IsMessage/IsMap checks: analyzeField cleared
+	// those flags for well-known types, but the WKT path has its own
+	// zero-value guard (time.Time{} for Timestamp; 0 for Duration) and
+	// encode helper, distinct from the generic message path.
+	if f.WellKnown == core.WKTTimestamp {
+		g.P("{")
+		g.P("var zero ", identTimeTime)
+		g.P("if ", accessor, " != zero {")
+		emitTag(g, f.ProtoNum, core.WireLenDel, "buf", "n")
+		g.P("sz := ", identSizeTimestamp, "(", accessor, ")")
+		g.P("n += ", identEncodeVarint, "(buf[n:],uint64(sz))")
+		g.P("n += ", identEncodeTimestamp, "(buf[n:], ", accessor, ")")
+		g.P("}")
+		g.P("}")
+		return
+	}
+	if f.WellKnown == core.WKTDuration {
+		g.P("if ", accessor, " != 0 {")
+		emitTag(g, f.ProtoNum, core.WireLenDel, "buf", "n")
+		g.P("sz := ", identSizeDuration, "(", accessor, ")")
+		g.P("n += ", identEncodeVarint, "(buf[n:],uint64(sz))")
+		g.P("n += ", identEncodeDuration, "(buf[n:], ", accessor, ")")
+		g.P("}")
+		return
+	}
+
+	if f.IsMap {
+		generateMapFieldMarshal(g, f, accessor)
+		return
+	}
 
 	if f.IsRepeated {
-		generateRepeatedFieldMarshal(g, f)
+		generateRepeatedFieldMarshal(g, fileMap, f)
+		return
+	}
+
+	if f.IsMessage {
+		if f.UsePointer {
+			// Singular pointer: *T, nil = absent.
+			g.P("if ", accessor, " != nil {")
+			emitTag(g, f.ProtoNum, core.WireLenDel, "buf", "n")
+			g.P("sz := ", accessor, ".SizeCodec()")
+			g.P("n += ", identEncodeVarint, "(buf[n:],uint64(sz))")
+			g.P("wn, err := ", accessor, ".MarshalToCodec(buf[n:])")
+			g.P("if err != nil { return 0, err }")
+			g.P("n += wn")
+			g.P("}")
+		} else {
+			// Singular value: T, SizeCodec() > 0 used as presence predicate.
+			g.P("if sz := (&", accessor, ").SizeCodec(); sz > 0 {")
+			emitTag(g, f.ProtoNum, core.WireLenDel, "buf", "n")
+			g.P("n += ", identEncodeVarint, "(buf[n:],uint64(sz))")
+			g.P("wn, err := (&", accessor, ").MarshalToCodec(buf[n:])")
+			g.P("if err != nil { return 0, err }")
+			g.P("n += wn")
+			g.P("}")
+		}
+		return
+	}
+
+	if f.IsProto3Optional {
+		derefAccessor := "*" + accessor
+		g.P("if ", accessor, " != nil {")
+		switch f.Wire {
+		case core.WireVarint:
+			switch f.ProtoKind {
+			case protoreflect.BoolKind:
+				emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+				g.P("if ", derefAccessor, " { buf[n] = 1 } else { buf[n] = 0 }")
+				g.P("n++")
+			case protoreflect.Sint32Kind:
+				emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+				g.P("n += ", identEncodeVarint, "(buf[n:],uint64(", identZigzagEncode32, "(int32(", derefAccessor, "))))")
+			case protoreflect.Sint64Kind:
+				emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+				g.P("n += ", identEncodeVarint, "(buf[n:],", identZigzagEncode64, "(int64(", derefAccessor, ")))")
+			default:
+				emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+				g.P("n += ", identEncodeVarint, "(buf[n:],uint64(", derefAccessor, "))")
+			}
+		case core.WireFixed64:
+			emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+			g.P(identBinaryLE, ".PutUint64(buf[n:], uint64(", derefAccessor, "))")
+			g.P("n += 8")
+		case core.WireFixed32:
+			emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+			g.P(identBinaryLE, ".PutUint32(buf[n:], uint32(", derefAccessor, "))")
+			g.P("n += 4")
+		}
+		g.P("}")
 		return
 	}
 
 	switch {
 	case f.FixedLen > 0:
-		zeroType := f.QualifiedZeroType(g)
+		zeroType := goCastName(g, fileMap, f)
 		g.P("if ", accessor, " != (", zeroType, "{}) {")
 		emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
 		g.P("n += ", identEncodeVarint, "(buf[n:],", f.FixedLen, ")")
@@ -62,12 +153,21 @@ func generateFieldMarshal(g *protogen.GeneratedFile, f *core.FieldInfo) {
 		g.P("}")
 
 	case f.Wire == core.WireVarint:
-		if f.ProtoKind == protoreflect.BoolKind {
+		switch {
+		case f.ProtoKind == protoreflect.BoolKind:
 			g.P("if ", accessor, " {")
 			emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
 			g.P("buf[n] = 1")
 			g.P("n++")
-		} else {
+		case f.ProtoKind == protoreflect.Sint32Kind:
+			g.P("if ", accessor, " != 0 {")
+			emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+			g.P("n += ", identEncodeVarint, "(buf[n:],uint64(", identZigzagEncode32, "(int32(", accessor, "))))")
+		case f.ProtoKind == protoreflect.Sint64Kind:
+			g.P("if ", accessor, " != 0 {")
+			emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
+			g.P("n += ", identEncodeVarint, "(buf[n:],", identZigzagEncode64, "(int64(", accessor, ")))")
+		default:
 			g.P("if ", accessor, " != 0 {")
 			emitTag(g, f.ProtoNum, f.Wire, "buf", "n")
 			g.P("n += ", identEncodeVarint, "(buf[n:],uint64(", accessor, "))")
@@ -104,8 +204,49 @@ func generateFieldMarshal(g *protogen.GeneratedFile, f *core.FieldInfo) {
 	}
 }
 
-func generateRepeatedFieldMarshal(g *protogen.GeneratedFile, f *core.FieldInfo) {
-	accessor := "m." + f.GoName
+func generateMapFieldMarshal(g *protogen.GeneratedFile, f *core.FieldInfo, accessor string) {
+	keySize := scalarSizeExpr(g, f.MapKey, "k")
+	valSize := scalarSizeExpr(g, f.MapValue, "v")
+	keyTagSize := core.TagSize(f.MapKey.ProtoNum)
+	valTagSize := core.TagSize(f.MapValue.ProtoNum)
+	g.P("for k, v := range ", accessor, " {")
+	emitTag(g, f.ProtoNum, core.WireLenDel, "buf", "n")
+	g.P("entrySz := ", keyTagSize, " + ", keySize, " + ", valTagSize, " + ", valSize)
+	g.P("n += ", identEncodeVarint, "(buf[n:],uint64(entrySz))")
+	emitScalarWrite(g, f.MapKey, "k")
+	emitScalarWrite(g, f.MapValue, "v")
+	g.P("}")
+}
+
+func generateRepeatedFieldMarshal(g *protogen.GeneratedFile, _ map[string]*protogen.File, f *core.FieldInfo) {
+	accessor := "m." + f.TargetName
+
+	if f.IsMessage {
+		if f.UsePointer {
+			// Pointer slice: skip nil entries, marshal via pointer receiver.
+			g.P("for _, elem := range ", accessor, " {")
+			g.P("if elem == nil { continue }")
+			emitTag(g, f.ProtoNum, core.WireLenDel, "buf", "n")
+			g.P("sz := elem.SizeCodec()")
+			g.P("n += ", identEncodeVarint, "(buf[n:],uint64(sz))")
+			g.P("wn, err := elem.MarshalToCodec(buf[n:])")
+			g.P("if err != nil { return 0, err }")
+			g.P("n += wn")
+			g.P("}")
+		} else {
+			// Value slice: take address of element for pointer-receiver methods.
+			g.P("for idx := range ", accessor, " {")
+			g.P("elem := &", accessor, "[idx]")
+			emitTag(g, f.ProtoNum, core.WireLenDel, "buf", "n")
+			g.P("sz := elem.SizeCodec()")
+			g.P("n += ", identEncodeVarint, "(buf[n:],uint64(sz))")
+			g.P("wn, err := elem.MarshalToCodec(buf[n:])")
+			g.P("if err != nil { return 0, err }")
+			g.P("n += wn")
+			g.P("}")
+		}
+		return
+	}
 
 	switch {
 	case f.IsString:
@@ -134,13 +275,35 @@ func generateRepeatedFieldMarshal(g *protogen.GeneratedFile, f *core.FieldInfo) 
 		g.P("if len(", accessor, ") > 0 {")
 		emitTag(g, f.ProtoNum, core.WireLenDel, "buf", "n")
 		g.P("l := 0")
-		g.P("for _, v := range ", accessor, " {")
-		g.P("l += ", identSov, "(uint64(v))")
-		g.P("}")
+		switch f.ProtoKind {
+		case protoreflect.Sint32Kind:
+			g.P("for _, v := range ", accessor, " {")
+			g.P("l += ", identSov, "(uint64(", identZigzagEncode32, "(int32(v))))")
+			g.P("}")
+		case protoreflect.Sint64Kind:
+			g.P("for _, v := range ", accessor, " {")
+			g.P("l += ", identSov, "(", identZigzagEncode64, "(int64(v)))")
+			g.P("}")
+		default:
+			g.P("for _, v := range ", accessor, " {")
+			g.P("l += ", identSov, "(uint64(v))")
+			g.P("}")
+		}
 		g.P("n += ", identEncodeVarint, "(buf[n:],uint64(l))")
-		g.P("for _, v := range ", accessor, " {")
-		g.P("n += ", identEncodeVarint, "(buf[n:],uint64(v))")
-		g.P("}")
+		switch f.ProtoKind {
+		case protoreflect.Sint32Kind:
+			g.P("for _, v := range ", accessor, " {")
+			g.P("n += ", identEncodeVarint, "(buf[n:],uint64(", identZigzagEncode32, "(int32(v))))")
+			g.P("}")
+		case protoreflect.Sint64Kind:
+			g.P("for _, v := range ", accessor, " {")
+			g.P("n += ", identEncodeVarint, "(buf[n:],", identZigzagEncode64, "(int64(v)))")
+			g.P("}")
+		default:
+			g.P("for _, v := range ", accessor, " {")
+			g.P("n += ", identEncodeVarint, "(buf[n:],uint64(v))")
+			g.P("}")
+		}
 		g.P("}")
 
 	case f.Wire == core.WireFixed64:

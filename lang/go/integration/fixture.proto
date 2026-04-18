@@ -6,6 +6,8 @@ package integration;
 option go_package = "go.stealthscale.io/protoc-gen-codec/lang/go/integration";
 
 import "codec/options.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
 
 message Fixture {
   option (codec.type) = "Fixture";
@@ -66,4 +68,63 @@ message NumericOnly {
   int64 c = 3 [(codec.field) = "C"];
   sfixed64 d = 4 [(codec.field) = "D", (codec.cast) = "Fixed64"];
   bool e = 5 [(codec.field) = "E"];
+  sint32 f = 6 [(codec.field) = "F"];
+  sint64 g = 7 [(codec.field) = "G"];
+  optional int32 h = 8 [(codec.field) = "H"];
+  optional bool i = 9 [(codec.field) = "I"];
+  optional sfixed64 j = 10 [(codec.field) = "J", (codec.cast) = "Fixed64"];
+}
+
+message PackedZigzag {
+  option (codec.type) = "PackedZigzag";
+
+  repeated sint32 values32 = 1 [(codec.field) = "Values32"];
+  repeated sint64 values64 = 2 [(codec.field) = "Values64"];
+}
+
+message Inner {
+  option (codec.type) = "Inner";
+  string label = 1 [(codec.field) = "Label"];
+  int64 count = 2 [(codec.field) = "Count"];
+}
+
+message Container {
+  option (codec.type) = "Container";
+  string name = 1 [(codec.field) = "Name"];
+  Inner inner = 2 [(codec.field) = "Inner"];
+  repeated Inner children = 3 [(codec.field) = "Children", (codec.use_pointer) = true, (codec.keep_capacity) = true];
+}
+
+message ValueContainer {
+  option (codec.type) = "ValueContainer";
+  string name = 1 [(codec.field) = "Name"];
+  Inner inner = 2 [(codec.field) = "Inner", (codec.use_pointer) = false];
+  repeated Inner items = 3 [(codec.field) = "Items"];
+}
+
+message Tree {
+  option (codec.type) = "Tree";
+  string label = 1 [(codec.field) = "Label"];
+  repeated Tree children = 2 [(codec.field) = "Children"];
+  // self-reference forces use_pointer = true automatically
+}
+
+message MapHolder {
+  option (codec.type) = "MapHolder";
+
+  map<string, string> attrs = 1 [(codec.field) = "Attrs"];
+  map<string, int64> counts = 2 [(codec.field) = "Counts", (codec.keep_capacity) = true];
+}
+
+message TimeHolder {
+  option (codec.type) = "TimeHolder";
+
+  google.protobuf.Timestamp created_at = 1 [(codec.field) = "CreatedAt"];
+  google.protobuf.Duration  timeout    = 2 [(codec.field) = "Timeout"];
+}
+
+message BytesPool {
+  option (codec.type) = "BytesPool";
+
+  bytes payload = 1 [(codec.field) = "Payload", (codec.keep_capacity) = true];
 }

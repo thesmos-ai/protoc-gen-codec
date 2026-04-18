@@ -1,18 +1,50 @@
 // Copyright 2026 Stealth Scale B.V.
 // SPDX-License-Identifier: Apache-2.0
 
+// Package core implements language-neutral proto descriptor analysis shared
+// by every protoc-gen-codec-<lang> emitter.
+//
+// AnalyzeMessage consumes a proto descriptor and returns a MessageInfo whose
+// fields identify wire kinds, cast targets, and repeated/bytes/string
+// metadata independently of any output language. Emitters convert
+// MessageInfo into language-specific code.
+//
+// Stability: MessageInfo, FieldInfo, CastRef, WireKind, and AliasLookup are
+// part of the cross-emitter contract. Adding fields is non-breaking; removing
+// or repurposing them requires updating every emitter.
 package core
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
+// validCastIdent allows letters, digits, underscore, and one dot for pkg.Type.
+var validCastIdent = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$`)
+
+// WellKnownKind identifies a proto field whose message type is a
+// well-known-type the generator has first-class support for. For such fields,
+// the IsMessage/MessageRef/UsePointer flags are cleared so emitters bypass the
+// generic message path and emit WKT-specific encode/decode calls instead.
+type WellKnownKind int
+
+// WellKnownKind constants enumerate the well-known types with first-class
+// generator support. Extend in lockstep with analyzeField's detection switch
+// and every emitter's WKT branch.
+const (
+	WKTNone WellKnownKind = iota
+	WKTTimestamp
+	WKTDuration
+)
+
+// WireKind is the proto wire format category (varint, fixed64, length-delimited, fixed32).
 type WireKind int
 
+// WireKind constants enumerate the proto wire format categories.
 const (
 	WireVarint  WireKind = 0
 	WireFixed64 WireKind = 1
@@ -20,40 +52,130 @@ const (
 	WireFixed32 WireKind = 5
 )
 
+// AliasLookup returns the emitter-specific alias name for a dependency file.
+// For the Go emitter this is string(dep.GoPackageName); other emitters
+// (TypeScript module, Rust crate) provide their own mapping.
+type AliasLookup func(dep *protogen.File) string
+
+// CastRef identifies a target-language type referenced by a codec.cast
+// annotation. It carries the source .proto file and the package alias the
+// user wrote, so each language emitter can qualify the type in its own way.
+type CastRef struct {
+	// ProtoFile is the .proto file that declares the go_package / other-lang
+	// package for this cast target. Empty if the cast is in the same file
+	// as the referencing field (unqualified name).
+	ProtoFile string
+	// PackageAlias is the alias before the dot, e.g. "hash" in "hash.Digest".
+	// Empty for same-file casts.
+	PackageAlias string
+	// Name is the unqualified type name, e.g. "Digest" or "Status".
+	Name string
+}
+
+// MessageRef identifies a target-language message type referenced by a field
+// of MessageKind. Each emitter resolves this to its own qualified name.
+type MessageRef struct {
+	// ProtoFile is the .proto file declaring the referenced message.
+	// Empty if the reference is to a message in the same file.
+	ProtoFile string
+	// FullName is the proto full name, e.g. "t.Inner". Primarily for
+	// diagnostics; emitters use TargetType for code.
+	FullName string
+	// TargetType is the target-language type name extracted from the
+	// referenced message's (codec.type) annotation.
+	TargetType string
+}
+
+// FieldInfo is the language-neutral description of one proto field after analysis.
 type FieldInfo struct {
 	ProtoNum     int32
-	GoName       string
+	TargetName   string // emitter-specific field name on the target type
 	Wire         WireKind
 	ProtoKind    protoreflect.Kind
-	Cast         string
-	CastIdent    *protogen.GoIdent
-	CastLocal    string
+	Cast         string   // raw cast string as written in the annotation
+	CastRef      *CastRef // nil if no cast; populated by resolveCast
 	FixedLen     uint32
 	KeepCapacity bool
 	IsRepeated   bool
 	IsBytes      bool
 	IsString     bool
+	// HasPresence is true when the field carries explicit presence information
+	// (proto3 optional or message-kind).
+	HasPresence bool
+	// IsProto3Optional is true for proto3 optional scalars, which are
+	// internally represented as a synthetic oneof. Distinguished from
+	// message-kind presence.
+	IsProto3Optional bool
+	// IsMessage is true for fields whose wire kind is MessageKind (nested
+	// messages, both singular and repeated). Map fields are also modeled as
+	// nested messages at the wire level; handled separately.
+	IsMessage bool
+	// MessageRef is non-nil iff IsMessage. It identifies the referenced
+	// target type, qualifying across .proto files as needed.
+	MessageRef *MessageRef
+	// UsePointer controls whether a message-kind field's Go target is a pointer.
+	// For singular: true = *T (proto3 presence), false = T (value-inlined).
+	// For repeated: true = []*T, false = []T (zero per-element alloc, default).
+	// Self-referential messages are forced true. Indirect recursion
+	// (A -> B -> A) is not caught; users must opt in with (codec.use_pointer).
+	UsePointer bool
+	// IsMap is true for proto3 map<K,V> fields. The wire format is a
+	// repeated length-delimited entry message with field 1 = key and
+	// field 2 = value. The Go-side target type is map[K]V.
+	IsMap bool
+	// MapKey describes field 1 of the synthetic entry message when IsMap.
+	MapKey *FieldInfo
+	// MapValue describes field 2 of the synthetic entry message when IsMap.
+	MapValue *FieldInfo
+	// WellKnown identifies a well-known-type field with first-class generator
+	// support (e.g. google.protobuf.Timestamp -> time.Time). When non-WKTNone,
+	// IsMessage/MessageRef/UsePointer are cleared so emitters bypass the
+	// generic message path.
+	WellKnown WellKnownKind
 }
 
+// MessageInfo describes a message's target type and field list produced by AnalyzeMessage.
 type MessageInfo struct {
-	GoType string
-	Fields []FieldInfo
+	TargetType string // emitter-specific type name (e.g. Go type, TS class)
+	Fields     []FieldInfo
 }
 
+// AnalyzeMessage returns a MessageInfo for msg, or an error if the annotations
+// are invalid. Messages lacking a (codec.type) option are skipped silently:
+// AnalyzeMessage returns (nil, nil) so callers can iterate over every message
+// in a file and generate only for the annotated subset. This matches the
+// protoc-gen-go ergonomic where unannotated messages are a no-op.
+// The aliasOf callback maps an imported proto file to the emitter's package
+// alias; it is invoked while resolving codec.cast annotations that use a
+// "pkg.Type" form.
 func AnalyzeMessage(
 	msg *protogen.Message,
 	fileMap map[string]*protogen.File,
 	file *protogen.File,
+	aliasOf AliasLookup,
 ) (*MessageInfo, error) {
-	goType := messageGoType(msg)
-	if goType == "" {
+	targetType := messageGoType(msg)
+	if targetType == "" {
+		// No codec.type annotation — skip this message silently.
+		// Users annotate only the messages they want codec methods on.
 		return nil, nil
 	}
 
-	info := &MessageInfo{GoType: goType}
+	for _, oneof := range msg.Oneofs {
+		if oneof.Desc.IsSynthetic() {
+			continue // proto3 optional's synthetic oneof — allowed
+		}
+		return nil, fmt.Errorf(
+			"message %s in %s: oneof %q is not yet supported by protoc-gen-codec; "+
+				"see the plan's Phase 4.3 note for the deferred design",
+			msg.Desc.Name(), file.Desc.Path(), oneof.Desc.Name(),
+		)
+	}
+
+	info := &MessageInfo{TargetType: targetType}
 
 	for _, field := range msg.Fields {
-		fi, err := analyzeField(field, fileMap, file)
+		fi, err := analyzeField(field, msg, fileMap, file, aliasOf)
 		if err != nil {
 			return nil, fmt.Errorf("field %s: %w", field.Desc.Name(), err)
 		}
@@ -65,27 +187,149 @@ func AnalyzeMessage(
 
 func analyzeField(
 	field *protogen.Field,
+	msg *protogen.Message,
 	fileMap map[string]*protogen.File,
 	file *protogen.File,
+	aliasOf AliasLookup,
 ) (FieldInfo, error) {
 	fi := FieldInfo{
 		ProtoNum:     int32(field.Desc.Number()),
-		GoName:       resolveGoName(field),
+		TargetName:   resolveGoName(field),
 		Wire:         WireKindOf(field.Desc.Kind()),
 		ProtoKind:    field.Desc.Kind(),
-		FixedLen:     fieldFixedLen(field),
 		KeepCapacity: fieldKeepCapacity(field),
 		IsRepeated:   field.Desc.IsList(),
 		IsBytes:      field.Desc.Kind() == protoreflect.BytesKind,
 		IsString:     field.Desc.Kind() == protoreflect.StringKind,
+		HasPresence:  field.Desc.HasPresence(),
+	}
+	if oneof := field.Desc.ContainingOneof(); oneof != nil && oneof.IsSynthetic() {
+		fi.IsProto3Optional = true
+	}
+
+	if field.Desc.Kind() == protoreflect.MessageKind {
+		fi.IsMessage = true
+		msgDesc := field.Message
+		if msgDesc == nil {
+			return fi, fmt.Errorf("message kind with nil Message descriptor")
+		}
+		if !field.Desc.IsMap() {
+			// Well-known types (Timestamp, Duration) lack (codec.type) but
+			// have first-class generator support; detect before the missing
+			// annotation is rejected.
+			switch string(msgDesc.Desc.FullName()) {
+			case "google.protobuf.Timestamp":
+				fi.WellKnown = WKTTimestamp
+				fi.IsMessage = false
+				fi.UsePointer = false
+			case "google.protobuf.Duration":
+				fi.WellKnown = WKTDuration
+				fi.IsMessage = false
+				fi.UsePointer = false
+			default:
+				targetType := messageGoType(msgDesc)
+				if targetType == "" {
+					return fi, fmt.Errorf(
+						"field references message %s which lacks (codec.type)",
+						msgDesc.Desc.FullName(),
+					)
+				}
+				declFile := string(msgDesc.Desc.ParentFile().Path())
+				ref := &MessageRef{
+					FullName:   string(msgDesc.Desc.FullName()),
+					TargetType: targetType,
+				}
+				if declFile != file.Desc.Path() {
+					ref.ProtoFile = declFile
+				}
+				fi.MessageRef = ref
+			}
+		}
+	}
+
+	if field.Desc.IsMap() {
+		fi.IsMap = true
+		// Map entries are modeled as MessageKind in proto3, but the Go-side
+		// target is map[K]V, not a nested message pointer. Undo the
+		// MessageKind branch so downstream emitters don't misfire.
+		fi.IsMessage = false
+		fi.MessageRef = nil
+		// proto3 descriptors mark map fields as repeated; override for our
+		// Go target so the repeated-field branch doesn't fire.
+		fi.IsRepeated = false
+		keyFI, err := analyzeField(field.Message.Fields[0], msg, fileMap, file, aliasOf)
+		if err != nil {
+			return fi, fmt.Errorf("map key: %w", err)
+		}
+		valFI, err := analyzeField(field.Message.Fields[1], msg, fileMap, file, aliasOf)
+		if err != nil {
+			return fi, fmt.Errorf("map value: %w", err)
+		}
+		fi.MapKey = &keyFI
+		fi.MapValue = &valFI
+	}
+
+	// UsePointer resolution for message-kind fields (not maps; IsMessage is
+	// unset above for maps). Cardinality-dependent default:
+	//   singular -> true  (*T, proto3 presence)
+	//   repeated -> false ([]T, zero per-element heap alloc)
+	// Self-referential message fields are forced to true because value
+	// semantics would produce an infinite-size type (direct recursion only;
+	// indirect A->B->A is deferred post-v1 and users must opt in).
+	if fi.IsMessage {
+		if fi.IsRepeated {
+			fi.UsePointer = false
+		} else {
+			fi.UsePointer = true
+		}
+
+		explicit, present := fieldUsePointer(field)
+
+		isSelfRef := false
+		if fi.MessageRef != nil && msg != nil {
+			isSelfRef = fi.MessageRef.FullName == string(msg.Desc.FullName())
+		}
+
+		if isSelfRef {
+			if present && !explicit {
+				return fi, fmt.Errorf("self-referential message field requires pointer semantics; cannot set (codec.use_pointer) = false")
+			}
+			fi.UsePointer = true
+		} else if present {
+			fi.UsePointer = explicit
+		}
+	}
+
+	if v, present := fieldFixedLen(field); present {
+		if v == 0 {
+			return fi, fmt.Errorf("(codec.fixed_len) must be > 0")
+		}
+		if field.Desc.Kind() != protoreflect.BytesKind {
+			return fi, fmt.Errorf(
+				"(codec.fixed_len) is only valid on bytes fields (got %s)",
+				field.Desc.Kind(),
+			)
+		}
+		fi.FixedLen = v
 	}
 
 	cast := fieldGoCast(field)
 	fi.Cast = cast
 	if cast != "" {
-		local, ident := resolveCast(fileMap, file, cast)
-		fi.CastLocal = local
-		fi.CastIdent = ident
+		if !validCastIdent.MatchString(cast) {
+			return fi, fmt.Errorf(
+				"(codec.cast) = %q is not a valid identifier",
+				cast,
+			)
+		}
+		if field.Desc.Kind() == protoreflect.MessageKind {
+			return fi, fmt.Errorf("(codec.cast) is not valid on message-type fields")
+		}
+		ref, err := resolveCast(fileMap, file, cast, aliasOf)
+		if err != nil {
+			return fi, err
+		}
+		fi.CastRef = &ref
 	}
 
 	return fi, nil
@@ -103,10 +347,11 @@ func resolveCast(
 	fileMap map[string]*protogen.File,
 	file *protogen.File,
 	cast string,
-) (string, *protogen.GoIdent) {
+	aliasOf AliasLookup,
+) (CastRef, error) {
 	dotIdx := strings.IndexByte(cast, '.')
 	if dotIdx < 0 {
-		return cast, nil
+		return CastRef{Name: cast}, nil
 	}
 
 	pkgAlias := cast[:dotIdx]
@@ -117,18 +362,22 @@ func resolveCast(
 		if !ok {
 			continue
 		}
-		if string(depFile.GoPackageName) == pkgAlias {
-			ident := protogen.GoIdent{
-				GoName:       typeName,
-				GoImportPath: depFile.GoImportPath,
-			}
-			return "", &ident
+		if aliasOf(depFile) == pkgAlias {
+			return CastRef{
+				ProtoFile:    depFile.Desc.Path(),
+				PackageAlias: pkgAlias,
+				Name:         typeName,
+			}, nil
 		}
 	}
 
-	return cast, nil
+	return CastRef{}, fmt.Errorf(
+		"unresolved cast alias %q in file %s: no imported proto has package alias %q",
+		cast, file.Desc.Path(), pkgAlias,
+	)
 }
 
+// WireKindOf returns the wire format category for a proto field kind.
 func WireKindOf(k protoreflect.Kind) WireKind {
 	switch k {
 	case protoreflect.BoolKind, protoreflect.EnumKind,
@@ -146,10 +395,12 @@ func WireKindOf(k protoreflect.Kind) WireKind {
 	}
 }
 
+// TagValue returns the encoded proto tag (field number + wire kind).
 func TagValue(fieldNum int32, wk WireKind) uint64 {
 	return uint64(fieldNum)<<3 | uint64(wk)
 }
 
+// TagSize returns the number of bytes needed to varint-encode the tag for the given field.
 func TagSize(fieldNum int32) int {
 	v := uint64(fieldNum) << 3
 	n := 1
@@ -160,6 +411,7 @@ func TagSize(fieldNum int32) int {
 	return n
 }
 
+// TagBytes returns the varint-encoded tag bytes for the given field and wire kind.
 func TagBytes(fieldNum int32, wk WireKind) []byte {
 	v := TagValue(fieldNum, wk)
 	var buf [10]byte
@@ -173,16 +425,7 @@ func TagBytes(fieldNum int32, wk WireKind) []byte {
 	return buf[:i+1]
 }
 
-func (f *FieldInfo) QualifiedZeroType(g *protogen.GeneratedFile) string {
-	if f.CastIdent != nil {
-		return g.QualifiedGoIdent(*f.CastIdent)
-	}
-	if f.CastLocal != "" {
-		return f.CastLocal
-	}
-	return ""
-}
-
+// SovLocal returns the number of bytes needed to varint-encode x.
 func SovLocal(x uint64) int {
 	n := 1
 	for x >= 0x80 {

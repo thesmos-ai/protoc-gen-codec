@@ -8,6 +8,7 @@ import (
 	fmt "fmt"
 	codec "go.stealthscale.io/protoc-gen-codec/lang/go/codec"
 	strings "strings"
+	time "time"
 )
 
 func (m *Fixture) SizeCodec() int {
@@ -70,6 +71,9 @@ func (m *Fixture) MarshalCodec() ([]byte, error) {
 func (m *Fixture) MarshalToCodec(buf []byte) (int, error) {
 	if m == nil {
 		return 0, nil
+	}
+	if len(buf) < m.SizeCodec() {
+		return 0, codec.ErrBufferTooShort
 	}
 	n := 0
 	if len(m.ID) > 0 {
@@ -134,8 +138,16 @@ func (m *Fixture) MarshalToCodec(buf []byte) (int, error) {
 func (m *Fixture) UnmarshalCodec(data []byte) error {
 	l := len(data)
 	i := 0
-	m.Tags = m.Tags[:0]
-	m.Data = m.Data[:0]
+	m.ID = ""
+	m.Kind = 0
+	m.Status = 0
+	m.Score = 0
+	m.Sequence = 0
+	m.Enabled = false
+	m.Timestamp = 0
+	m.Ref = Digest{}
+	m.Tags = nil
+	m.Data = nil
 	strTotal := 0
 	{
 		si := 0
@@ -250,7 +262,7 @@ func (m *Fixture) UnmarshalCodec(data []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -269,7 +281,7 @@ func (m *Fixture) UnmarshalCodec(data []byte) error {
 			i += int(vLen)
 		case 2:
 			if wireType != 0 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -279,7 +291,7 @@ func (m *Fixture) UnmarshalCodec(data []byte) error {
 			m.Kind = uint32(v)
 		case 3:
 			if wireType != 0 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 3, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -289,7 +301,7 @@ func (m *Fixture) UnmarshalCodec(data []byte) error {
 			m.Status = Status(v)
 		case 4:
 			if wireType != 0 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 4, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -299,7 +311,7 @@ func (m *Fixture) UnmarshalCodec(data []byte) error {
 			m.Score = int64(v)
 		case 5:
 			if wireType != 0 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 5, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -309,7 +321,7 @@ func (m *Fixture) UnmarshalCodec(data []byte) error {
 			m.Sequence = v
 		case 6:
 			if wireType != 0 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 6, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -319,7 +331,7 @@ func (m *Fixture) UnmarshalCodec(data []byte) error {
 			m.Enabled = v != 0
 		case 7:
 			if wireType != 0 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 7, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -329,7 +341,7 @@ func (m *Fixture) UnmarshalCodec(data []byte) error {
 			m.Timestamp = int64(v)
 		case 8:
 			if wireType != 2 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 8, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -337,7 +349,7 @@ func (m *Fixture) UnmarshalCodec(data []byte) error {
 			}
 			i += n
 			if vLen != 32 {
-				return codec.ErrInvalidLength
+				return fmt.Errorf("field %d: %w", 8, codec.ErrInvalidLength)
 			}
 			if l-i < 32 {
 				return fmt.Errorf("field %d: %w", 8, codec.ErrBufferTooShort)
@@ -346,7 +358,7 @@ func (m *Fixture) UnmarshalCodec(data []byte) error {
 			i += 32
 		case 9:
 			if wireType != 2 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 9, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -365,7 +377,7 @@ func (m *Fixture) UnmarshalCodec(data []byte) error {
 			i += int(vLen)
 		case 10:
 			if wireType != 2 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 10, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -460,6 +472,9 @@ func (m *Patch) MarshalToCodec(buf []byte) (int, error) {
 	if m == nil {
 		return 0, nil
 	}
+	if len(buf) < m.SizeCodec() {
+		return 0, codec.ErrBufferTooShort
+	}
 	n := 0
 	if m.Kind != 0 {
 		buf[n+0] = 0x08
@@ -511,6 +526,14 @@ func (m *Patch) MarshalToCodec(buf []byte) (int, error) {
 func (m *Patch) UnmarshalCodec(data []byte) error {
 	l := len(data)
 	i := 0
+	m.Kind = 0
+	m.VertexID = 0
+	m.Sequence = 0
+	m.Source = 0
+	m.TextVal = ""
+	m.IntVal = 0
+	m.Fixed64Val = 0
+	m.BlobRef = Digest{}
 	strTotal := 0
 	{
 		si := 0
@@ -621,7 +644,7 @@ func (m *Patch) UnmarshalCodec(data []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -631,7 +654,7 @@ func (m *Patch) UnmarshalCodec(data []byte) error {
 			m.Kind = PatchKind(v)
 		case 2:
 			if wireType != 0 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -641,7 +664,7 @@ func (m *Patch) UnmarshalCodec(data []byte) error {
 			m.VertexID = uint32(v)
 		case 3:
 			if wireType != 0 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 3, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -651,7 +674,7 @@ func (m *Patch) UnmarshalCodec(data []byte) error {
 			m.Sequence = v
 		case 4:
 			if wireType != 0 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 4, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -661,7 +684,7 @@ func (m *Patch) UnmarshalCodec(data []byte) error {
 			m.Source = Source(v)
 		case 5:
 			if wireType != 2 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 5, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -680,7 +703,7 @@ func (m *Patch) UnmarshalCodec(data []byte) error {
 			i += int(vLen)
 		case 6:
 			if wireType != 0 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 6, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -690,7 +713,7 @@ func (m *Patch) UnmarshalCodec(data []byte) error {
 			m.IntVal = int64(v)
 		case 7:
 			if wireType != 1 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 7, codec.ErrInvalidWireType)
 			}
 			if l-i < 8 {
 				return fmt.Errorf("field %d: %w", 7, codec.ErrBufferTooShort)
@@ -699,7 +722,7 @@ func (m *Patch) UnmarshalCodec(data []byte) error {
 			i += 8
 		case 8:
 			if wireType != 2 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 8, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -707,7 +730,7 @@ func (m *Patch) UnmarshalCodec(data []byte) error {
 			}
 			i += n
 			if vLen != 32 {
-				return codec.ErrInvalidLength
+				return fmt.Errorf("field %d: %w", 8, codec.ErrInvalidLength)
 			}
 			if l-i < 32 {
 				return fmt.Errorf("field %d: %w", 8, codec.ErrBufferTooShort)
@@ -813,6 +836,9 @@ func (m *Evidence) MarshalToCodec(buf []byte) (int, error) {
 	if m == nil {
 		return 0, nil
 	}
+	if len(buf) < m.SizeCodec() {
+		return 0, codec.ErrBufferTooShort
+	}
 	n := 0
 	if m.Kind != 0 {
 		buf[n+0] = 0x08
@@ -889,7 +915,18 @@ func (m *Evidence) MarshalToCodec(buf []byte) (int, error) {
 func (m *Evidence) UnmarshalCodec(data []byte) error {
 	l := len(data)
 	i := 0
-	m.Jurisdictions = m.Jurisdictions[:0]
+	m.Kind = 0
+	m.Durability = 0
+	m.Access = 0
+	m.TraceID = ""
+	m.FederationTraceID = ""
+	m.JobID = ""
+	m.ThreadID = ""
+	m.TenantID = ""
+	m.TimestampMs = 0
+	m.PayloadRef = Digest{}
+	m.Jurisdictions = nil
+	m.RetentionPolicyID = ""
 	strTotal := 0
 	{
 		si := 0
@@ -1024,7 +1061,7 @@ func (m *Evidence) UnmarshalCodec(data []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -1034,7 +1071,7 @@ func (m *Evidence) UnmarshalCodec(data []byte) error {
 			m.Kind = EvidenceKind(v)
 		case 2:
 			if wireType != 0 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -1044,7 +1081,7 @@ func (m *Evidence) UnmarshalCodec(data []byte) error {
 			m.Durability = Durability(v)
 		case 3:
 			if wireType != 0 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 3, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -1054,7 +1091,7 @@ func (m *Evidence) UnmarshalCodec(data []byte) error {
 			m.Access = AccessTier(v)
 		case 4:
 			if wireType != 2 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 4, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -1073,7 +1110,7 @@ func (m *Evidence) UnmarshalCodec(data []byte) error {
 			i += int(vLen)
 		case 5:
 			if wireType != 2 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 5, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -1092,7 +1129,7 @@ func (m *Evidence) UnmarshalCodec(data []byte) error {
 			i += int(vLen)
 		case 6:
 			if wireType != 2 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 6, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -1111,7 +1148,7 @@ func (m *Evidence) UnmarshalCodec(data []byte) error {
 			i += int(vLen)
 		case 7:
 			if wireType != 2 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 7, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -1130,7 +1167,7 @@ func (m *Evidence) UnmarshalCodec(data []byte) error {
 			i += int(vLen)
 		case 8:
 			if wireType != 2 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 8, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -1149,7 +1186,7 @@ func (m *Evidence) UnmarshalCodec(data []byte) error {
 			i += int(vLen)
 		case 9:
 			if wireType != 0 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 9, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -1159,7 +1196,7 @@ func (m *Evidence) UnmarshalCodec(data []byte) error {
 			m.TimestampMs = int64(v)
 		case 10:
 			if wireType != 2 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 10, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -1167,7 +1204,7 @@ func (m *Evidence) UnmarshalCodec(data []byte) error {
 			}
 			i += n
 			if vLen != 32 {
-				return codec.ErrInvalidLength
+				return fmt.Errorf("field %d: %w", 10, codec.ErrInvalidLength)
 			}
 			if l-i < 32 {
 				return fmt.Errorf("field %d: %w", 10, codec.ErrBufferTooShort)
@@ -1176,7 +1213,7 @@ func (m *Evidence) UnmarshalCodec(data []byte) error {
 			i += 32
 		case 11:
 			if wireType != 2 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 11, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -1195,7 +1232,7 @@ func (m *Evidence) UnmarshalCodec(data []byte) error {
 			i += int(vLen)
 		case 12:
 			if wireType != 2 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 12, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -1276,6 +1313,9 @@ func (m *Minimal) MarshalToCodec(buf []byte) (int, error) {
 	if m == nil {
 		return 0, nil
 	}
+	if len(buf) < m.SizeCodec() {
+		return 0, codec.ErrBufferTooShort
+	}
 	n := 0
 	if len(m.ID) > 0 {
 		buf[n+0] = 0x0a
@@ -1289,6 +1329,7 @@ func (m *Minimal) MarshalToCodec(buf []byte) (int, error) {
 func (m *Minimal) UnmarshalCodec(data []byte) error {
 	l := len(data)
 	i := 0
+	m.ID = ""
 	dataStr := string(data)
 	for i < l {
 		tag, n := codec.DecodeVarint(data[i:])
@@ -1302,7 +1343,7 @@ func (m *Minimal) UnmarshalCodec(data []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -1355,6 +1396,21 @@ func (m *NumericOnly) SizeCodec() int {
 	if m.E {
 		n += 2
 	}
+	if m.F != 0 {
+		n += 1 + codec.Sov(uint64(codec.ZigzagEncode32(int32(m.F))))
+	}
+	if m.G != 0 {
+		n += 1 + codec.Sov(codec.ZigzagEncode64(int64(m.G)))
+	}
+	if m.H != nil {
+		n += 1 + codec.Sov(uint64(*m.H))
+	}
+	if m.I != nil {
+		n += 2
+	}
+	if m.J != nil {
+		n += 9
+	}
 	return n
 }
 
@@ -1377,6 +1433,9 @@ func (m *NumericOnly) MarshalCodec() ([]byte, error) {
 func (m *NumericOnly) MarshalToCodec(buf []byte) (int, error) {
 	if m == nil {
 		return 0, nil
+	}
+	if len(buf) < m.SizeCodec() {
+		return 0, codec.ErrBufferTooShort
 	}
 	n := 0
 	if m.A != 0 {
@@ -1406,12 +1465,51 @@ func (m *NumericOnly) MarshalToCodec(buf []byte) (int, error) {
 		buf[n] = 1
 		n++
 	}
+	if m.F != 0 {
+		buf[n+0] = 0x30
+		n += 1
+		n += codec.EncodeVarint(buf[n:], uint64(codec.ZigzagEncode32(int32(m.F))))
+	}
+	if m.G != 0 {
+		buf[n+0] = 0x38
+		n += 1
+		n += codec.EncodeVarint(buf[n:], codec.ZigzagEncode64(int64(m.G)))
+	}
+	if m.H != nil {
+		buf[n+0] = 0x40
+		n += 1
+		n += codec.EncodeVarint(buf[n:], uint64(*m.H))
+	}
+	if m.I != nil {
+		buf[n+0] = 0x48
+		n += 1
+		if *m.I {
+			buf[n] = 1
+		} else {
+			buf[n] = 0
+		}
+		n++
+	}
+	if m.J != nil {
+		buf[n+0] = 0x51
+		n += 1
+		binary.LittleEndian.PutUint64(buf[n:], uint64(*m.J))
+		n += 8
+	}
 	return n, nil
 }
 
 func (m *NumericOnly) UnmarshalCodec(data []byte) error {
 	l := len(data)
 	i := 0
+	var seenOptional uint64
+	m.A = 0
+	m.B = 0
+	m.C = 0
+	m.D = 0
+	m.E = false
+	m.F = 0
+	m.G = 0
 	for i < l {
 		tag, n := codec.DecodeVarint(data[i:])
 		if n < 0 {
@@ -1424,7 +1522,7 @@ func (m *NumericOnly) UnmarshalCodec(data []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -1434,7 +1532,7 @@ func (m *NumericOnly) UnmarshalCodec(data []byte) error {
 			m.A = uint32(v)
 		case 2:
 			if wireType != 0 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -1444,7 +1542,7 @@ func (m *NumericOnly) UnmarshalCodec(data []byte) error {
 			m.B = v
 		case 3:
 			if wireType != 0 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 3, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -1454,7 +1552,7 @@ func (m *NumericOnly) UnmarshalCodec(data []byte) error {
 			m.C = int64(v)
 		case 4:
 			if wireType != 1 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 4, codec.ErrInvalidWireType)
 			}
 			if l-i < 8 {
 				return fmt.Errorf("field %d: %w", 4, codec.ErrBufferTooShort)
@@ -1463,7 +1561,7 @@ func (m *NumericOnly) UnmarshalCodec(data []byte) error {
 			i += 8
 		case 5:
 			if wireType != 0 {
-				return codec.ErrInvalidWireType
+				return fmt.Errorf("field %d: %w", 5, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
@@ -1471,6 +1569,67 @@ func (m *NumericOnly) UnmarshalCodec(data []byte) error {
 			}
 			i += n
 			m.E = v != 0
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("field %d: %w", 6, codec.ErrInvalidWireType)
+			}
+			v, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field %d: %w", 6, codec.ErrInvalidVarint)
+			}
+			i += n
+			m.F = codec.ZigzagDecode32(uint32(v))
+		case 7:
+			if wireType != 0 {
+				return fmt.Errorf("field %d: %w", 7, codec.ErrInvalidWireType)
+			}
+			v, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field %d: %w", 7, codec.ErrInvalidVarint)
+			}
+			i += n
+			m.G = codec.ZigzagDecode64(v)
+		case 8:
+			if wireType != 0 {
+				return fmt.Errorf("field %d: %w", 8, codec.ErrInvalidWireType)
+			}
+			v, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field %d: %w", 8, codec.ErrInvalidVarint)
+			}
+			i += n
+			if m.H == nil {
+				m.H = new(int32)
+			}
+			*m.H = int32(v)
+			seenOptional |= 1 << 8
+		case 9:
+			if wireType != 0 {
+				return fmt.Errorf("field %d: %w", 9, codec.ErrInvalidWireType)
+			}
+			v, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field %d: %w", 9, codec.ErrInvalidVarint)
+			}
+			i += n
+			if m.I == nil {
+				m.I = new(bool)
+			}
+			*m.I = v != 0
+			seenOptional |= 1 << 9
+		case 10:
+			if wireType != 1 {
+				return fmt.Errorf("field %d: %w", 10, codec.ErrInvalidWireType)
+			}
+			if l-i < 8 {
+				return fmt.Errorf("field %d: %w", 10, codec.ErrBufferTooShort)
+			}
+			if m.J == nil {
+				m.J = new(Fixed64)
+			}
+			*m.J = Fixed64(binary.LittleEndian.Uint64(data[i:]))
+			seenOptional |= 1 << 10
+			i += 8
 		default:
 			n, err := codec.SkipField(data[i:], wireType)
 			if err != nil {
@@ -1478,6 +1637,15 @@ func (m *NumericOnly) UnmarshalCodec(data []byte) error {
 			}
 			i += n
 		}
+	}
+	if seenOptional&(1<<8) == 0 {
+		m.H = nil
+	}
+	if seenOptional&(1<<9) == 0 {
+		m.I = nil
+	}
+	if seenOptional&(1<<10) == 0 {
+		m.J = nil
 	}
 	return nil
 }
@@ -1491,6 +1659,1379 @@ func (m *NumericOnly) ResetCodec() {
 	m.C = 0
 	m.D = 0
 	m.E = false
+	m.F = 0
+	m.G = 0
+	m.H = nil
+	m.I = nil
+	m.J = nil
+	if ri, ok := any(m).(interface{ ResetInternal() }); ok {
+		ri.ResetInternal()
+	}
+}
+
+func (m *PackedZigzag) SizeCodec() int {
+	if m == nil {
+		return 0
+	}
+	var n int
+	if len(m.Values32) > 0 {
+		l := 0
+		for _, v := range m.Values32 {
+			l += codec.Sov(uint64(codec.ZigzagEncode32(int32(v))))
+		}
+		n += 1 + codec.Sov(uint64(l)) + l
+	}
+	if len(m.Values64) > 0 {
+		l := 0
+		for _, v := range m.Values64 {
+			l += codec.Sov(codec.ZigzagEncode64(int64(v)))
+		}
+		n += 1 + codec.Sov(uint64(l)) + l
+	}
+	return n
+}
+
+func (m *PackedZigzag) MarshalCodec() ([]byte, error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeCodec()
+	if size == 0 {
+		return nil, nil
+	}
+	buf := make([]byte, size)
+	n, err := m.MarshalToCodec(buf)
+	if err != nil {
+		return nil, err
+	}
+	return buf[:n], nil
+}
+
+func (m *PackedZigzag) MarshalToCodec(buf []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	if len(buf) < m.SizeCodec() {
+		return 0, codec.ErrBufferTooShort
+	}
+	n := 0
+	if len(m.Values32) > 0 {
+		buf[n+0] = 0x0a
+		n += 1
+		l := 0
+		for _, v := range m.Values32 {
+			l += codec.Sov(uint64(codec.ZigzagEncode32(int32(v))))
+		}
+		n += codec.EncodeVarint(buf[n:], uint64(l))
+		for _, v := range m.Values32 {
+			n += codec.EncodeVarint(buf[n:], uint64(codec.ZigzagEncode32(int32(v))))
+		}
+	}
+	if len(m.Values64) > 0 {
+		buf[n+0] = 0x12
+		n += 1
+		l := 0
+		for _, v := range m.Values64 {
+			l += codec.Sov(codec.ZigzagEncode64(int64(v)))
+		}
+		n += codec.EncodeVarint(buf[n:], uint64(l))
+		for _, v := range m.Values64 {
+			n += codec.EncodeVarint(buf[n:], codec.ZigzagEncode64(int64(v)))
+		}
+	}
+	return n, nil
+}
+
+func (m *PackedZigzag) UnmarshalCodec(data []byte) error {
+	l := len(data)
+	i := 0
+	m.Values32 = nil
+	m.Values64 = nil
+	for i < l {
+		tag, n := codec.DecodeVarint(data[i:])
+		if n < 0 {
+			return fmt.Errorf("offset %d: %w", i, codec.ErrInvalidTag)
+		}
+		i += n
+		fieldNum := tag >> 3
+		wireType := tag & 0x7
+
+		switch fieldNum {
+		case 1:
+			if wireType == 2 {
+				pLen, n := codec.DecodeVarint(data[i:])
+				if n < 0 {
+					return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+				}
+				i += n
+				end := i + int(pLen)
+				if end > l {
+					return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
+				}
+				if m.Values32 == nil {
+					m.Values32 = make([]int32, 0, int(pLen))
+				}
+				for i < end {
+					v, n := codec.DecodeVarint(data[i:])
+					if n < 0 {
+						return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+					}
+					i += n
+					m.Values32 = append(m.Values32, codec.ZigzagDecode32(uint32(v)))
+				}
+			} else if wireType == 0 {
+				v, n := codec.DecodeVarint(data[i:])
+				if n < 0 {
+					return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+				}
+				i += n
+				m.Values32 = append(m.Values32, codec.ZigzagDecode32(uint32(v)))
+			} else {
+				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
+			}
+		case 2:
+			if wireType == 2 {
+				pLen, n := codec.DecodeVarint(data[i:])
+				if n < 0 {
+					return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+				}
+				i += n
+				end := i + int(pLen)
+				if end > l {
+					return fmt.Errorf("field %d: %w", 2, codec.ErrBufferTooShort)
+				}
+				if m.Values64 == nil {
+					m.Values64 = make([]int64, 0, int(pLen))
+				}
+				for i < end {
+					v, n := codec.DecodeVarint(data[i:])
+					if n < 0 {
+						return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+					}
+					i += n
+					m.Values64 = append(m.Values64, codec.ZigzagDecode64(v))
+				}
+			} else if wireType == 0 {
+				v, n := codec.DecodeVarint(data[i:])
+				if n < 0 {
+					return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+				}
+				i += n
+				m.Values64 = append(m.Values64, codec.ZigzagDecode64(v))
+			} else {
+				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidWireType)
+			}
+		default:
+			n, err := codec.SkipField(data[i:], wireType)
+			if err != nil {
+				return err
+			}
+			i += n
+		}
+	}
+	return nil
+}
+
+func (m *PackedZigzag) ResetCodec() {
+	if m == nil {
+		return
+	}
+	m.Values32 = nil
+	m.Values64 = nil
+	if ri, ok := any(m).(interface{ ResetInternal() }); ok {
+		ri.ResetInternal()
+	}
+}
+
+func (m *Inner) SizeCodec() int {
+	if m == nil {
+		return 0
+	}
+	var n int
+	if len(m.Label) > 0 {
+		l := len(m.Label)
+		n += 1 + codec.Sov(uint64(l)) + l
+	}
+	if m.Count != 0 {
+		n += 1 + codec.Sov(uint64(m.Count))
+	}
+	return n
+}
+
+func (m *Inner) MarshalCodec() ([]byte, error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeCodec()
+	if size == 0 {
+		return nil, nil
+	}
+	buf := make([]byte, size)
+	n, err := m.MarshalToCodec(buf)
+	if err != nil {
+		return nil, err
+	}
+	return buf[:n], nil
+}
+
+func (m *Inner) MarshalToCodec(buf []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	if len(buf) < m.SizeCodec() {
+		return 0, codec.ErrBufferTooShort
+	}
+	n := 0
+	if len(m.Label) > 0 {
+		buf[n+0] = 0x0a
+		n += 1
+		n += codec.EncodeVarint(buf[n:], uint64(len(m.Label)))
+		n += copy(buf[n:], m.Label)
+	}
+	if m.Count != 0 {
+		buf[n+0] = 0x10
+		n += 1
+		n += codec.EncodeVarint(buf[n:], uint64(m.Count))
+	}
+	return n, nil
+}
+
+func (m *Inner) UnmarshalCodec(data []byte) error {
+	l := len(data)
+	i := 0
+	m.Label = ""
+	m.Count = 0
+	dataStr := string(data)
+	for i < l {
+		tag, n := codec.DecodeVarint(data[i:])
+		if n < 0 {
+			return fmt.Errorf("offset %d: %w", i, codec.ErrInvalidTag)
+		}
+		i += n
+		fieldNum := tag >> 3
+		wireType := tag & 0x7
+
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
+			}
+			vLen, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+			}
+			i += n
+			if uint64(l-i) < vLen {
+				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
+			}
+			m.Label = dataStr[i : i+int(vLen)]
+			i += int(vLen)
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidWireType)
+			}
+			v, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+			}
+			i += n
+			m.Count = int64(v)
+		default:
+			n, err := codec.SkipField(data[i:], wireType)
+			if err != nil {
+				return err
+			}
+			i += n
+		}
+	}
+	return nil
+}
+
+func (m *Inner) ResetCodec() {
+	if m == nil {
+		return
+	}
+	m.Label = ""
+	m.Count = 0
+	if ri, ok := any(m).(interface{ ResetInternal() }); ok {
+		ri.ResetInternal()
+	}
+}
+
+func (m *Container) SizeCodec() int {
+	if m == nil {
+		return 0
+	}
+	var n int
+	if len(m.Name) > 0 {
+		l := len(m.Name)
+		n += 1 + codec.Sov(uint64(l)) + l
+	}
+	if m.Inner != nil {
+		sz := m.Inner.SizeCodec()
+		n += 1 + codec.Sov(uint64(sz)) + sz
+	}
+	for _, elem := range m.Children {
+		if elem == nil {
+			continue
+		}
+		sz := elem.SizeCodec()
+		n += 1 + codec.Sov(uint64(sz)) + sz
+	}
+	return n
+}
+
+func (m *Container) MarshalCodec() ([]byte, error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeCodec()
+	if size == 0 {
+		return nil, nil
+	}
+	buf := make([]byte, size)
+	n, err := m.MarshalToCodec(buf)
+	if err != nil {
+		return nil, err
+	}
+	return buf[:n], nil
+}
+
+func (m *Container) MarshalToCodec(buf []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	if len(buf) < m.SizeCodec() {
+		return 0, codec.ErrBufferTooShort
+	}
+	n := 0
+	if len(m.Name) > 0 {
+		buf[n+0] = 0x0a
+		n += 1
+		n += codec.EncodeVarint(buf[n:], uint64(len(m.Name)))
+		n += copy(buf[n:], m.Name)
+	}
+	if m.Inner != nil {
+		buf[n+0] = 0x12
+		n += 1
+		sz := m.Inner.SizeCodec()
+		n += codec.EncodeVarint(buf[n:], uint64(sz))
+		wn, err := m.Inner.MarshalToCodec(buf[n:])
+		if err != nil {
+			return 0, err
+		}
+		n += wn
+	}
+	for _, elem := range m.Children {
+		if elem == nil {
+			continue
+		}
+		buf[n+0] = 0x1a
+		n += 1
+		sz := elem.SizeCodec()
+		n += codec.EncodeVarint(buf[n:], uint64(sz))
+		wn, err := elem.MarshalToCodec(buf[n:])
+		if err != nil {
+			return 0, err
+		}
+		n += wn
+	}
+	return n, nil
+}
+
+func (m *Container) UnmarshalCodec(data []byte) error {
+	l := len(data)
+	i := 0
+	var seenOptional uint64
+	m.Name = ""
+	m.Children = m.Children[:0]
+	{
+		var preCount_3 int
+		pi := 0
+		for pi < l {
+			ptag, pn := codec.DecodeVarint(data[pi:])
+			if pn < 0 {
+				break
+			}
+			pi += pn
+			pwt := ptag & 0x7
+			pfn := ptag >> 3
+			switch pwt {
+			case 0:
+				_, pn = codec.DecodeVarint(data[pi:])
+				if pn < 0 {
+					break
+				}
+				pi += pn
+			case 1:
+				if pi+8 > l {
+					break
+				}
+				pi += 8
+			case 2:
+				pvl, pn := codec.DecodeVarint(data[pi:])
+				if pn < 0 {
+					break
+				}
+				pi += pn
+				if pvl > uint64(l-pi) {
+					break
+				}
+				switch pfn {
+				case 3:
+					preCount_3++
+				}
+				pi += int(pvl)
+			case 5:
+				if pi+4 > l {
+					break
+				}
+				pi += 4
+			}
+		}
+		if preCount_3 > 0 && m.Children == nil {
+			m.Children = make([]*Inner, 0, preCount_3)
+		}
+	}
+	dataStr := string(data)
+	for i < l {
+		tag, n := codec.DecodeVarint(data[i:])
+		if n < 0 {
+			return fmt.Errorf("offset %d: %w", i, codec.ErrInvalidTag)
+		}
+		i += n
+		fieldNum := tag >> 3
+		wireType := tag & 0x7
+
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
+			}
+			vLen, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+			}
+			i += n
+			if uint64(l-i) < vLen {
+				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
+			}
+			m.Name = dataStr[i : i+int(vLen)]
+			i += int(vLen)
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidWireType)
+			}
+			vLen, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+			}
+			i += n
+			if uint64(l-i) < vLen {
+				return fmt.Errorf("field %d: %w", 2, codec.ErrBufferTooShort)
+			}
+			if m.Inner == nil {
+				m.Inner = new(Inner)
+			}
+			if err := m.Inner.UnmarshalCodec(data[i : i+int(vLen)]); err != nil {
+				return fmt.Errorf("field %d: %w", 2, err)
+			}
+			seenOptional |= 1 << 2
+			i += int(vLen)
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("field %d: %w", 3, codec.ErrInvalidWireType)
+			}
+			vLen, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field %d: %w", 3, codec.ErrInvalidVarint)
+			}
+			i += n
+			if uint64(l-i) < vLen {
+				return fmt.Errorf("field %d: %w", 3, codec.ErrBufferTooShort)
+			}
+			var elem *Inner
+			if len(m.Children) < cap(m.Children) {
+				m.Children = m.Children[:len(m.Children)+1]
+				elem = m.Children[len(m.Children)-1]
+				if elem == nil {
+					elem = new(Inner)
+					m.Children[len(m.Children)-1] = elem
+				}
+			} else {
+				elem = new(Inner)
+				m.Children = append(m.Children, elem)
+			}
+			if err := elem.UnmarshalCodec(data[i : i+int(vLen)]); err != nil {
+				return fmt.Errorf("field %d: %w", 3, err)
+			}
+			i += int(vLen)
+		default:
+			n, err := codec.SkipField(data[i:], wireType)
+			if err != nil {
+				return err
+			}
+			i += n
+		}
+	}
+	if seenOptional&(1<<2) == 0 {
+		m.Inner = nil
+	}
+	return nil
+}
+
+func (m *Container) ResetCodec() {
+	if m == nil {
+		return
+	}
+	m.Name = ""
+	m.Inner = nil
+	m.Children = m.Children[:0]
+	if ri, ok := any(m).(interface{ ResetInternal() }); ok {
+		ri.ResetInternal()
+	}
+}
+
+func (m *ValueContainer) SizeCodec() int {
+	if m == nil {
+		return 0
+	}
+	var n int
+	if len(m.Name) > 0 {
+		l := len(m.Name)
+		n += 1 + codec.Sov(uint64(l)) + l
+	}
+	if sz := (&m.Inner).SizeCodec(); sz > 0 {
+		n += 1 + codec.Sov(uint64(sz)) + sz
+	}
+	for idx := range m.Items {
+		elem := &m.Items[idx]
+		sz := elem.SizeCodec()
+		n += 1 + codec.Sov(uint64(sz)) + sz
+	}
+	return n
+}
+
+func (m *ValueContainer) MarshalCodec() ([]byte, error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeCodec()
+	if size == 0 {
+		return nil, nil
+	}
+	buf := make([]byte, size)
+	n, err := m.MarshalToCodec(buf)
+	if err != nil {
+		return nil, err
+	}
+	return buf[:n], nil
+}
+
+func (m *ValueContainer) MarshalToCodec(buf []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	if len(buf) < m.SizeCodec() {
+		return 0, codec.ErrBufferTooShort
+	}
+	n := 0
+	if len(m.Name) > 0 {
+		buf[n+0] = 0x0a
+		n += 1
+		n += codec.EncodeVarint(buf[n:], uint64(len(m.Name)))
+		n += copy(buf[n:], m.Name)
+	}
+	if sz := (&m.Inner).SizeCodec(); sz > 0 {
+		buf[n+0] = 0x12
+		n += 1
+		n += codec.EncodeVarint(buf[n:], uint64(sz))
+		wn, err := (&m.Inner).MarshalToCodec(buf[n:])
+		if err != nil {
+			return 0, err
+		}
+		n += wn
+	}
+	for idx := range m.Items {
+		elem := &m.Items[idx]
+		buf[n+0] = 0x1a
+		n += 1
+		sz := elem.SizeCodec()
+		n += codec.EncodeVarint(buf[n:], uint64(sz))
+		wn, err := elem.MarshalToCodec(buf[n:])
+		if err != nil {
+			return 0, err
+		}
+		n += wn
+	}
+	return n, nil
+}
+
+func (m *ValueContainer) UnmarshalCodec(data []byte) error {
+	l := len(data)
+	i := 0
+	m.Name = ""
+	m.Inner = Inner{}
+	m.Items = nil
+	{
+		var preCount_3 int
+		pi := 0
+		for pi < l {
+			ptag, pn := codec.DecodeVarint(data[pi:])
+			if pn < 0 {
+				break
+			}
+			pi += pn
+			pwt := ptag & 0x7
+			pfn := ptag >> 3
+			switch pwt {
+			case 0:
+				_, pn = codec.DecodeVarint(data[pi:])
+				if pn < 0 {
+					break
+				}
+				pi += pn
+			case 1:
+				if pi+8 > l {
+					break
+				}
+				pi += 8
+			case 2:
+				pvl, pn := codec.DecodeVarint(data[pi:])
+				if pn < 0 {
+					break
+				}
+				pi += pn
+				if pvl > uint64(l-pi) {
+					break
+				}
+				switch pfn {
+				case 3:
+					preCount_3++
+				}
+				pi += int(pvl)
+			case 5:
+				if pi+4 > l {
+					break
+				}
+				pi += 4
+			}
+		}
+		if preCount_3 > 0 && m.Items == nil {
+			m.Items = make([]Inner, 0, preCount_3)
+		}
+	}
+	dataStr := string(data)
+	for i < l {
+		tag, n := codec.DecodeVarint(data[i:])
+		if n < 0 {
+			return fmt.Errorf("offset %d: %w", i, codec.ErrInvalidTag)
+		}
+		i += n
+		fieldNum := tag >> 3
+		wireType := tag & 0x7
+
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
+			}
+			vLen, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+			}
+			i += n
+			if uint64(l-i) < vLen {
+				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
+			}
+			m.Name = dataStr[i : i+int(vLen)]
+			i += int(vLen)
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidWireType)
+			}
+			vLen, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+			}
+			i += n
+			if uint64(l-i) < vLen {
+				return fmt.Errorf("field %d: %w", 2, codec.ErrBufferTooShort)
+			}
+			if err := (&m.Inner).UnmarshalCodec(data[i : i+int(vLen)]); err != nil {
+				return fmt.Errorf("field %d: %w", 2, err)
+			}
+			i += int(vLen)
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("field %d: %w", 3, codec.ErrInvalidWireType)
+			}
+			vLen, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field %d: %w", 3, codec.ErrInvalidVarint)
+			}
+			i += n
+			if uint64(l-i) < vLen {
+				return fmt.Errorf("field %d: %w", 3, codec.ErrBufferTooShort)
+			}
+			m.Items = append(m.Items, Inner{})
+			if err := m.Items[len(m.Items)-1].UnmarshalCodec(data[i : i+int(vLen)]); err != nil {
+				return fmt.Errorf("field %d: %w", 3, err)
+			}
+			i += int(vLen)
+		default:
+			n, err := codec.SkipField(data[i:], wireType)
+			if err != nil {
+				return err
+			}
+			i += n
+		}
+	}
+	return nil
+}
+
+func (m *ValueContainer) ResetCodec() {
+	if m == nil {
+		return
+	}
+	m.Name = ""
+	m.Inner = Inner{}
+	m.Items = nil
+	if ri, ok := any(m).(interface{ ResetInternal() }); ok {
+		ri.ResetInternal()
+	}
+}
+
+func (m *Tree) SizeCodec() int {
+	if m == nil {
+		return 0
+	}
+	var n int
+	if len(m.Label) > 0 {
+		l := len(m.Label)
+		n += 1 + codec.Sov(uint64(l)) + l
+	}
+	for _, elem := range m.Children {
+		if elem == nil {
+			continue
+		}
+		sz := elem.SizeCodec()
+		n += 1 + codec.Sov(uint64(sz)) + sz
+	}
+	return n
+}
+
+func (m *Tree) MarshalCodec() ([]byte, error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeCodec()
+	if size == 0 {
+		return nil, nil
+	}
+	buf := make([]byte, size)
+	n, err := m.MarshalToCodec(buf)
+	if err != nil {
+		return nil, err
+	}
+	return buf[:n], nil
+}
+
+func (m *Tree) MarshalToCodec(buf []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	if len(buf) < m.SizeCodec() {
+		return 0, codec.ErrBufferTooShort
+	}
+	n := 0
+	if len(m.Label) > 0 {
+		buf[n+0] = 0x0a
+		n += 1
+		n += codec.EncodeVarint(buf[n:], uint64(len(m.Label)))
+		n += copy(buf[n:], m.Label)
+	}
+	for _, elem := range m.Children {
+		if elem == nil {
+			continue
+		}
+		buf[n+0] = 0x12
+		n += 1
+		sz := elem.SizeCodec()
+		n += codec.EncodeVarint(buf[n:], uint64(sz))
+		wn, err := elem.MarshalToCodec(buf[n:])
+		if err != nil {
+			return 0, err
+		}
+		n += wn
+	}
+	return n, nil
+}
+
+func (m *Tree) UnmarshalCodec(data []byte) error {
+	l := len(data)
+	i := 0
+	m.Label = ""
+	m.Children = nil
+	{
+		var preCount_2 int
+		pi := 0
+		for pi < l {
+			ptag, pn := codec.DecodeVarint(data[pi:])
+			if pn < 0 {
+				break
+			}
+			pi += pn
+			pwt := ptag & 0x7
+			pfn := ptag >> 3
+			switch pwt {
+			case 0:
+				_, pn = codec.DecodeVarint(data[pi:])
+				if pn < 0 {
+					break
+				}
+				pi += pn
+			case 1:
+				if pi+8 > l {
+					break
+				}
+				pi += 8
+			case 2:
+				pvl, pn := codec.DecodeVarint(data[pi:])
+				if pn < 0 {
+					break
+				}
+				pi += pn
+				if pvl > uint64(l-pi) {
+					break
+				}
+				switch pfn {
+				case 2:
+					preCount_2++
+				}
+				pi += int(pvl)
+			case 5:
+				if pi+4 > l {
+					break
+				}
+				pi += 4
+			}
+		}
+		if preCount_2 > 0 && m.Children == nil {
+			m.Children = make([]*Tree, 0, preCount_2)
+		}
+	}
+	dataStr := string(data)
+	for i < l {
+		tag, n := codec.DecodeVarint(data[i:])
+		if n < 0 {
+			return fmt.Errorf("offset %d: %w", i, codec.ErrInvalidTag)
+		}
+		i += n
+		fieldNum := tag >> 3
+		wireType := tag & 0x7
+
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
+			}
+			vLen, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+			}
+			i += n
+			if uint64(l-i) < vLen {
+				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
+			}
+			m.Label = dataStr[i : i+int(vLen)]
+			i += int(vLen)
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidWireType)
+			}
+			vLen, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+			}
+			i += n
+			if uint64(l-i) < vLen {
+				return fmt.Errorf("field %d: %w", 2, codec.ErrBufferTooShort)
+			}
+			elem := new(Tree)
+			if err := elem.UnmarshalCodec(data[i : i+int(vLen)]); err != nil {
+				return fmt.Errorf("field %d: %w", 2, err)
+			}
+			m.Children = append(m.Children, elem)
+			i += int(vLen)
+		default:
+			n, err := codec.SkipField(data[i:], wireType)
+			if err != nil {
+				return err
+			}
+			i += n
+		}
+	}
+	return nil
+}
+
+func (m *Tree) ResetCodec() {
+	if m == nil {
+		return
+	}
+	m.Label = ""
+	m.Children = nil
+	if ri, ok := any(m).(interface{ ResetInternal() }); ok {
+		ri.ResetInternal()
+	}
+}
+
+func (m *MapHolder) SizeCodec() int {
+	if m == nil {
+		return 0
+	}
+	var n int
+	for k, v := range m.Attrs {
+		entrySz := 1 + codec.Sov(uint64(len(k))) + len(k) + 1 + codec.Sov(uint64(len(v))) + len(v)
+		n += 1 + codec.Sov(uint64(entrySz)) + entrySz
+	}
+	for k, v := range m.Counts {
+		entrySz := 1 + codec.Sov(uint64(len(k))) + len(k) + 1 + codec.Sov(uint64(v))
+		n += 1 + codec.Sov(uint64(entrySz)) + entrySz
+	}
+	return n
+}
+
+func (m *MapHolder) MarshalCodec() ([]byte, error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeCodec()
+	if size == 0 {
+		return nil, nil
+	}
+	buf := make([]byte, size)
+	n, err := m.MarshalToCodec(buf)
+	if err != nil {
+		return nil, err
+	}
+	return buf[:n], nil
+}
+
+func (m *MapHolder) MarshalToCodec(buf []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	if len(buf) < m.SizeCodec() {
+		return 0, codec.ErrBufferTooShort
+	}
+	n := 0
+	for k, v := range m.Attrs {
+		buf[n+0] = 0x0a
+		n += 1
+		entrySz := 1 + codec.Sov(uint64(len(k))) + len(k) + 1 + codec.Sov(uint64(len(v))) + len(v)
+		n += codec.EncodeVarint(buf[n:], uint64(entrySz))
+		buf[n+0] = 0x0a
+		n += 1
+		n += codec.EncodeVarint(buf[n:], uint64(len(k)))
+		n += copy(buf[n:], k)
+		buf[n+0] = 0x12
+		n += 1
+		n += codec.EncodeVarint(buf[n:], uint64(len(v)))
+		n += copy(buf[n:], v)
+	}
+	for k, v := range m.Counts {
+		buf[n+0] = 0x12
+		n += 1
+		entrySz := 1 + codec.Sov(uint64(len(k))) + len(k) + 1 + codec.Sov(uint64(v))
+		n += codec.EncodeVarint(buf[n:], uint64(entrySz))
+		buf[n+0] = 0x0a
+		n += 1
+		n += codec.EncodeVarint(buf[n:], uint64(len(k)))
+		n += copy(buf[n:], k)
+		buf[n+0] = 0x10
+		n += 1
+		n += codec.EncodeVarint(buf[n:], uint64(v))
+	}
+	return n, nil
+}
+
+func (m *MapHolder) UnmarshalCodec(data []byte) error {
+	l := len(data)
+	i := 0
+	m.Attrs = nil
+	clear(m.Counts)
+	for i < l {
+		tag, n := codec.DecodeVarint(data[i:])
+		if n < 0 {
+			return fmt.Errorf("offset %d: %w", i, codec.ErrInvalidTag)
+		}
+		i += n
+		fieldNum := tag >> 3
+		wireType := tag & 0x7
+
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
+			}
+			vLen, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+			}
+			i += n
+			if uint64(l-i) < vLen {
+				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
+			}
+			if m.Attrs == nil {
+				m.Attrs = make(map[string]string)
+			}
+			entryEnd := i + int(vLen)
+			var mk string
+			var mv string
+			for i < entryEnd {
+				etag, en := codec.DecodeVarint(data[i:entryEnd])
+				if en < 0 {
+					return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+				}
+				i += en
+				switch etag >> 3 {
+				case 1:
+					sVLen, sN := codec.DecodeVarint(data[i:entryEnd])
+					if sN < 0 {
+						return codec.ErrInvalidVarint
+					}
+					i += sN
+					if sVLen > uint64(entryEnd-i) {
+						return codec.ErrBufferTooShort
+					}
+					mk = string(data[i : i+int(sVLen)])
+					i += int(sVLen)
+				case 2:
+					sVLen, sN := codec.DecodeVarint(data[i:entryEnd])
+					if sN < 0 {
+						return codec.ErrInvalidVarint
+					}
+					i += sN
+					if sVLen > uint64(entryEnd-i) {
+						return codec.ErrBufferTooShort
+					}
+					mv = string(data[i : i+int(sVLen)])
+					i += int(sVLen)
+				default:
+					sn, err := codec.SkipField(data[i:entryEnd], etag&0x7)
+					if err != nil {
+						return err
+					}
+					i += sn
+				}
+			}
+			if i != entryEnd {
+				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
+			}
+			m.Attrs[mk] = mv
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidWireType)
+			}
+			vLen, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+			}
+			i += n
+			if uint64(l-i) < vLen {
+				return fmt.Errorf("field %d: %w", 2, codec.ErrBufferTooShort)
+			}
+			if m.Counts == nil {
+				m.Counts = make(map[string]int64)
+			}
+			entryEnd := i + int(vLen)
+			var mk string
+			var mv int64
+			for i < entryEnd {
+				etag, en := codec.DecodeVarint(data[i:entryEnd])
+				if en < 0 {
+					return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+				}
+				i += en
+				switch etag >> 3 {
+				case 1:
+					sVLen, sN := codec.DecodeVarint(data[i:entryEnd])
+					if sN < 0 {
+						return codec.ErrInvalidVarint
+					}
+					i += sN
+					if sVLen > uint64(entryEnd-i) {
+						return codec.ErrBufferTooShort
+					}
+					mk = string(data[i : i+int(sVLen)])
+					i += int(sVLen)
+				case 2:
+					sV, sN := codec.DecodeVarint(data[i:entryEnd])
+					if sN < 0 {
+						return codec.ErrInvalidVarint
+					}
+					i += sN
+					mv = int64(sV)
+				default:
+					sn, err := codec.SkipField(data[i:entryEnd], etag&0x7)
+					if err != nil {
+						return err
+					}
+					i += sn
+				}
+			}
+			if i != entryEnd {
+				return fmt.Errorf("field %d: %w", 2, codec.ErrBufferTooShort)
+			}
+			m.Counts[mk] = mv
+		default:
+			n, err := codec.SkipField(data[i:], wireType)
+			if err != nil {
+				return err
+			}
+			i += n
+		}
+	}
+	return nil
+}
+
+func (m *MapHolder) ResetCodec() {
+	if m == nil {
+		return
+	}
+	m.Attrs = nil
+	clear(m.Counts)
+	if ri, ok := any(m).(interface{ ResetInternal() }); ok {
+		ri.ResetInternal()
+	}
+}
+
+func (m *TimeHolder) SizeCodec() int {
+	if m == nil {
+		return 0
+	}
+	var n int
+	{
+		var zero time.Time
+		if m.CreatedAt != zero {
+			sz := codec.SizeTimestamp(m.CreatedAt)
+			n += 1 + codec.Sov(uint64(sz)) + sz
+		}
+	}
+	if m.Timeout != 0 {
+		sz := codec.SizeDuration(m.Timeout)
+		n += 1 + codec.Sov(uint64(sz)) + sz
+	}
+	return n
+}
+
+func (m *TimeHolder) MarshalCodec() ([]byte, error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeCodec()
+	if size == 0 {
+		return nil, nil
+	}
+	buf := make([]byte, size)
+	n, err := m.MarshalToCodec(buf)
+	if err != nil {
+		return nil, err
+	}
+	return buf[:n], nil
+}
+
+func (m *TimeHolder) MarshalToCodec(buf []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	if len(buf) < m.SizeCodec() {
+		return 0, codec.ErrBufferTooShort
+	}
+	n := 0
+	{
+		var zero time.Time
+		if m.CreatedAt != zero {
+			buf[n+0] = 0x0a
+			n += 1
+			sz := codec.SizeTimestamp(m.CreatedAt)
+			n += codec.EncodeVarint(buf[n:], uint64(sz))
+			n += codec.EncodeTimestamp(buf[n:], m.CreatedAt)
+		}
+	}
+	if m.Timeout != 0 {
+		buf[n+0] = 0x12
+		n += 1
+		sz := codec.SizeDuration(m.Timeout)
+		n += codec.EncodeVarint(buf[n:], uint64(sz))
+		n += codec.EncodeDuration(buf[n:], m.Timeout)
+	}
+	return n, nil
+}
+
+func (m *TimeHolder) UnmarshalCodec(data []byte) error {
+	l := len(data)
+	i := 0
+	m.CreatedAt = time.Time{}
+	m.Timeout = 0
+	for i < l {
+		tag, n := codec.DecodeVarint(data[i:])
+		if n < 0 {
+			return fmt.Errorf("offset %d: %w", i, codec.ErrInvalidTag)
+		}
+		i += n
+		fieldNum := tag >> 3
+		wireType := tag & 0x7
+
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
+			}
+			vLen, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+			}
+			i += n
+			if uint64(l-i) < vLen {
+				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
+			}
+			wktV, err := codec.DecodeTimestamp(data[i : i+int(vLen)])
+			if err != nil {
+				return fmt.Errorf("field %d: %w", 1, err)
+			}
+			m.CreatedAt = wktV
+			i += int(vLen)
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidWireType)
+			}
+			vLen, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+			}
+			i += n
+			if uint64(l-i) < vLen {
+				return fmt.Errorf("field %d: %w", 2, codec.ErrBufferTooShort)
+			}
+			wktV, err := codec.DecodeDuration(data[i : i+int(vLen)])
+			if err != nil {
+				return fmt.Errorf("field %d: %w", 2, err)
+			}
+			m.Timeout = wktV
+			i += int(vLen)
+		default:
+			n, err := codec.SkipField(data[i:], wireType)
+			if err != nil {
+				return err
+			}
+			i += n
+		}
+	}
+	return nil
+}
+
+func (m *TimeHolder) ResetCodec() {
+	if m == nil {
+		return
+	}
+	m.CreatedAt = time.Time{}
+	m.Timeout = 0
+	if ri, ok := any(m).(interface{ ResetInternal() }); ok {
+		ri.ResetInternal()
+	}
+}
+
+func (m *BytesPool) SizeCodec() int {
+	if m == nil {
+		return 0
+	}
+	var n int
+	if len(m.Payload) > 0 {
+		l := len(m.Payload)
+		n += 1 + codec.Sov(uint64(l)) + l
+	}
+	return n
+}
+
+func (m *BytesPool) MarshalCodec() ([]byte, error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeCodec()
+	if size == 0 {
+		return nil, nil
+	}
+	buf := make([]byte, size)
+	n, err := m.MarshalToCodec(buf)
+	if err != nil {
+		return nil, err
+	}
+	return buf[:n], nil
+}
+
+func (m *BytesPool) MarshalToCodec(buf []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	if len(buf) < m.SizeCodec() {
+		return 0, codec.ErrBufferTooShort
+	}
+	n := 0
+	if len(m.Payload) > 0 {
+		buf[n+0] = 0x0a
+		n += 1
+		n += codec.EncodeVarint(buf[n:], uint64(len(m.Payload)))
+		n += copy(buf[n:], m.Payload)
+	}
+	return n, nil
+}
+
+func (m *BytesPool) UnmarshalCodec(data []byte) error {
+	l := len(data)
+	i := 0
+	m.Payload = m.Payload[:0]
+	for i < l {
+		tag, n := codec.DecodeVarint(data[i:])
+		if n < 0 {
+			return fmt.Errorf("offset %d: %w", i, codec.ErrInvalidTag)
+		}
+		i += n
+		fieldNum := tag >> 3
+		wireType := tag & 0x7
+
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
+			}
+			vLen, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+			}
+			i += n
+			if uint64(l-i) < vLen {
+				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
+			}
+			m.Payload = append(m.Payload[:0], data[i:i+int(vLen)]...)
+			i += int(vLen)
+		default:
+			n, err := codec.SkipField(data[i:], wireType)
+			if err != nil {
+				return err
+			}
+			i += n
+		}
+	}
+	return nil
+}
+
+func (m *BytesPool) ResetCodec() {
+	if m == nil {
+		return
+	}
+	m.Payload = m.Payload[:0]
 	if ri, ok := any(m).(interface{ ResetInternal() }); ok {
 		ri.ResetInternal()
 	}

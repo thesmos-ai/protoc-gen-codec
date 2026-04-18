@@ -45,15 +45,33 @@ func AssertRoundtrip[T any, PT interface {
 // AssertReset verifies ResetCodec clears all fields. Scalars must be
 // zero, strings empty, slices and maps length zero (capacity may be
 // preserved by keep_capacity).
+//
+// The input is marshal/unmarshaled first to obtain an independent copy —
+// ResetCodec may mutate shared backing storage (e.g. clear(map) for
+// keep_capacity maps), which would otherwise race with other parallel
+// subtests that share the same underlying map/slice references.
 func AssertReset[T any, PT interface {
 	*T
 	Marshaler
 }](t TB, populated T) {
 	t.Helper()
-	ptr := PT(&populated)
+	buf, err := PT(&populated).MarshalCodec()
+	if err != nil {
+		t.Fatalf("MarshalCodec: %v", err)
+	}
+	var owned T
+	if buf != nil {
+		if err := PT(&owned).UnmarshalCodec(buf); err != nil {
+			t.Fatalf("UnmarshalCodec: %v", err)
+		}
+	}
+	ptr := PT(&owned)
 	ptr.ResetCodec()
-	v := reflect.ValueOf(populated)
+	v := reflect.ValueOf(owned)
 	for i := range v.NumField() {
+		if !v.Type().Field(i).IsExported() {
+			continue
+		}
 		f := v.Field(i)
 		switch f.Kind() {
 		case reflect.Slice, reflect.Map:
@@ -123,6 +141,11 @@ func RunTestSuite[T any, PT interface {
 	t.Run("CrossFormat", func(t *testing.T) {
 		t.Parallel()
 		AssertCrossFormatConsistency[T, PT](t, sample)
+	})
+
+	t.Run("WireSize", func(t *testing.T) {
+		t.Parallel()
+		AssertWireSmallerThanJSON[T, PT](t, sample)
 	})
 
 	t.Run("Corruption", func(t *testing.T) {

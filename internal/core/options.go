@@ -10,11 +10,12 @@ import (
 )
 
 const (
-	optGoType   protowire.Number = 50001
-	optGoField  protowire.Number = 50002
-	optGoCast   protowire.Number = 50003
-	optFixedLen protowire.Number = 50004
-	optKeepCap  protowire.Number = 50005
+	optGoType     protowire.Number = 50001
+	optGoField    protowire.Number = 50002
+	optGoCast     protowire.Number = 50003
+	optFixedLen   protowire.Number = 50004
+	optKeepCap    protowire.Number = 50005
+	optUsePointer protowire.Number = 50006
 )
 
 func messageGoType(msg *protogen.Message) string {
@@ -32,14 +33,17 @@ func fieldGoCast(field *protogen.Field) string {
 	return v
 }
 
-func fieldFixedLen(field *protogen.Field) uint32 {
-	v, _ := extractUint32(field.Desc.Options(), optFixedLen)
-	return v
+func fieldFixedLen(field *protogen.Field) (uint32, bool) {
+	return extractUint32(field.Desc.Options(), optFixedLen)
 }
 
 func fieldKeepCapacity(field *protogen.Field) bool {
 	v, _ := extractBool(field.Desc.Options(), optKeepCap)
 	return v
+}
+
+func fieldUsePointer(field *protogen.Field) (bool, bool) {
+	return extractBool(field.Desc.Options(), optUsePointer)
 }
 
 func extractString(pm protoreflect.ProtoMessage, num protowire.Number) (string, bool) {

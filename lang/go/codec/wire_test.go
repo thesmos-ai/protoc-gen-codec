@@ -493,6 +493,26 @@ func BenchmarkSkipField_LenDelimited(b *testing.B) {
 // Helpers
 // ---------------------------------------------------------------------------
 
+func TestZigzag64_RoundtripSamples(t *testing.T) {
+	t.Parallel()
+	cases := []int64{0, 1, -1, 2, -2, 2147483647, -2147483648, 1 << 62, -(1 << 62), math.MaxInt64, math.MinInt64}
+	for _, v := range cases {
+		if got := codec.ZigzagDecode64(codec.ZigzagEncode64(v)); got != v {
+			t.Fatalf("zigzag64(%d): got %d", v, got)
+		}
+	}
+}
+
+func TestZigzag32_RoundtripSamples(t *testing.T) {
+	t.Parallel()
+	cases := []int32{0, 1, -1, 2, -2, 2147483647, -2147483648}
+	for _, v := range cases {
+		if got := codec.ZigzagDecode32(codec.ZigzagEncode32(v)); got != v {
+			t.Fatalf("zigzag32(%d): got %d", v, got)
+		}
+	}
+}
+
 func assertVarintRoundtrip(t *testing.T, v uint64) {
 	t.Helper()
 	var buf [10]byte

@@ -6,7 +6,11 @@ BENCHTIME ?= 1s
 BENCHCOUNT ?= 1
 
 build:
-	$(GO) build ./cmd/protoc-gen-codec-go/
+	mkdir -p bin
+	$(GO) build -o bin/protoc-gen-codec-go ./cmd/protoc-gen-codec-go/
+
+generate: build
+	PATH="$(CURDIR)/bin:$$PATH" buf generate
 
 test:
 	$(GO) test ./...
@@ -39,6 +43,6 @@ fmt:
 	$(GO) fmt ./...
 
 clean:
-	rm -f protoc-gen-codec-go
+	rm -rf bin/
 
 .DEFAULT_GOAL := build

@@ -52,11 +52,35 @@ var (
 		GoName:       "ErrBufferTooShort",
 		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
 	}
+	identZigzagEncode32 = protogen.GoIdent{
+		GoName:       "ZigzagEncode32",
+		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
+	}
+	identZigzagEncode64 = protogen.GoIdent{
+		GoName:       "ZigzagEncode64",
+		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
+	}
+	identZigzagDecode32 = protogen.GoIdent{
+		GoName:       "ZigzagDecode32",
+		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
+	}
+	identZigzagDecode64 = protogen.GoIdent{
+		GoName:       "ZigzagDecode64",
+		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
+	}
+	identTimeTime        = protogen.GoIdent{GoName: "Time", GoImportPath: "time"}
+	identSizeTimestamp   = protogen.GoIdent{GoName: "SizeTimestamp", GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec"}
+	identSizeDuration    = protogen.GoIdent{GoName: "SizeDuration", GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec"}
+	identEncodeTimestamp = protogen.GoIdent{GoName: "EncodeTimestamp", GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec"}
+	identEncodeDuration  = protogen.GoIdent{GoName: "EncodeDuration", GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec"}
+	identDecodeTimestamp = protogen.GoIdent{GoName: "DecodeTimestamp", GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec"}
+	identDecodeDuration  = protogen.GoIdent{GoName: "DecodeDuration", GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec"}
 )
 
 func emitGoFile(
 	plugin *protogen.Plugin,
 	file *protogen.File,
+	fileMap map[string]*protogen.File,
 	messages []*core.MessageInfo,
 ) error {
 	protoName := file.Proto.GetName()
@@ -72,15 +96,15 @@ func emitGoFile(
 	g.P()
 
 	for _, info := range messages {
-		generateSizeCodec(g, info)
+		generateSizeCodec(g, fileMap, info)
 		g.P()
 		generateMarshalCodec(g, info)
 		g.P()
-		generateMarshalToCodec(g, info)
+		generateMarshalToCodec(g, fileMap, info)
 		g.P()
-		generateUnmarshalCodec(g, info)
+		generateUnmarshalCodec(g, fileMap, info)
 		g.P()
-		generateResetCodec(g, info)
+		generateResetCodec(g, fileMap, info)
 		g.P()
 	}
 
