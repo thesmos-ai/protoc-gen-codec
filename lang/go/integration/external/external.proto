@@ -1,0 +1,19 @@
+// Copyright 2026 Stealth Scale B.V.
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+package integration.external;
+option go_package = "go.stealthscale.io/protoc-gen-codec/lang/go/integration/external";
+
+import "codec/options.proto";
+
+// External lives in a separate Go package from the messages that reference it.
+// Its sole purpose is to exercise the cross-package nested-message codegen
+// path so that a regression like the one in 7031a4a (unexported
+// UnmarshalCodecInternal blocking cross-package callers) gets caught here.
+message External {
+  option (codec.type) = "External";
+
+  string tag = 1 [(codec.field) = "Tag"];
+  int64  seq = 2 [(codec.field) = "Seq"];
+}

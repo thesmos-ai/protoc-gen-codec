@@ -1,0 +1,24 @@
+// Copyright 2026 Stealth Scale B.V.
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+package integration;
+option go_package = "go.stealthscale.io/protoc-gen-codec/lang/go/integration";
+
+import "codec/options.proto";
+import "lang/go/integration/external/external.proto";
+
+// CrossContainer references external.External from three codegen paths:
+//   - singular *external.External (pointer presence)
+//   - repeated []external.External (value-slice — exercises the append-grow
+//     UnmarshalCodecInternal call site that 7031a4a fixed)
+//   - repeated []*external.External (pointer-slice — cursor-reuse path)
+// All three must compile across package boundaries.
+message CrossContainer {
+  option (codec.type) = "CrossContainer";
+
+  string name = 1 [(codec.field) = "Name"];
+  external.External item = 2 [(codec.field) = "Item"];
+  repeated external.External items = 3 [(codec.field) = "Items"];
+  repeated external.External ptr_items = 4 [(codec.field) = "PtrItems", (codec.use_pointer) = true];
+}
