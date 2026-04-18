@@ -180,7 +180,7 @@ func RunBenchSuite[T any, PT interface {
 		ptr := PT(&sample)
 		buf := make([]byte, ptr.SizeCodec())
 		b.ResetTimer()
-		for range b.N {
+		for b.Loop() {
 			_, _ = ptr.MarshalToCodec(buf)
 		}
 	})
@@ -189,14 +189,14 @@ func RunBenchSuite[T any, PT interface {
 		ptr := PT(&sample)
 		data, _ := ptr.MarshalCodec()
 		b.ResetTimer()
-		for range b.N {
+		for b.Loop() {
 			var got T
 			_ = PT(&got).UnmarshalCodec(data)
 		}
 	})
 
 	b.Run("JSON/Marshal", func(b *testing.B) {
-		for range b.N {
+		for b.Loop() {
 			_, _ = json.Marshal(sample)
 		}
 	})
@@ -204,7 +204,7 @@ func RunBenchSuite[T any, PT interface {
 	b.Run("JSON/Unmarshal", func(b *testing.B) {
 		data, _ := json.Marshal(sample)
 		b.ResetTimer()
-		for range b.N {
+		for b.Loop() {
 			var got T
 			_ = json.Unmarshal(data, &got)
 		}

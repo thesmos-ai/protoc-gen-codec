@@ -1413,10 +1413,10 @@ func (m *PackedZigzag) UnmarshalCodecInternal(data []byte, slab string, slabOff 
 					return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
 				}
 				i += n
-				end := i + int(pLen)
-				if end > l {
+				if pLen > uint64(l-i) {
 					return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
 				}
+				end := i + int(pLen)
 				if m.Values32 == nil {
 					m.Values32 = make([]int32, 0, int(pLen))
 				}
@@ -1445,10 +1445,10 @@ func (m *PackedZigzag) UnmarshalCodecInternal(data []byte, slab string, slabOff 
 					return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
 				}
 				i += n
-				end := i + int(pLen)
-				if end > l {
+				if pLen > uint64(l-i) {
 					return fmt.Errorf("field %d: %w", 2, codec.ErrBufferTooShort)
 				}
+				end := i + int(pLen)
 				if m.Values64 == nil {
 					m.Values64 = make([]int64, 0, int(pLen))
 				}

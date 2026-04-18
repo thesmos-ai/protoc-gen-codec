@@ -11,6 +11,10 @@ rapid/
 fuzz/
 *.out
 
+# But keep Go fuzz regression seeds (convention: commit testdata/fuzz/<Target>/<hash>).
+!**/testdata/fuzz/
+!**/testdata/fuzz/**
+
 # IDE
 .idea/
 .vscode/

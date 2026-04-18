@@ -670,10 +670,14 @@ func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 		emitErrVarint(g, f.ProtoNum)
 		g.P("}")
 		g.P("i += n")
-		g.P("end := i + int(pLen)")
-		g.P("if end > l {")
+		// Bound pLen in uint64 space before converting to int, otherwise a
+		// malicious varint > MaxInt64 wraps to negative on the int conversion
+		// and (a) the `end > l` check incorrectly passes and (b) `make` panics
+		// with "cap out of range".
+		g.P("if pLen > uint64(l-i) {")
 		emitErrShort(g, f.ProtoNum)
 		g.P("}")
+		g.P("end := i + int(pLen)")
 		g.P("if ", accessor, " == nil {")
 		g.P(accessor, " = make([]", elemGoType(g, fileMap, f), ", 0, int(pLen))")
 		g.P("}")
@@ -704,10 +708,14 @@ func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 		emitErrVarint(g, f.ProtoNum)
 		g.P("}")
 		g.P("i += n")
-		g.P("end := i + int(pLen)")
-		g.P("if end > l {")
+		// Bound pLen in uint64 space before converting to int, otherwise a
+		// malicious varint > MaxInt64 wraps to negative on the int conversion
+		// and (a) the `end > l` check incorrectly passes and (b) `make` panics
+		// with "cap out of range".
+		g.P("if pLen > uint64(l-i) {")
 		emitErrShort(g, f.ProtoNum)
 		g.P("}")
+		g.P("end := i + int(pLen)")
 		g.P("if ", accessor, " == nil {")
 		g.P(accessor, " = make([]", elemGoType(g, fileMap, f), ", 0, int(pLen)/8)")
 		g.P("}")
@@ -733,10 +741,14 @@ func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 		emitErrVarint(g, f.ProtoNum)
 		g.P("}")
 		g.P("i += n")
-		g.P("end := i + int(pLen)")
-		g.P("if end > l {")
+		// Bound pLen in uint64 space before converting to int, otherwise a
+		// malicious varint > MaxInt64 wraps to negative on the int conversion
+		// and (a) the `end > l` check incorrectly passes and (b) `make` panics
+		// with "cap out of range".
+		g.P("if pLen > uint64(l-i) {")
 		emitErrShort(g, f.ProtoNum)
 		g.P("}")
+		g.P("end := i + int(pLen)")
 		g.P("if ", accessor, " == nil {")
 		g.P(accessor, " = make([]", elemGoType(g, fileMap, f), ", 0, int(pLen)/4)")
 		g.P("}")
