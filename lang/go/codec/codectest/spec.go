@@ -173,7 +173,9 @@ func RunSuite[T any, PT interface {
 	})
 	t.Run("Corruption", func(t *testing.T) {
 		t.Parallel()
-		AssertCorruption[T, PT](t, spec.Sample)
+		for _, s := range append([]T{spec.Sample}, spec.Variants...) {
+			AssertCorruption[T, PT](t, s)
+		}
 	})
 
 	// Coverage — schema-agnostic
@@ -214,6 +216,12 @@ func RunSuite[T any, PT interface {
 		t.Run("NilPointerElement", func(t *testing.T) {
 			t.Parallel()
 			AssertMarshalWithNilPointerElement[T, PT](t, *spec.NilPointerSample)
+		})
+	}
+	if len(spec.RepeatedMessageFields) > 0 {
+		t.Run("PrescanSkipsAllWireTypes", func(t *testing.T) {
+			t.Parallel()
+			AssertPrescanSkipsAllWireTypes[T, PT](t, spec.Sample, spec.unknownFieldNum())
 		})
 	}
 	runFieldCategoryTests[T, PT](t, spec)

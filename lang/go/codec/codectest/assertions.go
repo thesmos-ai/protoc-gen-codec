@@ -502,10 +502,12 @@ func AssertCorruptMapEntryValue[T any, PT interface {
 	_ = PT(&gotD).UnmarshalCodec(outerD)
 }
 
-// AssertCorruptRepeatedMessagePrescan exercises every branch in the
-// repeated-message prescan walk: outer length varint corruption, inner
-// tag-varint corruption, varint-value corruption, and wire-type-5
-// (fixed32) short-body corruption.
+// AssertCorruptRepeatedMessagePrescan exercises every break branch in
+// the repeated-message prescan walk across the four valid proto3 wire
+// types. The prescan `break`s out on malformed input; the main decode
+// loop then hits the same corruption and returns a proper error. This
+// helper asserts the prescan never panics on malformed input of any
+// wire type.
 func AssertCorruptRepeatedMessagePrescan[T any, PT interface {
 	*T
 	codec.Marshaler
@@ -520,14 +522,75 @@ func AssertCorruptRepeatedMessagePrescan[T any, PT interface {
 	// of the buffer (uses field 1 wireType 0 style but unterminated).
 	c2 := []byte{0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
 	// Case 3: valid varint tag (field 1 wireType 0) followed by an
-	// unterminated varint value.
+	// unterminated varint value → prescan case-0 `if pn < 0 { break }`.
 	c3 := []byte{0x08, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
 	// Case 4: wireType-5 tag for an unknown field with short body
-	// (fewer than 4 bytes remaining).
+	// (fewer than 4 bytes remaining) → prescan case-5 `if pi+4 > l`.
 	c4 := []byte{0x9d, 0x06, 0x00, 0x00}
-	for _, data := range [][]byte{c1, c2, c3, c4} {
+	// Case 5: wireType-1 (fixed64) tag with fewer than 8 body bytes
+	// remaining → prescan case-1 `if pi+8 > l { break }`. Tag
+	// 0x09 = field 1, wireType 1.
+	c5 := []byte{0x09, 0x00, 0x00, 0x00}
+	// Case 6: wireType-2 tag whose declared body length exceeds the
+	// remaining buffer → prescan case-2 `if pi + int(pvl) > l { break }`.
+	// Tag 0x0a = field 1, wireType 2; length varint = 5; only 1 body byte.
+	c6 := []byte{0x0a, 0x05, 0x00}
+	for _, data := range [][]byte{c1, c2, c3, c4, c5, c6} {
 		var got T
 		_ = PT(&got).UnmarshalCodec(data)
+	}
+}
+
+// AssertPrescanSkipsAllWireTypes verifies the repeated-message prescan
+// correctly walks past unknown fields of every valid proto3 wire type
+// (0=varint, 1=fixed64, 2=length-delimited, 5=fixed32). Prepends a
+// well-formed unknown-field wire segment of each type before a valid
+// marshal, then asserts decode succeeds and re-marshal produces the
+// original wire (unknown fields are dropped per our codec's semantics).
+//
+// Intended for types that declare RepeatedMessageFields on their Spec;
+// on types without a prescan this helper still exercises the main
+// decode loop's unknown-field skip path, so it's safe to call
+// regardless. The per-field wire-type branches inside the prescan are
+// not hit by AssertUnknownFieldSkipped alone (which only uses wire
+// type 0).
+func AssertPrescanSkipsAllWireTypes[T any, PT interface {
+	*T
+	codec.Marshaler
+}](t TB, sample T, unknownFieldNum int32) {
+	t.Helper()
+	ptr := PT(&sample)
+	valid, err := ptr.MarshalCodec()
+	if err != nil {
+		t.Fatalf("MarshalCodec: %v", err)
+	}
+	for _, wireType := range [...]uint64{0, 1, 2, 5} {
+		tag := uint64(unknownFieldNum)<<3 | wireType
+		prefix := appendVarint(nil, tag)
+		switch wireType {
+		case 0:
+			prefix = append(prefix, 0x00) // varint value 0
+		case 1:
+			prefix = append(prefix, 0, 0, 0, 0, 0, 0, 0, 0) // fixed64 zero
+		case 2:
+			prefix = appendVarint(prefix, 0) // empty length-delimited
+		case 5:
+			prefix = append(prefix, 0, 0, 0, 0) // fixed32 zero
+		}
+		combined := make([]byte, 0, len(prefix)+len(valid))
+		combined = append(combined, prefix...)
+		combined = append(combined, valid...)
+		var got T
+		if uerr := PT(&got).UnmarshalCodec(combined); uerr != nil {
+			t.Fatalf("wire type %d prefix: decode failed: %v", wireType, uerr)
+		}
+		remarshal, merr := PT(&got).MarshalCodec()
+		if merr != nil {
+			t.Fatalf("wire type %d prefix: re-marshal failed: %v", wireType, merr)
+		}
+		if !bytes.Equal(remarshal, valid) {
+			t.Fatalf("wire type %d prefix: re-marshal lost data\n want=%x\n got=%x", wireType, valid, remarshal)
+		}
 	}
 }
 
