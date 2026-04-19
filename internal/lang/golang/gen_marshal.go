@@ -10,6 +10,14 @@ import (
 	"go.stealthscale.io/protoc-gen-codec/internal/core"
 )
 
+// generateMarshalCodec emits the public convenience method: allocate a
+// correctly-sized buffer, fill it via MarshalCodecInternal, return.
+//
+// No error return path: the SizeCodec contract guarantees the buffer is
+// exactly large enough for MarshalCodecInternal to succeed, so the
+// previously-defensive `if err != nil { return nil, err }` has no reachable
+// state and is omitted. MarshalToCodec retains its error return for
+// direct-caller misuse (caller-supplied buffer too small).
 func generateMarshalCodec(g *protogen.GeneratedFile, info *core.MessageInfo) {
 	g.P("func (m *", info.TargetType, ") MarshalCodec() ([]byte, error) {")
 	g.P("if m == nil {")
@@ -20,15 +28,15 @@ func generateMarshalCodec(g *protogen.GeneratedFile, info *core.MessageInfo) {
 	g.P("return nil, nil")
 	g.P("}")
 	g.P("buf := make([]byte, size)")
-	g.P("n, err := m.MarshalToCodec(buf)")
-	g.P("if err != nil {")
-	g.P("return nil, err")
-	g.P("}")
+	g.P("n := m.MarshalCodecInternal(buf)")
 	g.P("return buf[:n], nil")
 	g.P("}")
 }
 
-func generateMarshalToCodec(g *protogen.GeneratedFile, fileMap map[string]*protogen.File, info *core.MessageInfo) {
+// generateMarshalToCodec emits the public caller-buffer method: validate
+// the caller's buffer is large enough, then delegate to
+// MarshalCodecInternal. Returns (bytes written, ErrBufferTooShort).
+func generateMarshalToCodec(g *protogen.GeneratedFile, info *core.MessageInfo) {
 	g.P("func (m *", info.TargetType, ") MarshalToCodec(buf []byte) (int, error) {")
 	g.P("if m == nil {")
 	g.P("return 0, nil")
@@ -36,6 +44,22 @@ func generateMarshalToCodec(g *protogen.GeneratedFile, fileMap map[string]*proto
 	g.P("if len(buf) < m.SizeCodec() {")
 	g.P("return 0, ", identErrBufferTooShort)
 	g.P("}")
+	g.P("return m.MarshalCodecInternal(buf), nil")
+	g.P("}")
+}
+
+// generateMarshalCodecInternal emits the unchecked body. Assumes buf is at
+// least SizeCodec() bytes and m is non-nil (both caller-enforced). Returns
+// bytes written. Nested message marshals call MarshalCodecInternal directly
+// — no per-level length check, no error propagation, no nil guard — because
+// all three are verified at the entry points (MarshalCodec / MarshalToCodec
+// for external callers; explicit nil checks at every nested emit site for
+// recursive callers).
+//
+// Exported (capital M) so cross-package nested message emissions can call
+// it directly. The naming mirrors UnmarshalCodecInternal.
+func generateMarshalCodecInternal(g *protogen.GeneratedFile, fileMap map[string]*protogen.File, info *core.MessageInfo) {
+	g.P("func (m *", info.TargetType, ") MarshalCodecInternal(buf []byte) int {")
 	g.P("n := 0")
 
 	for i := range info.Fields {
@@ -43,7 +67,7 @@ func generateMarshalToCodec(g *protogen.GeneratedFile, fileMap map[string]*proto
 		generateFieldMarshal(g, fileMap, f)
 	}
 
-	g.P("return n, nil")
+	g.P("return n")
 	g.P("}")
 }
 
@@ -96,9 +120,7 @@ func generateFieldMarshal(g *protogen.GeneratedFile, fileMap map[string]*protoge
 			g.P("if sz := ", accessor, ".SizeCodec(); sz > 0 {")
 			emitTag(g, f.ProtoNum, core.WireLenDel)
 			g.P("n += ", identEncodeVarint, "(buf[n:],uint64(sz))")
-			g.P("wn, err := ", accessor, ".MarshalToCodec(buf[n:])")
-			g.P("if err != nil { return 0, err }")
-			g.P("n += wn")
+			g.P("n += ", accessor, ".MarshalCodecInternal(buf[n:])")
 			g.P("}")
 			g.P("}")
 		} else {
@@ -106,9 +128,7 @@ func generateFieldMarshal(g *protogen.GeneratedFile, fileMap map[string]*protoge
 			g.P("if sz := (&", accessor, ").SizeCodec(); sz > 0 {")
 			emitTag(g, f.ProtoNum, core.WireLenDel)
 			g.P("n += ", identEncodeVarint, "(buf[n:],uint64(sz))")
-			g.P("wn, err := (&", accessor, ").MarshalToCodec(buf[n:])")
-			g.P("if err != nil { return 0, err }")
-			g.P("n += wn")
+			g.P("n += (&", accessor, ").MarshalCodecInternal(buf[n:])")
 			g.P("}")
 		}
 		return
@@ -254,9 +274,7 @@ func generateRepeatedFieldMarshal(g *protogen.GeneratedFile, _ map[string]*proto
 			emitTag(g, f.ProtoNum, core.WireLenDel)
 			g.P("sz := elem.SizeCodec()")
 			g.P("n += ", identEncodeVarint, "(buf[n:],uint64(sz))")
-			g.P("wn, err := elem.MarshalToCodec(buf[n:])")
-			g.P("if err != nil { return 0, err }")
-			g.P("n += wn")
+			g.P("n += elem.MarshalCodecInternal(buf[n:])")
 			g.P("}")
 		} else {
 			// Value slice: take address of element for pointer-receiver methods.
@@ -265,9 +283,7 @@ func generateRepeatedFieldMarshal(g *protogen.GeneratedFile, _ map[string]*proto
 			emitTag(g, f.ProtoNum, core.WireLenDel)
 			g.P("sz := elem.SizeCodec()")
 			g.P("n += ", identEncodeVarint, "(buf[n:],uint64(sz))")
-			g.P("wn, err := elem.MarshalToCodec(buf[n:])")
-			g.P("if err != nil { return 0, err }")
-			g.P("n += wn")
+			g.P("n += elem.MarshalCodecInternal(buf[n:])")
 			g.P("}")
 		}
 		return

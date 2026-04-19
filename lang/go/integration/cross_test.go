@@ -60,6 +60,33 @@ func TestExternal_Coverage(t *testing.T) {
 	)
 }
 
+func TestCrossContainer_CoverageExt(t *testing.T) {
+	grower := sampleCrossContainer()
+	grower.Items = append(grower.Items, external.External{Tag: "v3", Seq: 30})
+	grower.PtrItems = append(grower.PtrItems, &external.External{Tag: "p3", Seq: 300})
+	codec.RunExtendedCoverageSuite[integration.CrossContainer](t, sampleCrossContainer(), grower)
+}
+
+func TestExternal_CoverageExt(t *testing.T) {
+	codec.RunExtendedCoverageSuite[external.External](t, external.External{Tag: "x", Seq: 7}, external.External{})
+}
+
+// TestCrossContainer_NilPointerElement exercises the "if elem == nil { continue }"
+// branches in CrossContainer.SizeCodec and CrossContainer.MarshalCodecInternal
+// for PtrItems ([]*external.External).
+func TestCrossContainer_NilPointerElement(t *testing.T) {
+	t.Parallel()
+	c := integration.CrossContainer{
+		Name: "with-nil",
+		PtrItems: []*external.External{
+			{Tag: "p1"},
+			nil,
+			{Tag: "p2"},
+		},
+	}
+	codec.AssertMarshalWithNilPointerElement[integration.CrossContainer](t, c)
+}
+
 // TestCrossContainer_WarmPath primes the receiver with one decode, then
 // re-decodes the same payload — exercises cursor-reuse on the value slice
 // and *External pointer reuse that the cold-path decode skips. Then re-decodes

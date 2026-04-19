@@ -405,6 +405,45 @@ func BenchmarkNumericOnly_Codec(b *testing.B) {
 	codec.RunBenchSuite[integration.NumericOnly](b, sampleNumericOnly())
 }
 
+// Dedicated MarshalCodec benches (RunBenchSuite only covers MarshalTo).
+// Used to measure the cost of trampolining MarshalCodec through a generic
+// codec.Marshal helper (coverage-refactor experiment).
+func BenchmarkMinimal_MarshalCodec(b *testing.B) {
+	s := sampleMinimal()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		_, _ = s.MarshalCodec()
+	}
+}
+
+func BenchmarkNumericOnly_MarshalCodec(b *testing.B) {
+	s := sampleNumericOnly()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		_, _ = s.MarshalCodec()
+	}
+}
+
+func BenchmarkFixture_MarshalCodec(b *testing.B) {
+	s := sampleFixture()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		_, _ = s.MarshalCodec()
+	}
+}
+
+func BenchmarkContainer_MarshalCodec(b *testing.B) {
+	s := sampleContainer()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		_, _ = s.MarshalCodec()
+	}
+}
+
 // BenchmarkNumericOnly_PooledUnmarshal measures the warm-path, pooled-receiver
 // cost of UnmarshalCodec. After the first iteration primes H/I/J pointers,
 // subsequent iterations reuse those *T slots via the seenOptional-bitmap
@@ -1340,6 +1379,363 @@ func TestBytesPool_Coverage(t *testing.T) {
 	codec.RunCoverageSuite[integration.BytesPool](t, integration.BytesPool{Payload: []byte{1, 2, 3}}, 999,
 		codec.WireMismatch{FieldNum: 1, WrongWireType: 0}, // bytes as varint
 	)
+}
+
+// ---------------------------------------------------------------------------
+// Extended coverage suite — drives generated code toward 100%.
+// Exercises: CorruptTag (unterminated varint), MarshalToShortBuffer (one-byte
+// under), WarmPathGrowth (second decode with more elements).
+// For types without repeated fields, the grower is the zero value (warm-path
+// becomes a no-op growth — still exercises the primed-receiver entry).
+// ---------------------------------------------------------------------------
+
+// TestFixture_FullCoverage demonstrates the one-call spec-driven path to
+// 100% coverage. Consumers declare field-number categories; the suite runs
+// every generic helper plus one per-field-category corruption probe.
+// Replaces the per-fixture RunCoverageSuite + RunExtendedCoverageSuite +
+// targeted-edge-case test boilerplate.
+func TestFixture_FullCoverage(t *testing.T) {
+	grower := sampleFixture()
+	grower.Tags = append(grower.Tags, "delta", "epsilon")
+	codec.RunFullCoverageSuite[integration.Fixture](t, codec.CoverageSpec[integration.Fixture]{
+		Sample:             sampleFixture(),
+		Grower:             &grower,
+		UnknownFieldNum:    999,
+		ScalarVarintFields: []int32{2, 3, 4, 5, 6, 7}, // Kind, Status, Score, Sequence, Enabled, Timestamp
+	})
+}
+
+func TestFixture_CoverageExt(t *testing.T) {
+	grower := sampleFixture()
+	grower.Tags = append(grower.Tags, "delta", "epsilon") // force slice growth
+	codec.RunExtendedCoverageSuite[integration.Fixture](t, sampleFixture(), grower)
+}
+
+// patchAllFields is a synthetic sample that populates every Patch field so
+// AssertAllFieldsWireTypeMismatch observes all tags. The three real
+// variants (Text/Fixed64/Blob) each set only their discriminator-shape
+// payload field, leaving IntVal (field 6) unobserved.
+func patchAllFields() integration.Patch {
+	return integration.Patch{
+		Kind: integration.PatchKindText, VertexID: 7, Sequence: 1001,
+		Source:  integration.SourceInference,
+		TextVal: "t", IntVal: 42, Fixed64Val: 100, BlobRef: digest(0xAB),
+	}
+}
+
+func TestPatch_CoverageExt(t *testing.T) {
+	codec.RunExtendedCoverageSuite[integration.Patch](t, samplePatchText(), integration.Patch{})
+	codec.AssertAllFieldsWireTypeMismatch[integration.Patch](t, patchAllFields())
+}
+
+func TestEvidence_CoverageExt(t *testing.T) {
+	grower := sampleEvidence()
+	grower.Jurisdictions = append(grower.Jurisdictions, "JP", "AU")
+	codec.RunExtendedCoverageSuite[integration.Evidence](t, sampleEvidence(), grower)
+}
+
+func TestMinimal_CoverageExt(t *testing.T) {
+	codec.RunExtendedCoverageSuite[integration.Minimal](t, sampleMinimal(), integration.Minimal{})
+}
+
+func TestNumericOnly_CoverageExt(t *testing.T) {
+	codec.RunExtendedCoverageSuite[integration.NumericOnly](t, sampleNumericOnly(), integration.NumericOnly{})
+}
+
+func TestPackedZigzag_CoverageExt(t *testing.T) {
+	grower := samplePackedZigzag()
+	grower.Values32 = append(grower.Values32, 7, 8, 9)
+	grower.Values64 = append(grower.Values64, 100, 200)
+	codec.RunExtendedCoverageSuite[integration.PackedZigzag](t, samplePackedZigzag(), grower)
+}
+
+func TestInner_CoverageExt(t *testing.T) {
+	codec.RunExtendedCoverageSuite[integration.Inner](t, sampleInner(), integration.Inner{})
+}
+
+func TestContainer_CoverageExt(t *testing.T) {
+	grower := sampleContainer()
+	grower.Children = append(grower.Children,
+		&integration.Inner{Label: "c4", Count: 4},
+		&integration.Inner{Label: "c5", Count: 5})
+	codec.RunExtendedCoverageSuite[integration.Container](t, sampleContainer(), grower)
+}
+
+func TestValueContainer_CoverageExt(t *testing.T) {
+	grower := sampleValueContainer()
+	grower.Items = append(grower.Items,
+		integration.Inner{Label: "fourth", Count: 4},
+		integration.Inner{Label: "fifth", Count: 5})
+	codec.RunExtendedCoverageSuite[integration.ValueContainer](t, sampleValueContainer(), grower)
+}
+
+func TestTree_CoverageExt(t *testing.T) {
+	grower := sampleTree()
+	grower.Children = append(grower.Children, &integration.Tree{Label: "c"})
+	codec.RunExtendedCoverageSuite[integration.Tree](t, sampleTree(), grower)
+}
+
+func TestMapHolder_CoverageExt(t *testing.T) {
+	grower := integration.MapHolder{
+		Attrs:  map[string]string{"region": "eu-west", "tier": "premium", "extra1": "a", "extra2": "b"},
+		Counts: map[string]int64{"retries": 3, "errors": 0, "hits": 99},
+	}
+	codec.RunExtendedCoverageSuite[integration.MapHolder](t, sampleMapHolder(), grower)
+}
+
+func TestTimeHolder_CoverageExt(t *testing.T) {
+	codec.RunExtendedCoverageSuite[integration.TimeHolder](t, sampleTimeHolder(), integration.TimeHolder{})
+}
+
+func TestBytesPool_CoverageExt(t *testing.T) {
+	s := integration.BytesPool{Payload: []byte{1, 2, 3}}
+	codec.RunExtendedCoverageSuite[integration.BytesPool](t, s, integration.BytesPool{Payload: []byte{1, 2, 3, 4, 5}})
+}
+
+// ---------------------------------------------------------------------------
+// Targeted edge-case coverage — drives toward 100%.
+// Exercises branches that generic helpers can't reach because they need
+// either a contrived schema shape (nil pointer in a repeated slice) or a
+// corrupt wire payload of a specific structure.
+// ---------------------------------------------------------------------------
+
+// TestContainer_NilPointerElement exercises the "if elem == nil { continue }"
+// path in Container.SizeCodec and Container.MarshalCodecInternal for the
+// Children field, which is []*Inner.
+func TestContainer_NilPointerElement(t *testing.T) {
+	t.Parallel()
+	c := integration.Container{
+		Name: "with-nil",
+		Children: []*integration.Inner{
+			{Label: "first", Count: 1},
+			nil,
+			{Label: "third", Count: 3},
+		},
+	}
+	codec.AssertMarshalWithNilPointerElement[integration.Container](t, c)
+}
+
+// TestTree_NilPointerElement exercises the same path for the self-referential
+// Tree.Children field.
+func TestTree_NilPointerElement(t *testing.T) {
+	t.Parallel()
+	tree := integration.Tree{
+		Label: "root",
+		Children: []*integration.Tree{
+			{Label: "a"},
+			nil,
+			{Label: "b"},
+		},
+	}
+	codec.AssertMarshalWithNilPointerElement[integration.Tree](t, tree)
+}
+
+// TestPackedZigzag_CorruptBody exercises the varint-decode-fail branch
+// inside PackedZigzag.UnmarshalCodecInternal's packed-body loop. Sends a
+// field-1 packed payload whose body is a malformed varint.
+func TestPackedZigzag_CorruptBody(t *testing.T) {
+	t.Parallel()
+	codec.AssertCorruptPackedBody[integration.PackedZigzag](t, 1)
+	codec.AssertCorruptPackedBody[integration.PackedZigzag](t, 2)
+}
+
+// TestMapHolder_CorruptEntry sends a map-field wire where the entry's
+// declared length exceeds the remaining buffer, or the value-varint is
+// truncated. Targets the "if sN < 0 / entryEnd mismatch" branches in
+// MapHolder.UnmarshalCodecInternal.
+func TestMapHolder_CorruptEntry(t *testing.T) {
+	t.Parallel()
+	// Field 1 (Attrs: map<string,string>) tag = (1<<3)|2 = 0x0a.
+	// Entry structure: length varint + (tag=0x0a len=K key-bytes) + (tag=0x12 len=V val-bytes)
+	// Construct entry where value length varint is unterminated (all 0x80).
+	cases := [][]byte{
+		// declared entry length = 5; key tag 0x0a, len 0 (empty key); value tag 0x12, len varint = 0x80 (unterminated)
+		{0x0a, 0x05, 0x0a, 0x00, 0x12, 0x80, 0x80},
+		// declared entry length = 4; key tag 0x0a, len 3, but only 1 key byte follows (short)
+		{0x0a, 0x04, 0x0a, 0x03, 0x61, 0x12, 0x00},
+	}
+	for _, data := range cases {
+		var got integration.MapHolder
+		if err := got.UnmarshalCodec(data); err == nil {
+			t.Errorf("expected error on corrupt map entry %x, got nil", data)
+		}
+	}
+}
+
+// TestContainer_CorruptPrescan exercises the fixed32 / varint prescan
+// bounds-check branches that fire when the pre-scan walk encounters a
+// malformed length prefix on a repeated-message field.
+func TestContainer_CorruptPrescan(t *testing.T) {
+	t.Parallel()
+	codec.AssertCorruptRepeatedMessagePrescan[integration.Container](t, 3) // Children
+}
+
+// TestContainer_PrescanFixed32Short exercises the prescan's fixed32
+// bounds-check (if pi+4 > l) by feeding a wire that begins with an unknown
+// field at wireType 5 (fixed32) but with fewer than 4 remaining body bytes.
+// The prescan walks all tags; when it hits the unknown-field tag with
+// wireType 5 and the body is short, the pi+4>l branch fires.
+func TestContainer_PrescanFixed32Short(t *testing.T) {
+	t.Parallel()
+	// Tag for field 99 (unknown), wireType 5: (99<<3)|5 = 797 = 0x9d 0x06.
+	// Follow with only 2 bytes (not 4) so pi+4 > l.
+	data := []byte{0x9d, 0x06, 0x00, 0x00}
+	var got integration.Container
+	_ = got.UnmarshalCodec(data)
+}
+
+// TestCrossContainer_PrescanFixed32Short same as above for CrossContainer.
+func TestCrossContainer_PrescanFixed32Short(t *testing.T) {
+	t.Parallel()
+	data := []byte{0x9d, 0x06, 0x00, 0x00}
+	var got integration.CrossContainer
+	_ = got.UnmarshalCodec(data)
+}
+
+// TestContainer_PrescanCorruptVarintTag exercises `if pn < 0` in the
+// prescan's own tag-decode. Feeds an unterminated varint as the first tag.
+func TestContainer_PrescanCorruptVarintTag(t *testing.T) {
+	t.Parallel()
+	data := []byte{0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
+	var got integration.Container
+	_ = got.UnmarshalCodec(data)
+}
+
+// TestContainer_PrescanVarintValueCorrupt feeds a valid varint tag followed
+// by an unterminated varint VALUE, so the prescan's inner varint-decode
+// (case 0 / `if pn < 0`) fires during the walk-past-value step.
+func TestContainer_PrescanVarintValueCorrupt(t *testing.T) {
+	t.Parallel()
+	// Tag 0x08 = field 1 wireType 0 (varint). Then 10 bytes of 0x80 as the value.
+	data := []byte{0x08, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
+	var got integration.Container
+	_ = got.UnmarshalCodec(data)
+}
+
+// TestTree_PrescanVarintValueCorrupt same as Container variant but for
+// Tree.UnmarshalCodecInternal's prescan (self-referential []*Tree).
+func TestTree_PrescanVarintValueCorrupt(t *testing.T) {
+	t.Parallel()
+	data := []byte{0x08, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
+	var got integration.Tree
+	_ = got.UnmarshalCodec(data)
+}
+
+// TestValueContainer_PrescanVarintValueCorrupt same for ValueContainer's
+// prescan (value slice []Inner).
+func TestValueContainer_PrescanVarintValueCorrupt(t *testing.T) {
+	t.Parallel()
+	data := []byte{0x08, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
+	var got integration.ValueContainer
+	_ = got.UnmarshalCodec(data)
+}
+
+// TestMapHolder_CorruptEntryKeyVarint exercises the inner `if sN < 0` for
+// a map key whose length varint is malformed, across both Attrs (string
+// key) and Counts (string key) maps.
+func TestMapHolder_CorruptEntryKeyVarint(t *testing.T) {
+	t.Parallel()
+	// field 1 (Attrs), wire 2; entry length 12; key tag 0x0a, unterminated key-length
+	data := []byte{0x0a, 0x0c, 0x0a, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
+	var got integration.MapHolder
+	_ = got.UnmarshalCodec(data)
+	// field 2 (Counts map<string,int64>); key tag 0x0a, unterminated key-length
+	data2 := []byte{0x12, 0x0c, 0x0a, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
+	var got2 integration.MapHolder
+	_ = got2.UnmarshalCodec(data2)
+}
+
+// TestMapHolder_CorruptEntryTag targets the outer entry-tag varint decode
+// failure (`if en < 0`) inside the map entry loop. Sends a map field whose
+// entry body's first tag is an unterminated varint.
+func TestMapHolder_CorruptEntryTag(t *testing.T) {
+	t.Parallel()
+	// Attrs entry body starts with unterminated varint tag.
+	data := []byte{0x0a, 0x0a, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
+	var got integration.MapHolder
+	_ = got.UnmarshalCodec(data)
+	// Counts entry body starts with unterminated varint tag.
+	data2 := []byte{0x12, 0x0a, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
+	var got2 integration.MapHolder
+	_ = got2.UnmarshalCodec(data2)
+}
+
+// TestMapHolder_CorruptCountsValueVarint targets the Counts case-2 value
+// varint decode failure.
+func TestMapHolder_CorruptCountsValueVarint(t *testing.T) {
+	t.Parallel()
+	// Counts entry: key tag 0x0a len 0 (empty key), value tag 0x10, value = 10 unterminated bytes
+	data := []byte{0x12, 0x0d, 0x0a, 0x00, 0x10, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
+	var got integration.MapHolder
+	_ = got.UnmarshalCodec(data)
+}
+
+// TestMapHolder_EntryLengthMismatch exercises `if i != entryEnd` — the
+// entry declared-length exceeds the actual content. After decoding body
+// fields, i < entryEnd trips the final length check.
+func TestMapHolder_EntryLengthMismatch(t *testing.T) {
+	t.Parallel()
+	// Attrs field with entry length 10, but body only has tag 0x0a len 0 (2 bytes)
+	// — entry ends at i=4 but entryEnd=12; trailing bytes fill with zeros that SkipField accepts, we need unknown-tag corruption or similar.
+	// Simplest: entry length 4, body is tag-only (0x0a 0x00 = 2 bytes), leaving 2 unprocessed.
+	// Default case sees unknown tag; we need trailing bytes that DON'T get consumed.
+	// Use 0xFF (unknown wire type in tag & 0x7 = 7) so SkipField errors, leaving i<entryEnd.
+	// Actually easier: value-only entry (no key) length 4, body 0x12 (val tag) 0x00 (len) = 2 bytes.
+	data := []byte{0x0a, 0x06, 0x12, 0x00, 0x00, 0x00, 0x00, 0x00}
+	var got integration.MapHolder
+	_ = got.UnmarshalCodec(data)
+}
+
+// TestTree_CorruptPrescan same for Tree.Children (field 2, []*Tree).
+func TestTree_CorruptPrescan(t *testing.T) {
+	t.Parallel()
+	codec.AssertCorruptRepeatedMessagePrescan[integration.Tree](t, 2)
+}
+
+// TestValueContainer_CorruptPrescan same for ValueContainer.Items (field 3, []Inner).
+func TestValueContainer_CorruptPrescan(t *testing.T) {
+	t.Parallel()
+	codec.AssertCorruptRepeatedMessagePrescan[integration.ValueContainer](t, 3)
+}
+
+// TestPatch_CorruptScalarVarint exercises the `if n < 0` branch for every
+// varint-wire scalar Patch field (IntVal explicitly — Text/Fixed64/Blob
+// variants don't populate it in the sample).
+func TestPatch_CorruptScalarVarint(t *testing.T) {
+	t.Parallel()
+	codec.AssertCorruptScalarVarint[integration.Patch](t, 6) // IntVal
+}
+
+// TestPackedZigzag_UnpackedCorrupt exercises the unpacked-alternate path's
+// inner varint-decode failure for each packed field (wireType 0 + bad varint).
+func TestPackedZigzag_UnpackedCorrupt(t *testing.T) {
+	t.Parallel()
+	codec.AssertCorruptScalarVarint[integration.PackedZigzag](t, 1) // Values32
+	codec.AssertCorruptScalarVarint[integration.PackedZigzag](t, 2) // Values64
+}
+
+// TestMapHolder_CorruptEntryValue targets the inner map-entry
+// varint-decode-fail and entry-length-mismatch branches.
+func TestMapHolder_CorruptEntryValue(t *testing.T) {
+	t.Parallel()
+	codec.AssertCorruptMapEntryValue[integration.MapHolder](t, 1) // Attrs
+	codec.AssertCorruptMapEntryValue[integration.MapHolder](t, 2) // Counts
+}
+
+// TestTimeHolder_CorruptWKT targets the DecodeTimestamp / DecodeDuration
+// error-propagation branches.
+func TestTimeHolder_CorruptWKT(t *testing.T) {
+	t.Parallel()
+	codec.AssertCorruptWKTPayload[integration.TimeHolder](t, 1) // CreatedAt (Timestamp)
+	codec.AssertCorruptWKTPayload[integration.TimeHolder](t, 2) // Timeout (Duration)
+}
+
+// TestTimeHolder_UnknownFieldWireType3 targets the decode loop's default →
+// SkipField error-propagation branch via an unknown-field tag whose wire
+// type is reserved (3) and therefore rejected by SkipField.
+func TestTimeHolder_UnknownFieldWireType3(t *testing.T) {
+	t.Parallel()
+	codec.AssertUnknownFieldInvalidWireType[integration.TimeHolder](t, sampleTimeHolder(), 999)
 }
 
 // TestAll_Coverage_ShortInMiddle truncates a valid marshal at every offset

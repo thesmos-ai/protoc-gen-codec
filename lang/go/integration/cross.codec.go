@@ -47,10 +47,7 @@ func (m *CrossContainer) MarshalCodec() ([]byte, error) {
 		return nil, nil
 	}
 	buf := make([]byte, size)
-	n, err := m.MarshalToCodec(buf)
-	if err != nil {
-		return nil, err
-	}
+	n := m.MarshalCodecInternal(buf)
 	return buf[:n], nil
 }
 
@@ -61,6 +58,10 @@ func (m *CrossContainer) MarshalToCodec(buf []byte) (int, error) {
 	if len(buf) < m.SizeCodec() {
 		return 0, codec.ErrBufferTooShort
 	}
+	return m.MarshalCodecInternal(buf), nil
+}
+
+func (m *CrossContainer) MarshalCodecInternal(buf []byte) int {
 	n := 0
 	if len(m.Name) > 0 {
 		buf[n+0] = 0x0a
@@ -73,11 +74,7 @@ func (m *CrossContainer) MarshalToCodec(buf []byte) (int, error) {
 			buf[n+0] = 0x12
 			n += 1
 			n += codec.EncodeVarint(buf[n:], uint64(sz))
-			wn, err := m.Item.MarshalToCodec(buf[n:])
-			if err != nil {
-				return 0, err
-			}
-			n += wn
+			n += m.Item.MarshalCodecInternal(buf[n:])
 		}
 	}
 	for idx := range m.Items {
@@ -86,11 +83,7 @@ func (m *CrossContainer) MarshalToCodec(buf []byte) (int, error) {
 		n += 1
 		sz := elem.SizeCodec()
 		n += codec.EncodeVarint(buf[n:], uint64(sz))
-		wn, err := elem.MarshalToCodec(buf[n:])
-		if err != nil {
-			return 0, err
-		}
-		n += wn
+		n += elem.MarshalCodecInternal(buf[n:])
 	}
 	for _, elem := range m.PtrItems {
 		if elem == nil {
@@ -100,13 +93,9 @@ func (m *CrossContainer) MarshalToCodec(buf []byte) (int, error) {
 		n += 1
 		sz := elem.SizeCodec()
 		n += codec.EncodeVarint(buf[n:], uint64(sz))
-		wn, err := elem.MarshalToCodec(buf[n:])
-		if err != nil {
-			return 0, err
-		}
-		n += wn
+		n += elem.MarshalCodecInternal(buf[n:])
 	}
-	return n, nil
+	return n
 }
 
 func (m *CrossContainer) UnmarshalCodec(data []byte) error {

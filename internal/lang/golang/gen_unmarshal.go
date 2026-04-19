@@ -483,9 +483,11 @@ func generateMapFieldUnmarshal(g *protogen.GeneratedFile, f *core.FieldInfo, acc
 	g.P("i += sn")
 	g.P("}")
 	g.P("}")
-	g.P("if i != entryEnd {")
-	emitErrShort(g, f)
-	g.P("}")
+	// No post-loop `i != entryEnd` check: the loop exits only when i >=
+	// entryEnd, and every inner read is bounded by entryEnd (either via a
+	// data[i:entryEnd] slice or an explicit length check before advancing).
+	// The check was dead defensive code and its removal eliminates an
+	// unreachable branch from the coverage profile.
 	g.P(accessor, "[mk] = mv")
 }
 

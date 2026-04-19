@@ -62,10 +62,7 @@ func (m *Fixture) MarshalCodec() ([]byte, error) {
 		return nil, nil
 	}
 	buf := make([]byte, size)
-	n, err := m.MarshalToCodec(buf)
-	if err != nil {
-		return nil, err
-	}
+	n := m.MarshalCodecInternal(buf)
 	return buf[:n], nil
 }
 
@@ -76,6 +73,10 @@ func (m *Fixture) MarshalToCodec(buf []byte) (int, error) {
 	if len(buf) < m.SizeCodec() {
 		return 0, codec.ErrBufferTooShort
 	}
+	return m.MarshalCodecInternal(buf), nil
+}
+
+func (m *Fixture) MarshalCodecInternal(buf []byte) int {
 	n := 0
 	if len(m.ID) > 0 {
 		buf[n+0] = 0x0a
@@ -133,7 +134,7 @@ func (m *Fixture) MarshalToCodec(buf []byte) (int, error) {
 		n += codec.EncodeVarint(buf[n:], uint64(len(m.Data)))
 		n += copy(buf[n:], m.Data)
 	}
-	return n, nil
+	return n
 }
 
 func (m *Fixture) UnmarshalCodec(data []byte) error {
@@ -353,10 +354,7 @@ func (m *Patch) MarshalCodec() ([]byte, error) {
 		return nil, nil
 	}
 	buf := make([]byte, size)
-	n, err := m.MarshalToCodec(buf)
-	if err != nil {
-		return nil, err
-	}
+	n := m.MarshalCodecInternal(buf)
 	return buf[:n], nil
 }
 
@@ -367,6 +365,10 @@ func (m *Patch) MarshalToCodec(buf []byte) (int, error) {
 	if len(buf) < m.SizeCodec() {
 		return 0, codec.ErrBufferTooShort
 	}
+	return m.MarshalCodecInternal(buf), nil
+}
+
+func (m *Patch) MarshalCodecInternal(buf []byte) int {
 	n := 0
 	if m.Kind != 0 {
 		buf[n+0] = 0x08
@@ -412,7 +414,7 @@ func (m *Patch) MarshalToCodec(buf []byte) (int, error) {
 		copy(buf[n:], m.BlobRef[:])
 		n += 32
 	}
-	return n, nil
+	return n
 }
 
 func (m *Patch) UnmarshalCodec(data []byte) error {
@@ -617,10 +619,7 @@ func (m *Evidence) MarshalCodec() ([]byte, error) {
 		return nil, nil
 	}
 	buf := make([]byte, size)
-	n, err := m.MarshalToCodec(buf)
-	if err != nil {
-		return nil, err
-	}
+	n := m.MarshalCodecInternal(buf)
 	return buf[:n], nil
 }
 
@@ -631,6 +630,10 @@ func (m *Evidence) MarshalToCodec(buf []byte) (int, error) {
 	if len(buf) < m.SizeCodec() {
 		return 0, codec.ErrBufferTooShort
 	}
+	return m.MarshalCodecInternal(buf), nil
+}
+
+func (m *Evidence) MarshalCodecInternal(buf []byte) int {
 	n := 0
 	if m.Kind != 0 {
 		buf[n+0] = 0x08
@@ -701,7 +704,7 @@ func (m *Evidence) MarshalToCodec(buf []byte) (int, error) {
 		n += codec.EncodeVarint(buf[n:], uint64(len(m.RetentionPolicyID)))
 		n += copy(buf[n:], m.RetentionPolicyID)
 	}
-	return n, nil
+	return n
 }
 
 func (m *Evidence) UnmarshalCodec(data []byte) error {
@@ -940,10 +943,7 @@ func (m *Minimal) MarshalCodec() ([]byte, error) {
 		return nil, nil
 	}
 	buf := make([]byte, size)
-	n, err := m.MarshalToCodec(buf)
-	if err != nil {
-		return nil, err
-	}
+	n := m.MarshalCodecInternal(buf)
 	return buf[:n], nil
 }
 
@@ -954,6 +954,10 @@ func (m *Minimal) MarshalToCodec(buf []byte) (int, error) {
 	if len(buf) < m.SizeCodec() {
 		return 0, codec.ErrBufferTooShort
 	}
+	return m.MarshalCodecInternal(buf), nil
+}
+
+func (m *Minimal) MarshalCodecInternal(buf []byte) int {
 	n := 0
 	if len(m.ID) > 0 {
 		buf[n+0] = 0x0a
@@ -961,7 +965,7 @@ func (m *Minimal) MarshalToCodec(buf []byte) (int, error) {
 		n += codec.EncodeVarint(buf[n:], uint64(len(m.ID)))
 		n += copy(buf[n:], m.ID)
 	}
-	return n, nil
+	return n
 }
 
 func (m *Minimal) UnmarshalCodec(data []byte) error {
@@ -1063,10 +1067,7 @@ func (m *NumericOnly) MarshalCodec() ([]byte, error) {
 		return nil, nil
 	}
 	buf := make([]byte, size)
-	n, err := m.MarshalToCodec(buf)
-	if err != nil {
-		return nil, err
-	}
+	n := m.MarshalCodecInternal(buf)
 	return buf[:n], nil
 }
 
@@ -1077,6 +1078,10 @@ func (m *NumericOnly) MarshalToCodec(buf []byte) (int, error) {
 	if len(buf) < m.SizeCodec() {
 		return 0, codec.ErrBufferTooShort
 	}
+	return m.MarshalCodecInternal(buf), nil
+}
+
+func (m *NumericOnly) MarshalCodecInternal(buf []byte) int {
 	n := 0
 	if m.A != 0 {
 		buf[n+0] = 0x08
@@ -1136,7 +1141,7 @@ func (m *NumericOnly) MarshalToCodec(buf []byte) (int, error) {
 		binary.LittleEndian.PutUint64(buf[n:], uint64(*m.J))
 		n += 8
 	}
-	return n, nil
+	return n
 }
 
 func (m *NumericOnly) UnmarshalCodec(data []byte) error {
@@ -1343,10 +1348,7 @@ func (m *PackedZigzag) MarshalCodec() ([]byte, error) {
 		return nil, nil
 	}
 	buf := make([]byte, size)
-	n, err := m.MarshalToCodec(buf)
-	if err != nil {
-		return nil, err
-	}
+	n := m.MarshalCodecInternal(buf)
 	return buf[:n], nil
 }
 
@@ -1357,6 +1359,10 @@ func (m *PackedZigzag) MarshalToCodec(buf []byte) (int, error) {
 	if len(buf) < m.SizeCodec() {
 		return 0, codec.ErrBufferTooShort
 	}
+	return m.MarshalCodecInternal(buf), nil
+}
+
+func (m *PackedZigzag) MarshalCodecInternal(buf []byte) int {
 	n := 0
 	if len(m.Values32) > 0 {
 		buf[n+0] = 0x0a
@@ -1382,7 +1388,7 @@ func (m *PackedZigzag) MarshalToCodec(buf []byte) (int, error) {
 			n += codec.EncodeVarint(buf[n:], codec.ZigzagEncode64(int64(v)))
 		}
 	}
-	return n, nil
+	return n
 }
 
 func (m *PackedZigzag) UnmarshalCodec(data []byte) error {
@@ -1513,10 +1519,7 @@ func (m *Inner) MarshalCodec() ([]byte, error) {
 		return nil, nil
 	}
 	buf := make([]byte, size)
-	n, err := m.MarshalToCodec(buf)
-	if err != nil {
-		return nil, err
-	}
+	n := m.MarshalCodecInternal(buf)
 	return buf[:n], nil
 }
 
@@ -1527,6 +1530,10 @@ func (m *Inner) MarshalToCodec(buf []byte) (int, error) {
 	if len(buf) < m.SizeCodec() {
 		return 0, codec.ErrBufferTooShort
 	}
+	return m.MarshalCodecInternal(buf), nil
+}
+
+func (m *Inner) MarshalCodecInternal(buf []byte) int {
 	n := 0
 	if len(m.Label) > 0 {
 		buf[n+0] = 0x0a
@@ -1539,7 +1546,7 @@ func (m *Inner) MarshalToCodec(buf []byte) (int, error) {
 		n += 1
 		n += codec.EncodeVarint(buf[n:], uint64(m.Count))
 	}
-	return n, nil
+	return n
 }
 
 func (m *Inner) UnmarshalCodec(data []byte) error {
@@ -1639,10 +1646,7 @@ func (m *Container) MarshalCodec() ([]byte, error) {
 		return nil, nil
 	}
 	buf := make([]byte, size)
-	n, err := m.MarshalToCodec(buf)
-	if err != nil {
-		return nil, err
-	}
+	n := m.MarshalCodecInternal(buf)
 	return buf[:n], nil
 }
 
@@ -1653,6 +1657,10 @@ func (m *Container) MarshalToCodec(buf []byte) (int, error) {
 	if len(buf) < m.SizeCodec() {
 		return 0, codec.ErrBufferTooShort
 	}
+	return m.MarshalCodecInternal(buf), nil
+}
+
+func (m *Container) MarshalCodecInternal(buf []byte) int {
 	n := 0
 	if len(m.Name) > 0 {
 		buf[n+0] = 0x0a
@@ -1665,11 +1673,7 @@ func (m *Container) MarshalToCodec(buf []byte) (int, error) {
 			buf[n+0] = 0x12
 			n += 1
 			n += codec.EncodeVarint(buf[n:], uint64(sz))
-			wn, err := m.Inner.MarshalToCodec(buf[n:])
-			if err != nil {
-				return 0, err
-			}
-			n += wn
+			n += m.Inner.MarshalCodecInternal(buf[n:])
 		}
 	}
 	for _, elem := range m.Children {
@@ -1680,13 +1684,9 @@ func (m *Container) MarshalToCodec(buf []byte) (int, error) {
 		n += 1
 		sz := elem.SizeCodec()
 		n += codec.EncodeVarint(buf[n:], uint64(sz))
-		wn, err := elem.MarshalToCodec(buf[n:])
-		if err != nil {
-			return 0, err
-		}
-		n += wn
+		n += elem.MarshalCodecInternal(buf[n:])
 	}
-	return n, nil
+	return n
 }
 
 func (m *Container) UnmarshalCodec(data []byte) error {
@@ -1885,10 +1885,7 @@ func (m *ValueContainer) MarshalCodec() ([]byte, error) {
 		return nil, nil
 	}
 	buf := make([]byte, size)
-	n, err := m.MarshalToCodec(buf)
-	if err != nil {
-		return nil, err
-	}
+	n := m.MarshalCodecInternal(buf)
 	return buf[:n], nil
 }
 
@@ -1899,6 +1896,10 @@ func (m *ValueContainer) MarshalToCodec(buf []byte) (int, error) {
 	if len(buf) < m.SizeCodec() {
 		return 0, codec.ErrBufferTooShort
 	}
+	return m.MarshalCodecInternal(buf), nil
+}
+
+func (m *ValueContainer) MarshalCodecInternal(buf []byte) int {
 	n := 0
 	if len(m.Name) > 0 {
 		buf[n+0] = 0x0a
@@ -1910,11 +1911,7 @@ func (m *ValueContainer) MarshalToCodec(buf []byte) (int, error) {
 		buf[n+0] = 0x12
 		n += 1
 		n += codec.EncodeVarint(buf[n:], uint64(sz))
-		wn, err := (&m.Inner).MarshalToCodec(buf[n:])
-		if err != nil {
-			return 0, err
-		}
-		n += wn
+		n += (&m.Inner).MarshalCodecInternal(buf[n:])
 	}
 	for idx := range m.Items {
 		elem := &m.Items[idx]
@@ -1922,13 +1919,9 @@ func (m *ValueContainer) MarshalToCodec(buf []byte) (int, error) {
 		n += 1
 		sz := elem.SizeCodec()
 		n += codec.EncodeVarint(buf[n:], uint64(sz))
-		wn, err := elem.MarshalToCodec(buf[n:])
-		if err != nil {
-			return 0, err
-		}
-		n += wn
+		n += elem.MarshalCodecInternal(buf[n:])
 	}
-	return n, nil
+	return n
 }
 
 func (m *ValueContainer) UnmarshalCodec(data []byte) error {
@@ -2106,10 +2099,7 @@ func (m *Tree) MarshalCodec() ([]byte, error) {
 		return nil, nil
 	}
 	buf := make([]byte, size)
-	n, err := m.MarshalToCodec(buf)
-	if err != nil {
-		return nil, err
-	}
+	n := m.MarshalCodecInternal(buf)
 	return buf[:n], nil
 }
 
@@ -2120,6 +2110,10 @@ func (m *Tree) MarshalToCodec(buf []byte) (int, error) {
 	if len(buf) < m.SizeCodec() {
 		return 0, codec.ErrBufferTooShort
 	}
+	return m.MarshalCodecInternal(buf), nil
+}
+
+func (m *Tree) MarshalCodecInternal(buf []byte) int {
 	n := 0
 	if len(m.Label) > 0 {
 		buf[n+0] = 0x0a
@@ -2135,13 +2129,9 @@ func (m *Tree) MarshalToCodec(buf []byte) (int, error) {
 		n += 1
 		sz := elem.SizeCodec()
 		n += codec.EncodeVarint(buf[n:], uint64(sz))
-		wn, err := elem.MarshalToCodec(buf[n:])
-		if err != nil {
-			return 0, err
-		}
-		n += wn
+		n += elem.MarshalCodecInternal(buf[n:])
 	}
-	return n, nil
+	return n
 }
 
 func (m *Tree) UnmarshalCodec(data []byte) error {
@@ -2309,10 +2299,7 @@ func (m *MapHolder) MarshalCodec() ([]byte, error) {
 		return nil, nil
 	}
 	buf := make([]byte, size)
-	n, err := m.MarshalToCodec(buf)
-	if err != nil {
-		return nil, err
-	}
+	n := m.MarshalCodecInternal(buf)
 	return buf[:n], nil
 }
 
@@ -2323,6 +2310,10 @@ func (m *MapHolder) MarshalToCodec(buf []byte) (int, error) {
 	if len(buf) < m.SizeCodec() {
 		return 0, codec.ErrBufferTooShort
 	}
+	return m.MarshalCodecInternal(buf), nil
+}
+
+func (m *MapHolder) MarshalCodecInternal(buf []byte) int {
 	n := 0
 	for _, k := range slices.Sorted(maps.Keys(m.Attrs)) {
 		v := m.Attrs[k]
@@ -2353,7 +2344,7 @@ func (m *MapHolder) MarshalToCodec(buf []byte) (int, error) {
 		n += 1
 		n += codec.EncodeVarint(buf[n:], uint64(v))
 	}
-	return n, nil
+	return n
 }
 
 func (m *MapHolder) UnmarshalCodec(data []byte) error {
@@ -2432,9 +2423,6 @@ func (m *MapHolder) UnmarshalCodecInternal(data []byte, slab string, slabOff int
 					i += sn
 				}
 			}
-			if i != entryEnd {
-				return fmt.Errorf("field Attrs (%d): %w", 1, codec.ErrBufferTooShort)
-			}
 			m.Attrs[mk] = mv
 		case 2:
 			if wireType != 2 {
@@ -2487,9 +2475,6 @@ func (m *MapHolder) UnmarshalCodecInternal(data []byte, slab string, slabOff int
 					i += sn
 				}
 			}
-			if i != entryEnd {
-				return fmt.Errorf("field Counts (%d): %w", 2, codec.ErrBufferTooShort)
-			}
 			m.Counts[mk] = mv
 		default:
 			n, err := codec.SkipField(data[i:], wireType)
@@ -2538,10 +2523,7 @@ func (m *TimeHolder) MarshalCodec() ([]byte, error) {
 		return nil, nil
 	}
 	buf := make([]byte, size)
-	n, err := m.MarshalToCodec(buf)
-	if err != nil {
-		return nil, err
-	}
+	n := m.MarshalCodecInternal(buf)
 	return buf[:n], nil
 }
 
@@ -2552,6 +2534,10 @@ func (m *TimeHolder) MarshalToCodec(buf []byte) (int, error) {
 	if len(buf) < m.SizeCodec() {
 		return 0, codec.ErrBufferTooShort
 	}
+	return m.MarshalCodecInternal(buf), nil
+}
+
+func (m *TimeHolder) MarshalCodecInternal(buf []byte) int {
 	n := 0
 	{
 		var zero time.Time
@@ -2570,7 +2556,7 @@ func (m *TimeHolder) MarshalToCodec(buf []byte) (int, error) {
 		n += codec.EncodeVarint(buf[n:], uint64(sz))
 		n += codec.EncodeDuration(buf[n:], m.Timeout)
 	}
-	return n, nil
+	return n
 }
 
 func (m *TimeHolder) UnmarshalCodec(data []byte) error {
@@ -2670,10 +2656,7 @@ func (m *BytesPool) MarshalCodec() ([]byte, error) {
 		return nil, nil
 	}
 	buf := make([]byte, size)
-	n, err := m.MarshalToCodec(buf)
-	if err != nil {
-		return nil, err
-	}
+	n := m.MarshalCodecInternal(buf)
 	return buf[:n], nil
 }
 
@@ -2684,6 +2667,10 @@ func (m *BytesPool) MarshalToCodec(buf []byte) (int, error) {
 	if len(buf) < m.SizeCodec() {
 		return 0, codec.ErrBufferTooShort
 	}
+	return m.MarshalCodecInternal(buf), nil
+}
+
+func (m *BytesPool) MarshalCodecInternal(buf []byte) int {
 	n := 0
 	if len(m.Payload) > 0 {
 		buf[n+0] = 0x0a
@@ -2691,7 +2678,7 @@ func (m *BytesPool) MarshalToCodec(buf []byte) (int, error) {
 		n += codec.EncodeVarint(buf[n:], uint64(len(m.Payload)))
 		n += copy(buf[n:], m.Payload)
 	}
-	return n, nil
+	return n
 }
 
 func (m *BytesPool) UnmarshalCodec(data []byte) error {

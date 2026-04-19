@@ -32,10 +32,7 @@ func (m *External) MarshalCodec() ([]byte, error) {
 		return nil, nil
 	}
 	buf := make([]byte, size)
-	n, err := m.MarshalToCodec(buf)
-	if err != nil {
-		return nil, err
-	}
+	n := m.MarshalCodecInternal(buf)
 	return buf[:n], nil
 }
 
@@ -46,6 +43,10 @@ func (m *External) MarshalToCodec(buf []byte) (int, error) {
 	if len(buf) < m.SizeCodec() {
 		return 0, codec.ErrBufferTooShort
 	}
+	return m.MarshalCodecInternal(buf), nil
+}
+
+func (m *External) MarshalCodecInternal(buf []byte) int {
 	n := 0
 	if len(m.Tag) > 0 {
 		buf[n+0] = 0x0a
@@ -58,7 +59,7 @@ func (m *External) MarshalToCodec(buf []byte) (int, error) {
 		n += 1
 		n += codec.EncodeVarint(buf[n:], uint64(m.Seq))
 	}
-	return n, nil
+	return n
 }
 
 func (m *External) UnmarshalCodec(data []byte) error {

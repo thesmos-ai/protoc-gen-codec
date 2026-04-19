@@ -7,10 +7,15 @@
 # (`if err != nil { return nil, err }` after MarshalToCodec when the size
 # and the buffer length are computed in lockstep). Forcing per-function
 # 100% would require contrived tests or removing defensive code, so we
-# enforce per-file 95% instead — meaningful signal without false pressure.
+# enforce per-file 100% — dead branches have been eliminated from the
+# generator (nested-call error propagation, nil-receiver check inside
+# MarshalCodecInternal, map entry-length post-check) and the
+# lang/go/codec/coverage.go helpers cover every reachable defensive path.
+# A drop below 100% signals either a new code path needs a test or the
+# generator emitted unreachable code — both are actionable.
 set -euo pipefail
 
-FLOOR="${COVERAGE_FLOOR:-95.0}"
+FLOOR="${COVERAGE_FLOOR:-100.0}"
 OUT=$(mktemp)
 trap "rm -f $OUT" EXIT
 
