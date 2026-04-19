@@ -303,13 +303,9 @@ func ptrPackedZigzagGrower() *integration.PackedZigzag {
 }
 
 var specPackedZigzag = codectest.Spec[integration.PackedZigzag]{
-	Sample:       samplePackedZigzag(),
-	Grower:       ptrPackedZigzagGrower(),
-	PackedFields: []int32{1, 2},
-	// Packed repeated fields also accept single-value unpacked wire
-	// (proto3 duality). List them under ScalarVarintFields so the
-	// unpacked-alternate varint-decode error branch gets exercised.
-	ScalarVarintFields: []int32{1, 2},
+	Sample:             samplePackedZigzag(),
+	Grower:             ptrPackedZigzagGrower(),
+	PackedVarintFields: []int32{1, 2}, // sint32 + sint64 → varint elements
 }
 
 func TestPackedZigzag_Codec(t *testing.T) {
@@ -473,6 +469,68 @@ func FuzzTimeHolder_Codec(f *testing.F) {
 }
 
 var specBytesPool = codectest.Spec[integration.BytesPool]{Sample: sampleBytesPool()}
+
+func sampleOneofPayloadText() integration.OneofPayload {
+	return integration.OneofPayload{
+		Label: "banner",
+		Kind:  integration.OneofPayloadKindText,
+		Text:  "hello",
+	}
+}
+
+func sampleOneofPayloadNumber() integration.OneofPayload {
+	return integration.OneofPayload{
+		Label:  "counter",
+		Kind:   integration.OneofPayloadKindNumber,
+		Number: 42,
+	}
+}
+
+func sampleOneofPayloadNested() integration.OneofPayload {
+	return integration.OneofPayload{
+		Label:  "wrapper",
+		Kind:   integration.OneofPayloadKindNested,
+		Nested: integration.Inner{Label: "inside", Count: 7},
+	}
+}
+
+func sampleOneofPayloadBlob() integration.OneofPayload {
+	return integration.OneofPayload{
+		Label: "payload",
+		Kind:  integration.OneofPayloadKindBlob,
+		Blob:  []byte{0xca, 0xfe, 0xba, 0xbe},
+	}
+}
+
+func sampleOneofPayloadAmount() integration.OneofPayload {
+	return integration.OneofPayload{
+		Label:  "ledger",
+		Kind:   integration.OneofPayloadKindAmount,
+		Amount: 100_000,
+	}
+}
+
+var specOneofPayload = codectest.Spec[integration.OneofPayload]{
+	Sample: sampleOneofPayloadText(),
+	Variants: []integration.OneofPayload{
+		sampleOneofPayloadNumber(),
+		sampleOneofPayloadNested(),
+		sampleOneofPayloadBlob(),
+		sampleOneofPayloadAmount(),
+	},
+	ScalarVarintFields: []int32{11}, // Number (int64)
+	Fixed64Fields:      []int32{14}, // Amount (sfixed64)
+}
+
+func TestOneofPayload_Codec(t *testing.T) {
+	codectest.RunSuite[integration.OneofPayload](t, specOneofPayload)
+}
+func BenchmarkOneofPayload_Codec(b *testing.B) {
+	codectest.RunBenchSuite[integration.OneofPayload](b, specOneofPayload)
+}
+func FuzzOneofPayload_Codec(f *testing.F) {
+	codectest.RunFuzzSuite[integration.OneofPayload](f, specOneofPayload)
+}
 
 func TestBytesPool_Codec(t *testing.T) {
 	codectest.RunSuite[integration.BytesPool](t, specBytesPool)

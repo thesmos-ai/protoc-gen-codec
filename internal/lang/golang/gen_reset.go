@@ -21,6 +21,15 @@ func generateResetCodec(g *protogen.GeneratedFile, fileMap map[string]*protogen.
 		generateFieldReset(g, fileMap, f)
 	}
 
+	// Zero each oneof discriminator so a reset receiver serializes as
+	// absent. Branch fields are already reset above (they live in the
+	// normal field list, tagged with OneofName); the discriminator is
+	// Go-only and lives outside the proto field set, so it needs its
+	// own zero-write here.
+	for _, oi := range info.Oneofs {
+		g.P("m.", oi.DiscriminatorField, " = 0")
+	}
+
 	g.P("}")
 }
 

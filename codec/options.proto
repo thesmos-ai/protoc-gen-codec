@@ -19,6 +19,58 @@ extend google.protobuf.MessageOptions {
   // The generator emits serialization methods as receivers on this type.
   // Resolved relative to the language-specific package option.
   optional string type = 50001;
+
+  // oneof declares how the generator should handle a non-synthetic
+  // oneof in this message. The discriminator is a Go-only field on the
+  // target type (not on the wire); its value equals the branch's proto
+  // field number. Declare one codec.oneof option per oneof in the
+  // message.
+  //
+  // Example:
+  //   message Event {
+  //     option (codec.type) = "Event";
+  //     option (codec.oneof) = {
+  //       name: "payload"
+  //       discriminator: "Kind"
+  //       cast: "EventKind"
+  //     };
+  //     oneof payload {
+  //       string text_val = 1 [(codec.field) = "TextVal"];
+  //       int64  int_val  = 2 [(codec.field) = "IntVal"];
+  //     }
+  //   }
+  //
+  // Consumer's Go type must declare a field with the discriminator name
+  // and cast type, plus enum constants whose values equal the branch
+  // field numbers:
+  //   type EventKind uint32
+  //   const (
+  //     EventKindUnset EventKind = 0
+  //     EventKindText  EventKind = 1
+  //     EventKindInt   EventKind = 2
+  //   )
+  repeated OneofConfig oneof = 50007;
+}
+
+// OneofConfig declares the Go-side representation of a non-synthetic
+// proto3 oneof. The generator dispatches on the discriminator field
+// for marshal and assigns it on decode so domain code can switch on
+// the discriminator directly.
+message OneofConfig {
+  // name is the proto oneof name (as declared in the `oneof NAME {...}`
+  // block). Must match a non-synthetic oneof in the enclosing message.
+  string name = 1;
+
+  // discriminator is the name of the Go struct field that holds the
+  // active-branch indicator. The field must exist on the target type
+  // with the cast type declared below.
+  string discriminator = 2;
+
+  // cast is the Go type name of the discriminator field. Typically a
+  // named uint32 enum type. The generator emits assignments through
+  // this type; enum constants with values equal to branch field
+  // numbers are required for the dispatch to work.
+  string cast = 3;
 }
 
 extend google.protobuf.FieldOptions {

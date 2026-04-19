@@ -62,9 +62,21 @@ func generateMarshalCodecInternal(g *protogen.GeneratedFile, fileMap map[string]
 	g.P("func (m *", info.TargetType, ") MarshalCodecInternal(buf []byte) int {")
 	g.P("n := 0")
 
+	// Non-branch fields emit their own presence guards and run in
+	// declaration order. Branch fields are skipped here; their
+	// serialization is driven by the per-oneof switch emitted below so
+	// that the discriminator uniquely decides which branch goes on
+	// the wire.
 	for i := range info.Fields {
 		f := &info.Fields[i]
+		if f.OneofName != "" {
+			continue
+		}
 		generateFieldMarshal(g, fileMap, f)
+	}
+
+	for _, oi := range info.Oneofs {
+		emitOneofMarshal(g, fileMap, info, oi)
 	}
 
 	g.P("return n")

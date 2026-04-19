@@ -128,3 +128,25 @@ message BytesPool {
 
   bytes payload = 1 [(codec.field) = "Payload", (codec.keep_capacity) = true];
 }
+
+// OneofPayload exercises the non-synthetic oneof path. The Kind
+// discriminator is Go-only (not declared in this .proto); consumers
+// define it as an enum whose values equal the branch field numbers.
+message OneofPayload {
+  option (codec.type) = "OneofPayload";
+  option (codec.oneof) = {
+    name: "payload"
+    discriminator: "Kind"
+    cast: "OneofPayloadKind"
+  };
+
+  string label = 1 [(codec.field) = "Label"];
+
+  oneof payload {
+    string text     = 10 [(codec.field) = "Text"];
+    int64  number   = 11 [(codec.field) = "Number"];
+    Inner  nested   = 12 [(codec.field) = "Nested", (codec.use_pointer) = false];
+    bytes  blob     = 13 [(codec.field) = "Blob"];
+    sfixed64 amount = 14 [(codec.field) = "Amount"];
+  }
+}

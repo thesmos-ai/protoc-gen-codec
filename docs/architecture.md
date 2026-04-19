@@ -42,6 +42,7 @@ field and, where relevant, a cast. Annotations are defined in
 | Annotation            | Scope   | Purpose                                             |
 |-----------------------|---------|-----------------------------------------------------|
 | `codec.type`          | Message | Target type name for the emitted methods            |
+| `codec.oneof`         | Message | Declares Go-only discriminator + cast for a non-synthetic `oneof` |
 | `codec.field`         | Field   | Target field name override                          |
 | `codec.cast`          | Field   | Cast decoded wire value to a named type             |
 | `codec.fixed_len`     | Field   | Strict byte-length guard on unmarshal               |

@@ -137,12 +137,41 @@ type FieldInfo struct {
 	// IsMessage/MessageRef/UsePointer are cleared so emitters bypass the
 	// generic message path.
 	WellKnown WellKnownKind
+	// OneofName is non-empty for branch fields of a non-synthetic proto3
+	// oneof. Synthetic oneofs (proto3 optional) don't populate this;
+	// they're modeled via IsProto3Optional. Emitters skip branch fields
+	// in the normal marshal/size loop and emit a per-oneof switch based
+	// on MessageInfo.Oneofs instead.
+	OneofName string
+}
+
+// OneofInfo describes a non-synthetic proto3 oneof declared on a
+// message, flattened onto the target Go type. The generator emits a
+// switch on DiscriminatorField at marshal time and writes
+// DiscriminatorField on decode. Discriminator enum values must equal
+// the corresponding branch field numbers.
+type OneofInfo struct {
+	// Name is the proto oneof name (from `oneof NAME { ... }`).
+	Name string
+	// DiscriminatorField is the Go struct field name that holds the
+	// active-branch enum value.
+	DiscriminatorField string
+	// DiscriminatorCast is the Go type name of the discriminator,
+	// typically a named uint32 enum.
+	DiscriminatorCast string
+	// BranchFieldNums lists the proto field numbers of the oneof's
+	// branches in declaration order.
+	BranchFieldNums []int32
 }
 
 // MessageInfo describes a message's target type and field list produced by AnalyzeMessage.
 type MessageInfo struct {
 	TargetType string // emitter-specific type name (e.g. Go type, TS class)
 	Fields     []FieldInfo
+	// Oneofs holds one entry per non-synthetic oneof in the message.
+	// Synthetic oneofs (proto3 optional) do not appear here; they're
+	// modeled via FieldInfo.IsProto3Optional.
+	Oneofs []OneofInfo
 }
 
 // AnalyzeMessage returns a MessageInfo for msg, or an error if the annotations
@@ -166,23 +195,78 @@ func AnalyzeMessage(
 		return nil, nil
 	}
 
-	for _, oneof := range msg.Oneofs {
-		if oneof.Desc.IsSynthetic() {
-			continue // proto3 optional's synthetic oneof — allowed
+	// Resolve codec.oneof declarations into a map keyed by oneof name so
+	// each non-synthetic oneof on the message can be looked up while
+	// analyzing its branch fields.
+	oneofConfigs := make(map[string]OneofConfig)
+	for _, cfg := range messageOneofs(msg) {
+		if cfg.Name == "" {
+			return nil, fmt.Errorf(
+				"message %s in %s: (codec.oneof) entry is missing `name`",
+				msg.Desc.Name(), file.Desc.Path(),
+			)
 		}
-		return nil, fmt.Errorf(
-			"message %s in %s: oneof %q is not yet supported by protoc-gen-codec; "+
-				"see the plan's Phase 4.3 note for the deferred design",
-			msg.Desc.Name(), file.Desc.Path(), oneof.Desc.Name(),
-		)
+		if cfg.Discriminator == "" || cfg.Cast == "" {
+			return nil, fmt.Errorf(
+				"message %s in %s: (codec.oneof) for %q requires both `discriminator` and `cast`",
+				msg.Desc.Name(), file.Desc.Path(), cfg.Name,
+			)
+		}
+		if _, dup := oneofConfigs[cfg.Name]; dup {
+			return nil, fmt.Errorf(
+				"message %s in %s: duplicate (codec.oneof) entry for %q",
+				msg.Desc.Name(), file.Desc.Path(), cfg.Name,
+			)
+		}
+		oneofConfigs[cfg.Name] = cfg
 	}
 
-	info := &MessageInfo{TargetType: targetType}
+	// Build OneofInfo entries for every non-synthetic oneof. Each must
+	// have a matching codec.oneof declaration.
+	var oneofs []OneofInfo
+	for _, oneof := range msg.Oneofs {
+		if oneof.Desc.IsSynthetic() {
+			continue // proto3 optional's synthetic oneof — handled via IsProto3Optional
+		}
+		name := string(oneof.Desc.Name())
+		cfg, ok := oneofConfigs[name]
+		if !ok {
+			return nil, fmt.Errorf(
+				"message %s in %s: oneof %q has no matching (codec.oneof) declaration — "+
+					"add one naming the discriminator Go field and cast type",
+				msg.Desc.Name(), file.Desc.Path(), name,
+			)
+		}
+		branches := make([]int32, 0, len(oneof.Fields))
+		for _, branch := range oneof.Fields {
+			branches = append(branches, int32(branch.Desc.Number()))
+		}
+		oneofs = append(oneofs, OneofInfo{
+			Name:               name,
+			DiscriminatorField: cfg.Discriminator,
+			DiscriminatorCast:  cfg.Cast,
+			BranchFieldNums:    branches,
+		})
+	}
+
+	// Index non-synthetic oneof names by branch field number so analyzeField
+	// can tag the FieldInfo.OneofName without re-walking message.Oneofs.
+	branchToOneof := make(map[int32]string)
+	for _, oi := range oneofs {
+		for _, fn := range oi.BranchFieldNums {
+			branchToOneof[fn] = oi.Name
+		}
+	}
+
+	info := &MessageInfo{TargetType: targetType, Oneofs: oneofs}
 
 	for _, field := range msg.Fields {
 		fi, err := analyzeField(field, msg, fileMap, file, aliasOf)
 		if err != nil {
 			return nil, fmt.Errorf("field %s: %w", field.Desc.Name(), err)
+		}
+		if name, ok := branchToOneof[fi.ProtoNum]; ok {
+			fi.OneofName = name
 		}
 		info.Fields = append(info.Fields, fi)
 	}

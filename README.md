@@ -22,6 +22,7 @@ Defined in `codec/options.proto`:
 | Annotation | Scope | Purpose |
 |---|---|---|
 | `codec.type` | Message | Maps proto message → target type |
+| `codec.oneof` | Message | Declares Go-only discriminator + cast for a non-synthetic `oneof` |
 | `codec.field` | Field | Explicit field name override |
 | `codec.cast` | Field | Type cast (enums, fixed-point, byte arrays) |
 | `codec.fixed_len` | Field | Strict byte-length guard on unmarshal |

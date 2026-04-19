@@ -87,9 +87,31 @@ type Spec[T any] struct {
 	// / enum). Each gets an AssertCorruptScalarVarint exercise.
 	ScalarVarintFields []int32
 
-	// PackedFields lists field numbers declared as repeated packed
-	// scalars. Each gets an AssertCorruptPackedBody exercise.
+	// PackedFields is a compatibility alias for PackedVarintFields; the
+	// generic "packed" category predates element-wire-type awareness.
+	// New code should use the element-specific buckets below. Entries
+	// here are folded into PackedVarintFields at runtime.
+	//
+	// Deprecated: use PackedVarintFields / PackedFixed64Fields /
+	// PackedFixed32Fields.
 	PackedFields []int32
+
+	// PackedVarintFields lists repeated packed fields whose element is
+	// varint-wire (int32 / int64 / uint32 / uint64 / sint32 / sint64 /
+	// bool / enum). Drives AssertCorruptPackedBody plus the
+	// unpacked-alternate happy path and truncation probe at element
+	// wire type 0.
+	PackedVarintFields []int32
+
+	// PackedFixed64Fields lists repeated packed fields whose element is
+	// 8-byte fixed-width (fixed64 / sfixed64 / double). Unpacked
+	// alternate uses wire type 1.
+	PackedFixed64Fields []int32
+
+	// PackedFixed32Fields lists repeated packed fields whose element is
+	// 4-byte fixed-width (fixed32 / sfixed32 / float). Unpacked
+	// alternate uses wire type 5.
+	PackedFixed32Fields []int32
 
 	// MapFields lists field numbers declared as map<K,V>. Each gets an
 	// AssertCorruptMapEntryValue exercise.
@@ -333,12 +355,14 @@ func runFieldCategoryTests[T any, PT interface {
 			AssertCorruptScalarVarint[T, PT](t, fn)
 		})
 	}
-	for _, fn := range spec.PackedFields {
-		t.Run(fmt.Sprintf("CorruptPackedBody/Field%d", fn), func(t *testing.T) {
-			t.Parallel()
-			AssertCorruptPackedBody[T, PT](t, fn)
-		})
-	}
+	// Fold the legacy PackedFields alias into PackedVarintFields so the
+	// dispatch below uses the right element wire type.
+	packedVarint := append([]int32{}, spec.PackedVarintFields...)
+	packedVarint = append(packedVarint, spec.PackedFields...)
+
+	runPackedCategory[T, PT](t, packedVarint, 0, 1)             // varint elements; body is one varint byte
+	runPackedCategory[T, PT](t, spec.PackedFixed64Fields, 1, 8) // fixed64 elements
+	runPackedCategory[T, PT](t, spec.PackedFixed32Fields, 5, 4) // fixed32 elements
 	for _, fn := range spec.MapFields {
 		t.Run(fmt.Sprintf("CorruptMapEntry/Field%d", fn), func(t *testing.T) {
 			t.Parallel()
@@ -373,6 +397,44 @@ func runFieldCategoryTests[T any, PT interface {
 		t.Run(fmt.Sprintf("CorruptFixedLenBytes/Field%d", flf.Num), func(t *testing.T) {
 			t.Parallel()
 			AssertCorruptFixedLenBytes[T, PT](t, flf.Num, flf.Length)
+		})
+	}
+}
+
+// runPackedCategory emits the three packed-field subtests for every
+// field number in `fields`, using the element wire type and body size
+// appropriate for the category.
+//
+//   - CorruptPackedBody: malformed packed payload (element-independent).
+//   - PackedAcceptsUnpacked: single-element unpacked wire at the given
+//     wireType + elementSize succeeds.
+//   - PackedAcceptsUnpackedCorrupt: truncated unpacked body returns a
+//     sentinel error (ErrInvalidVarint for wireType 0, ErrBufferTooShort
+//     for wireType 1/5).
+func runPackedCategory[T any, PT interface {
+	*T
+	codec.Codec
+}](t *testing.T, fields []int32, wireType uint64, elementSize int) {
+	for _, fn := range fields {
+		// AssertCorruptPackedBody injects a truncated varint inside the
+		// packed body, which only exercises the inner varint-decode
+		// error branch for varint-element fields. Fixed-width packed
+		// decoders silently under-consume a truncated body (the
+		// `for i+width <= end` loop exits without error on a partial
+		// final element), so the assertion would false-fail there.
+		if wireType == 0 {
+			t.Run(fmt.Sprintf("CorruptPackedBody/Field%d", fn), func(t *testing.T) {
+				t.Parallel()
+				AssertCorruptPackedBody[T, PT](t, fn)
+			})
+		}
+		t.Run(fmt.Sprintf("PackedAcceptsUnpacked/Field%d", fn), func(t *testing.T) {
+			t.Parallel()
+			AssertPackedAcceptsUnpacked[T, PT](t, fn, wireType, elementSize)
+		})
+		t.Run(fmt.Sprintf("PackedAcceptsUnpackedCorrupt/Field%d", fn), func(t *testing.T) {
+			t.Parallel()
+			AssertPackedAcceptsUnpackedCorrupt[T, PT](t, fn, wireType, elementSize)
 		})
 	}
 }

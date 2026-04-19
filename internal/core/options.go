@@ -16,7 +16,93 @@ const (
 	optFixedLen   protowire.Number = 50004
 	optKeepCap    protowire.Number = 50005
 	optUsePointer protowire.Number = 50006
+	optOneof      protowire.Number = 50007
 )
+
+// OneofConfig mirrors the codec.OneofConfig submessage used on
+// MessageOptions to declare how a non-synthetic proto3 oneof maps onto
+// the target Go type.
+type OneofConfig struct {
+	Name          string // proto oneof name
+	Discriminator string // Go struct field name holding the active-branch enum
+	Cast          string // Go type name of the discriminator
+}
+
+// messageOneofs extracts every codec.oneof entry from a message's
+// options. Returns nil if the message has no codec.oneof annotation.
+func messageOneofs(msg *protogen.Message) []OneofConfig {
+	opts := msg.Desc.Options()
+	if opts == nil {
+		return nil
+	}
+	raw := opts.ProtoReflect().GetUnknown()
+	if len(raw) == 0 {
+		return nil
+	}
+	var out []OneofConfig
+	for len(raw) > 0 {
+		fnum, wtype, n := protowire.ConsumeTag(raw)
+		if n < 0 {
+			return out
+		}
+		raw = raw[n:]
+		if fnum != optOneof || wtype != protowire.BytesType {
+			vn := consumeFieldValue(raw, wtype)
+			if vn < 0 {
+				return out
+			}
+			raw = raw[vn:]
+			continue
+		}
+		body, bn := protowire.ConsumeBytes(raw)
+		if bn < 0 {
+			return out
+		}
+		raw = raw[bn:]
+		cfg, ok := parseOneofConfig(body)
+		if !ok {
+			return out
+		}
+		out = append(out, cfg)
+	}
+	return out
+}
+
+// parseOneofConfig decodes an OneofConfig submessage body. Returns
+// (zero, false) on malformed input.
+func parseOneofConfig(body []byte) (OneofConfig, bool) {
+	var cfg OneofConfig
+	for len(body) > 0 {
+		fnum, wtype, n := protowire.ConsumeTag(body)
+		if n < 0 {
+			return OneofConfig{}, false
+		}
+		body = body[n:]
+		if wtype != protowire.BytesType {
+			vn := consumeFieldValue(body, wtype)
+			if vn < 0 {
+				return OneofConfig{}, false
+			}
+			body = body[vn:]
+			continue
+		}
+		val, vn := protowire.ConsumeBytes(body)
+		if vn < 0 {
+			return OneofConfig{}, false
+		}
+		body = body[vn:]
+		//nolint:exhaustive // OneofConfig has three known fields (name, discriminator, cast); unknown field numbers are intentionally ignored so newer/older schemas coexist.
+		switch fnum {
+		case 1:
+			cfg.Name = string(val)
+		case 2:
+			cfg.Discriminator = string(val)
+		case 3:
+			cfg.Cast = string(val)
+		}
+	}
+	return cfg, true
+}
 
 func messageGoType(msg *protogen.Message) string {
 	return extractString(msg.Desc.Options(), optGoType)

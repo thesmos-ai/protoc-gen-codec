@@ -72,13 +72,16 @@ func TestAnalyzeField_InvalidCastIdent_Errors(t *testing.T) {
 	}
 }
 
-func TestAnalyzeMessage_OneofIsRejected(t *testing.T) {
+func TestAnalyzeMessage_OneofWithoutConfigIsRejected(t *testing.T) {
 	t.Parallel()
+	// A non-synthetic oneof without a matching (codec.oneof) declaration
+	// is an error: the generator needs the Go-side discriminator field
+	// name and cast type to emit dispatch.
 	_, err := runAnalyzeMessageWithOneof(t)
 	if err == nil {
-		t.Fatal("expected error for non-synthetic oneof")
+		t.Fatal("expected error for non-synthetic oneof without codec.oneof config")
 	}
-	if !strings.Contains(err.Error(), "oneof") || !strings.Contains(err.Error(), "not yet supported") {
+	if !strings.Contains(err.Error(), "oneof") || !strings.Contains(err.Error(), "codec.oneof") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

@@ -196,3 +196,36 @@ type TimeHolder struct {
 type BytesPool struct {
 	Payload []byte `json:"payload"`
 }
+
+// OneofPayloadKind is the Go-only discriminator for the OneofPayload
+// oneof. Enum values equal the proto field numbers of the branches so
+// the generated switch dispatches directly on Kind.
+type OneofPayloadKind uint32
+
+// OneofPayloadKind values.
+const (
+	OneofPayloadKindUnset  OneofPayloadKind = 0
+	OneofPayloadKindText   OneofPayloadKind = 10
+	OneofPayloadKindNumber OneofPayloadKind = 11
+	OneofPayloadKindNested OneofPayloadKind = 12
+	OneofPayloadKindBlob   OneofPayloadKind = 13
+	OneofPayloadKindAmount OneofPayloadKind = 14
+)
+
+// OneofPayload exercises the non-synthetic oneof codegen path. The
+// Kind field is Go-only (never serialized) and acts as the single
+// source of truth for which branch is active on marshal. On decode,
+// the generator sets Kind to the tag number of the branch that
+// arrived on the wire.
+type OneofPayload struct {
+	Label string `json:"label"`
+
+	Kind OneofPayloadKind `json:"kind"`
+
+	// Oneof branches — only the one matching Kind is serialized.
+	Text   string `json:"text,omitempty"`
+	Number int64  `json:"number,omitempty"`
+	Nested Inner  `json:"nested"`
+	Blob   []byte `json:"blob,omitempty"`
+	Amount int64  `json:"amount,omitempty"`
+}

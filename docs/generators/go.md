@@ -107,17 +107,119 @@ uint32 status = 1 [(codec.field) = "Status", (codec.cast) = "Status"];
 
 ## Oneof
 
-**Not yet supported.** Messages containing a non-synthetic `oneof`
-declaration fail at generation time with a clear error; the generator
-only accepts synthetic oneofs (the compiler-emitted wrapper for
-`optional` scalars). A future release will add first-class oneof
-support without introducing a Go wrapper type — the target struct will
-continue to carry branch fields directly and the generator will read
-the populated branch from an existing discriminator field.
+Non-synthetic oneofs are supported via a **flattened, Go-only
+discriminator** pattern. The target struct carries all branch fields as
+peers plus a discriminator enum that signals which branch is active;
+the generator emits a `switch` on the discriminator for marshal/size
+and writes the discriminator on decode. No wrapper type is generated.
 
-Proto3 `optional` scalars ARE supported; they use a synthetic oneof
-at the descriptor level but present as nullable pointers (`*int32`,
-`*bool`, etc.) on the target type.
+### Declaration
+
+Annotate each non-synthetic oneof at the message level:
+
+```protobuf
+message Event {
+  option (codec.type) = "Event";
+  option (codec.oneof) = {
+    name: "payload"
+    discriminator: "Kind"
+    cast: "EventKind"
+  };
+
+  oneof payload {
+    string text     = 1 [(codec.field) = "Text"];
+    int64  number   = 2 [(codec.field) = "Number"];
+    Inner  nested   = 3 [(codec.field) = "Nested", (codec.use_pointer) = false];
+  }
+}
+```
+
+The discriminator is **Go-only** — it does not consume a proto tag
+number and does not appear on the wire. Consumers declare it as a
+regular Go struct field plus an enum whose constants equal the branch
+field numbers:
+
+```go
+type EventKind uint32
+
+const (
+    EventKindUnset  EventKind = 0
+    EventKindText   EventKind = 1  // must equal text's field number
+    EventKindNumber EventKind = 2
+    EventKindNested EventKind = 3
+)
+
+type Event struct {
+    Kind   EventKind  // Go-only discriminator
+    Text   string     // branch
+    Number int64      // branch
+    Nested Inner      // branch
+}
+```
+
+### Generated behavior
+
+- **MarshalCodec / MarshalToCodec / SizeCodec** emit a `switch m.Kind`
+  after the non-branch fields. Each `case` emits its branch's tag +
+  value *unconditionally* — a set discriminator with a default-value
+  branch (`Kind = EventKindText, Text = ""`) still round-trips as "this
+  is an empty-text event."
+- **UnmarshalCodec** on receipt of a branch tag writes the branch
+  field *and* assigns `m.Kind = EventKind(<branchNumber>)` so domain
+  code reading `m.Kind` observes a consistent discriminator.
+- **ResetCodec** zeroes the discriminator along with the branch fields
+  so a pooled/reset message serializes as absent.
+
+### Constraints
+
+- Every non-synthetic oneof in an annotated message **must** have a
+  matching `(codec.oneof)` option. Generation errors otherwise.
+- Discriminator enum values **must equal the branch field numbers**.
+  The generator emits `case EventKind(1):` literally; if your enum
+  defines `EventKindText = 99`, marshal will never select that branch.
+- Discriminator-to-branch consistency is the user's responsibility:
+  setting `Kind = EventKindText` while populating `Number` results in
+  marshal emitting the (possibly empty) `Text` branch and silently
+  dropping `Number`. Consider a constructor per branch to enforce.
+- Branches can be scalars, strings, bytes, WKTs, or singular messages.
+  proto3 disallows `repeated` and `map` inside oneof.
+
+### Testing
+
+No new `Spec` category is required. Provide one entry per branch in
+`Spec.Variants`, each populating `Kind` + the matching branch field:
+
+```go
+var specEvent = codectest.Spec[Event]{
+    Sample: Event{Kind: EventKindText, Text: "hello"},
+    Variants: []Event{
+        {Kind: EventKindNumber, Number: 42},
+        {Kind: EventKindNested, Nested: Inner{Label: "x", Count: 1}},
+    },
+    ScalarVarintFields: []int32{2}, // Number
+}
+```
+
+`RunSuite`'s existing battery (`Roundtrip`, `Corruption`,
+`AllFieldsWireTypeMismatch`, etc.) runs across `Sample` + each variant,
+exercising every branch's encode/decode/reset path. Consumers with
+strict discriminator-consistency requirements may add a targeted test
+asserting `Kind` survives roundtrip:
+
+```go
+for _, s := range specEvent.Variants {
+    data, _ := s.MarshalCodec()
+    var got Event
+    _ = got.UnmarshalCodec(data)
+    if got.Kind != s.Kind {
+        t.Errorf("discriminator lost: sent %v, got %v", s.Kind, got.Kind)
+    }
+}
+```
+
+Proto3 `optional` scalars remain supported separately via synthetic
+oneofs and present as nullable pointers (`*int32`, `*bool`, etc.).
+They use `IsProto3Optional`, not the `(codec.oneof)` declaration.
 
 ## String Handling
 

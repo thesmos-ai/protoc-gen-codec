@@ -300,7 +300,9 @@ func AssertWarmPathGrowth[T any, PT interface {
 
 // AssertUnpackedRepeatedVarint verifies the decoder accepts the unpacked
 // wire form of a repeated packed-eligible scalar field. Caller supplies
-// the hand-constructed unpacked wire.
+// the hand-constructed unpacked wire. Low-level primitive; for the
+// field-number-driven version that auto-builds wire, use
+// AssertPackedAcceptsUnpacked.
 func AssertUnpackedRepeatedVarint[T any, PT interface {
 	*T
 	codec.Codec
@@ -309,6 +311,75 @@ func AssertUnpackedRepeatedVarint[T any, PT interface {
 	var got T
 	if err := PT(&got).UnmarshalCodec(wire); err != nil {
 		t.Fatalf("UnmarshalCodec(unpacked-repeated): %v", err)
+	}
+}
+
+// AssertPackedAcceptsUnpacked verifies a repeated packed-eligible field
+// accepts the unpacked wire form — a single element emitted as
+// tag(fieldNum, wireType) + elementSize bytes. proto3 allows both
+// packed (wireType 2, length-delimited) and unpacked (single-element
+// tags) encodings for the same field; decoders must accept both.
+//
+// wireType must match the field's element type:
+//   - 0 for varint elements (int32/int64/uint32/uint64/sint32/sint64/bool/enum)
+//   - 1 for fixed64 elements (fixed64/sfixed64/double); elementSize = 8
+//   - 5 for fixed32 elements (fixed32/sfixed32/float); elementSize = 4
+//
+// elementSize is the body size (0 for varint: the body is a varint
+// whose length depends on value; a single-byte value=0 satisfies the
+// test with elementSize=1).
+func AssertPackedAcceptsUnpacked[T any, PT interface {
+	*T
+	codec.Codec
+}](t TB, fieldNum int32, wireType uint64, elementSize int) {
+	t.Helper()
+	tag := uint64(fieldNum)<<3 | (wireType & 0x7)
+	buf := appendVarint(nil, tag)
+	buf = append(buf, make([]byte, elementSize)...)
+	var got T
+	if err := PT(&got).UnmarshalCodec(buf); err != nil {
+		t.Fatalf("field %d (wireType %d, elemSize %d): unpacked alternate rejected: %v",
+			fieldNum, wireType, elementSize, err)
+	}
+}
+
+// AssertPackedAcceptsUnpackedCorrupt verifies the unpacked-alternate
+// path's error handling for a repeated packed-eligible field. Sends a
+// tag with the element wire type followed by a deliberately corrupt /
+// truncated body:
+//   - wireType 0: unterminated varint (10 continuation bytes)
+//   - wireType 1: only elementSize-1 body bytes (short fixed64)
+//   - wireType 5: only elementSize-1 body bytes (short fixed32)
+//
+// The decoder must return an error; the helper accepts either
+// ErrInvalidVarint (for wireType 0) or ErrBufferTooShort (for
+// wireType 1 / 5).
+func AssertPackedAcceptsUnpackedCorrupt[T any, PT interface {
+	*T
+	codec.Codec
+}](t TB, fieldNum int32, wireType uint64, elementSize int) {
+	t.Helper()
+	tag := uint64(fieldNum)<<3 | (wireType & 0x7)
+	buf := appendVarint(nil, tag)
+	var wantErr error
+	switch wireType {
+	case 0:
+		buf = append(buf, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80)
+		wantErr = codec.ErrInvalidVarint
+	case 1, 5:
+		// One byte short of elementSize triggers the bounds guard.
+		buf = append(buf, make([]byte, elementSize-1)...)
+		wantErr = codec.ErrBufferTooShort
+	default:
+		t.Fatalf("AssertPackedAcceptsUnpackedCorrupt: unsupported wireType %d", wireType)
+	}
+	var got T
+	err := PT(&got).UnmarshalCodec(buf)
+	if err == nil {
+		t.Fatalf("field %d (wireType %d): corrupt unpacked alternate accepted, want error", fieldNum, wireType)
+	}
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("field %d (wireType %d): want %v, got %v", fieldNum, wireType, wantErr, err)
 	}
 }
 

@@ -188,6 +188,12 @@ func generateUnmarshalCodec(g *protogen.GeneratedFile, fileMap map[string]*proto
 	for i := range info.Fields {
 		f := &info.Fields[i]
 		generateFieldUnmarshal(g, fileMap, f, poolingEnabled)
+		// Branch fields write the discriminator as the final act of
+		// their case arm. No explicit `break` is needed — Go switch
+		// cases don't fall through; the next `case` closes this one.
+		if meta, ok := branchMetaFor(info, f); ok {
+			g.P("m.", meta.Discriminator, " = ", meta.Cast, "(", meta.BranchNum, ")")
+		}
 	}
 
 	g.P("default:")

@@ -17,9 +17,18 @@ func generateSizeCodec(g *protogen.GeneratedFile, fileMap map[string]*protogen.F
 	g.P("}")
 	g.P("var n int")
 
+	// Skip branch fields; their size is driven by the per-oneof switch
+	// emitted below based on the active discriminator value.
 	for i := range info.Fields {
 		f := &info.Fields[i]
+		if f.OneofName != "" {
+			continue
+		}
 		generateFieldSize(g, fileMap, f)
+	}
+
+	for _, oi := range info.Oneofs {
+		emitOneofSize(g, fileMap, info, oi)
 	}
 
 	g.P("return n")

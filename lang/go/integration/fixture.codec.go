@@ -2732,3 +2732,222 @@ func (m *BytesPool) ResetCodec() {
 	}
 	m.Payload = m.Payload[:0]
 }
+
+func (m *OneofPayload) SizeCodec() int {
+	if m == nil {
+		return 0
+	}
+	var n int
+	if len(m.Label) > 0 {
+		l := len(m.Label)
+		n += 1 + codec.SizeVarint(uint64(l)) + l
+	}
+	switch m.Kind {
+	case OneofPayloadKind(10):
+		l := len(m.Text)
+		n += 1 + codec.SizeVarint(uint64(l)) + l
+	case OneofPayloadKind(11):
+		n += 1 + codec.SizeVarint(uint64(m.Number))
+	case OneofPayloadKind(12):
+		sz := (&m.Nested).SizeCodec()
+		n += 1 + codec.SizeVarint(uint64(sz)) + sz
+	case OneofPayloadKind(13):
+		l := len(m.Blob)
+		n += 1 + codec.SizeVarint(uint64(l)) + l
+	case OneofPayloadKind(14):
+		n += 9
+	}
+	return n
+}
+
+func (m *OneofPayload) MarshalCodec() ([]byte, error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeCodec()
+	if size == 0 {
+		return nil, nil
+	}
+	buf := make([]byte, size)
+	n := m.MarshalCodecInternal(buf)
+	return buf[:n], nil
+}
+
+func (m *OneofPayload) MarshalToCodec(buf []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	if len(buf) < m.SizeCodec() {
+		return 0, codec.ErrBufferTooShort
+	}
+	return m.MarshalCodecInternal(buf), nil
+}
+
+func (m *OneofPayload) MarshalCodecInternal(buf []byte) int {
+	n := 0
+	if len(m.Label) > 0 {
+		buf[n+0] = 0x0a
+		n += 1
+		n += codec.EncodeVarint(buf[n:], uint64(len(m.Label)))
+		n += copy(buf[n:], m.Label)
+	}
+	switch m.Kind {
+	case OneofPayloadKind(10):
+		buf[n+0] = 0x52
+		n += 1
+		n += codec.EncodeVarint(buf[n:], uint64(len(m.Text)))
+		n += copy(buf[n:], m.Text)
+	case OneofPayloadKind(11):
+		buf[n+0] = 0x58
+		n += 1
+		n += codec.EncodeVarint(buf[n:], uint64(m.Number))
+	case OneofPayloadKind(12):
+		buf[n+0] = 0x62
+		n += 1
+		sz := (&m.Nested).SizeCodec()
+		n += codec.EncodeVarint(buf[n:], uint64(sz))
+		n += (&m.Nested).MarshalCodecInternal(buf[n:])
+	case OneofPayloadKind(13):
+		buf[n+0] = 0x6a
+		n += 1
+		n += codec.EncodeVarint(buf[n:], uint64(len(m.Blob)))
+		n += copy(buf[n:], m.Blob)
+	case OneofPayloadKind(14):
+		buf[n+0] = 0x71
+		n += 1
+		binary.LittleEndian.PutUint64(buf[n:], uint64(m.Amount))
+		n += 8
+	}
+	return n
+}
+
+func (m *OneofPayload) UnmarshalCodec(data []byte) error {
+	return m.UnmarshalCodecInternal(data, string(data), 0)
+}
+
+func (m *OneofPayload) UnmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+	_ = slab
+	_ = slabOff
+	l := len(data)
+	i := 0
+	m.Label = ""
+	m.Text = ""
+	m.Number = 0
+	(&m.Nested).ResetCodec()
+	m.Blob = m.Blob[:0]
+	m.Amount = 0
+	for i < l {
+		tag, n := codec.DecodeVarint(data[i:])
+		if n < 0 {
+			return fmt.Errorf("offset %d: %w", i, codec.ErrInvalidTag)
+		}
+		i += n
+		fieldNum := tag >> 3
+		wireType := tag & 0x7
+
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("field Label (%d): %w", 1, codec.ErrInvalidWireType)
+			}
+			vLen, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field Label (%d): %w", 1, codec.ErrInvalidVarint)
+			}
+			i += n
+			if uint64(l-i) < vLen {
+				return fmt.Errorf("field Label (%d): %w", 1, codec.ErrBufferTooShort)
+			}
+			m.Label = slab[slabOff+i : slabOff+i+int(vLen)]
+			i += int(vLen)
+		case 10:
+			if wireType != 2 {
+				return fmt.Errorf("field Text (%d): %w", 10, codec.ErrInvalidWireType)
+			}
+			vLen, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field Text (%d): %w", 10, codec.ErrInvalidVarint)
+			}
+			i += n
+			if uint64(l-i) < vLen {
+				return fmt.Errorf("field Text (%d): %w", 10, codec.ErrBufferTooShort)
+			}
+			m.Text = slab[slabOff+i : slabOff+i+int(vLen)]
+			i += int(vLen)
+			m.Kind = OneofPayloadKind(10)
+		case 11:
+			if wireType != 0 {
+				return fmt.Errorf("field Number (%d): %w", 11, codec.ErrInvalidWireType)
+			}
+			v, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field Number (%d): %w", 11, codec.ErrInvalidVarint)
+			}
+			i += n
+			m.Number = int64(v)
+			m.Kind = OneofPayloadKind(11)
+		case 12:
+			if wireType != 2 {
+				return fmt.Errorf("field Nested (%d): %w", 12, codec.ErrInvalidWireType)
+			}
+			vLen, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field Nested (%d): %w", 12, codec.ErrInvalidVarint)
+			}
+			i += n
+			if uint64(l-i) < vLen {
+				return fmt.Errorf("field Nested (%d): %w", 12, codec.ErrBufferTooShort)
+			}
+			if err := (&m.Nested).UnmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {
+				return fmt.Errorf("field Nested (%d): %w", 12, err)
+			}
+			i += int(vLen)
+			m.Kind = OneofPayloadKind(12)
+		case 13:
+			if wireType != 2 {
+				return fmt.Errorf("field Blob (%d): %w", 13, codec.ErrInvalidWireType)
+			}
+			vLen, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field Blob (%d): %w", 13, codec.ErrInvalidVarint)
+			}
+			i += n
+			if uint64(l-i) < vLen {
+				return fmt.Errorf("field Blob (%d): %w", 13, codec.ErrBufferTooShort)
+			}
+			m.Blob = append(m.Blob[:0], data[i:i+int(vLen)]...)
+			i += int(vLen)
+			m.Kind = OneofPayloadKind(13)
+		case 14:
+			if wireType != 1 {
+				return fmt.Errorf("field Amount (%d): %w", 14, codec.ErrInvalidWireType)
+			}
+			if l-i < 8 {
+				return fmt.Errorf("field Amount (%d): %w", 14, codec.ErrBufferTooShort)
+			}
+			m.Amount = int64(binary.LittleEndian.Uint64(data[i:]))
+			i += 8
+			m.Kind = OneofPayloadKind(14)
+		default:
+			n, err := codec.SkipField(data[i:], wireType)
+			if err != nil {
+				return err
+			}
+			i += n
+		}
+	}
+	return nil
+}
+
+func (m *OneofPayload) ResetCodec() {
+	if m == nil {
+		return
+	}
+	m.Label = ""
+	m.Text = ""
+	m.Number = 0
+	(&m.Nested).ResetCodec()
+	m.Blob = m.Blob[:0]
+	m.Amount = 0
+	m.Kind = 0
+}
