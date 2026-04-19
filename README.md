@@ -8,10 +8,12 @@ A custom protoc generator that emits high-performance binary serialization metho
 - **Zero-alloc marshal** — a pre-allocated buffer variant writes directly into caller memory
 - **Low-allocation unmarshal** — generation-time schema analysis picks a per-message strategy that minimises allocations without aliasing the input buffer
 - **Packed encoding** — repeated scalars use proto3 packed format automatically
+- **Deterministic output** — map fields marshal in sorted-key order (content-addressable storage, signing, caching)
 - **Fixed-length guards** — `codec.fixed_len` rejects truncated/padded byte arrays at unmarshal
-- **Capacity-preserving reset** — `codec.keep_capacity` keeps slice backing arrays alive for pooled reuse
-- **Typed errors** — unmarshal failures wrap language-appropriate sentinels for programmatic matching
+- **Capacity-preserving reset** — backing storage for slices/maps is preserved for pooled reuse
+- **Typed errors** — unmarshal failures wrap language-appropriate sentinels for programmatic matching; error messages include field name + number
 - **DoS-resistant** — bounds-checked length handling prevents OOM from inflated length varints
+- **100% test coverage** — dedicated testing sub-package ships `Spec[T]` + runners that drive generated code to 100% coverage without hand-rolling corruption payloads
 
 ## Annotations
 
@@ -63,12 +65,34 @@ All binaries share `internal/core/` for schema analysis and `codec/options.proto
 
 ## Runtime
 
-Each generator ships a small runtime library that the generated code imports for wire primitives and error sentinels. Runtimes carry no dependencies beyond the target language's standard library.
+Each generator ships a small runtime library that the generated code imports for wire primitives and error sentinels. Runtimes carry no dependencies beyond the target language's standard library. Testing helpers live in a separate sub-package (`codec/codectest/` for Go) so the runtime stays dependency-free for production use.
+
+## Testing your consumer types
+
+Each language ships a testing sub-package with a declarative `Spec[T]` you write once per annotated type, plus three role-specific runners that read it. For Go:
+
+```go
+import "go.stealthscale.io/protoc-gen-codec/lang/go/codec/codectest"
+
+var specMyType = codectest.Spec[MyType]{
+    Sample:             sampleMyType(),
+    ScalarVarintFields: []int32{2, 3, 5},
+    // PackedFields, MapFields, RepeatedMessageFields, WKTFields,
+    // Fixed64Fields, Fixed32Fields, FixedLenBytesFields,
+    // Grower, NilPointerSample, Generator — all optional
+}
+
+func TestMyType_Codec(t *testing.T)      { codectest.RunSuite[MyType](t, specMyType) }
+func BenchmarkMyType_Codec(b *testing.B) { codectest.RunBenchSuite[MyType](b, specMyType) }
+func FuzzMyType_Codec(f *testing.F)      { codectest.RunFuzzSuite[MyType](f, specMyType) }
+```
+
+The `RunSuite` call expands into ~20 sub-tests (roundtrip, reset, nil-safety, cross-format, corruption, per-field wire-type mismatch, short-buffer handling, unknown-field skip, property-based via `rapid` when a generator is supplied). Configured correctly per the Spec, it drives generated code coverage to 100%. See [`docs/generators/go.md`](docs/generators/go.md) for the full field-category cheatsheet and [a complete worked example](docs/generators/go.md#testing).
 
 ## Documentation
 
 - [`docs/architecture.md`](docs/architecture.md) — language-neutral architecture, design principles, and project layout
-- [`docs/generators/go.md`](docs/generators/go.md) — how `protoc-gen-codec-go` emits code (generated methods, field mapping, slab strategies, reset semantics)
+- [`docs/generators/go.md`](docs/generators/go.md) — how `protoc-gen-codec-go` emits code (generated methods, field mapping, slab strategies, reset semantics, testing framework)
 
 ## License
 

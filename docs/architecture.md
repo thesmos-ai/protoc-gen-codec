@@ -112,6 +112,10 @@ codec/                        Language-neutral annotation schema
 lang/<language>/codec/        Per-language runtime imported by generated code
   (e.g. lang/go/codec/)       wire primitives, sentinel errors, interfaces
 
+lang/<language>/codec/<lang>test/  Testing-helper sub-package consumers import
+  (e.g. lang/go/codec/codectest/)  Spec, RunSuite/RunBenchSuite/RunFuzzSuite, Assert*
+                                   Kept separate so the runtime stays stdlib-only.
+
 internal/core/                Language-agnostic schema analysis
   analysis.go                 AnalyzeMessage, analyzeField
   options.go                  Extracts codec.* annotations from descriptors
@@ -167,6 +171,23 @@ The runtime is intentionally minimal: no reflection, no type registry,
 no descriptor lookup. Everything the generator needs to produce is
 determined statically at generation time.
 
+## Testing Sub-Package
+
+Parallel to the runtime, each target language ships a testing-helper
+sub-package at `lang/<language>/codec/<lang>test/`. It carries:
+
+- a declarative `Spec[T]` describing one message type's testing plan
+- three role-specific runners (`RunSuite` for `Test*`, `RunBenchSuite`
+  for `Benchmark*`, `RunFuzzSuite` for `Fuzz*`) that all consume the
+  same spec
+- individual `Assert*` helpers composed by those runners
+
+The testing package is kept separate so the runtime stays stdlib-only:
+consumers who import the runtime for wire primitives or error sentinels
+don't transitively pull in the testing dependencies (property-based
+testing libraries, fuzz harnesses). This mirrors the Go standard
+library's `httptest` / `iotest` / `synctest` pattern.
+
 ## Testing Philosophy
 
 Each generator is expected to verify, at minimum:
@@ -190,10 +211,17 @@ zero-allocation target for the pre-allocated marshal path.
 
 CI enforces the suite through standing regression gates:
 
-- **Bench regression** — `benchstat` compares against a committed
-  baseline and fails on any allocation-count increase or wall-clock
-  regression above a small threshold.
+- **Bench regression** — `benchstat` compares against a baseline
+  generated from `main` on the same CI runner (eliminating
+  cross-hardware variance) and fails on any allocation-count increase
+  or wall-clock regression above a small threshold.
 - **Coverage floor** — per-file coverage on generated `.codec.*` sources
-  must stay at or above a declared minimum (95% for Go).
+  must stay at or above a declared minimum (**100% for Go**; the Go
+  testing sub-package provides enough `Assert*` helpers and generator
+  refactors removed enough defensive branches to make 100% achievable
+  without contrived tests).
 - **Deterministic generation** — running the generator twice produces
   byte-identical output.
+- **Deterministic encoding** — for languages where it matters,
+  marshaled output is byte-stable across calls on the same input
+  (e.g., the Go generator sorts map keys).
