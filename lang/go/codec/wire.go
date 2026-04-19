@@ -8,12 +8,21 @@ import (
 	"math/bits"
 )
 
-const maxVarintBytes = 10
+// MaxVarintLen is the maximum number of bytes a uint64 occupies when encoded
+// as a proto3 varint. Parallels encoding/binary.MaxVarintLen64.
+const MaxVarintLen = 10
 
-// Sov returns the number of bytes a uint64 takes when encoded as a varint.
-func Sov(x uint64) int {
+// SizeVarint returns the number of bytes a uint64 takes when encoded as a
+// proto3 varint.
+func SizeVarint(x uint64) int {
 	return (bits.Len64(x|1) + 6) / 7
 }
+
+// Sov is a deprecated alias for SizeVarint, kept for source compatibility
+// with code generated before the rename.
+//
+// Deprecated: use SizeVarint.
+func Sov(x uint64) int { return SizeVarint(x) }
 
 // EncodeVarint writes x into buf as a proto3 varint and returns the number
 // of bytes written. The caller is responsible for ensuring buf has room.
@@ -37,7 +46,7 @@ func DecodeVarint(data []byte) (uint64, int) {
 	}
 	var x uint64
 	var s uint
-	for i := 0; i < len(data) && i < maxVarintBytes; i++ {
+	for i := 0; i < len(data) && i < MaxVarintLen; i++ {
 		b := data[i]
 		if b < 0x80 {
 			return x | uint64(b)<<s, i + 1

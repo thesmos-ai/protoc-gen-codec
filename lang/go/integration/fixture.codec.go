@@ -19,36 +19,36 @@ func (m *Fixture) SizeCodec() int {
 	var n int
 	if len(m.ID) > 0 {
 		l := len(m.ID)
-		n += 1 + codec.Sov(uint64(l)) + l
+		n += 1 + codec.SizeVarint(uint64(l)) + l
 	}
 	if m.Kind != 0 {
-		n += 1 + codec.Sov(uint64(m.Kind))
+		n += 1 + codec.SizeVarint(uint64(m.Kind))
 	}
 	if m.Status != 0 {
-		n += 1 + codec.Sov(uint64(m.Status))
+		n += 1 + codec.SizeVarint(uint64(m.Status))
 	}
 	if m.Score != 0 {
-		n += 1 + codec.Sov(uint64(m.Score))
+		n += 1 + codec.SizeVarint(uint64(m.Score))
 	}
 	if m.Sequence != 0 {
-		n += 1 + codec.Sov(uint64(m.Sequence))
+		n += 1 + codec.SizeVarint(uint64(m.Sequence))
 	}
 	if m.Enabled {
 		n += 2
 	}
 	if m.Timestamp != 0 {
-		n += 1 + codec.Sov(uint64(m.Timestamp))
+		n += 1 + codec.SizeVarint(uint64(m.Timestamp))
 	}
 	if m.Ref != (Digest{}) {
 		n += 34
 	}
 	for _, s := range m.Tags {
 		l := len(s)
-		n += 1 + codec.Sov(uint64(l)) + l
+		n += 1 + codec.SizeVarint(uint64(l)) + l
 	}
 	if len(m.Data) > 0 {
 		l := len(m.Data)
-		n += 1 + codec.Sov(uint64(l)) + l
+		n += 1 + codec.SizeVarint(uint64(l)) + l
 	}
 	return n
 }
@@ -318,23 +318,23 @@ func (m *Patch) SizeCodec() int {
 	}
 	var n int
 	if m.Kind != 0 {
-		n += 1 + codec.Sov(uint64(m.Kind))
+		n += 1 + codec.SizeVarint(uint64(m.Kind))
 	}
 	if m.VertexID != 0 {
-		n += 1 + codec.Sov(uint64(m.VertexID))
+		n += 1 + codec.SizeVarint(uint64(m.VertexID))
 	}
 	if m.Sequence != 0 {
-		n += 1 + codec.Sov(uint64(m.Sequence))
+		n += 1 + codec.SizeVarint(uint64(m.Sequence))
 	}
 	if m.Source != 0 {
-		n += 1 + codec.Sov(uint64(m.Source))
+		n += 1 + codec.SizeVarint(uint64(m.Source))
 	}
 	if len(m.TextVal) > 0 {
 		l := len(m.TextVal)
-		n += 1 + codec.Sov(uint64(l)) + l
+		n += 1 + codec.SizeVarint(uint64(l)) + l
 	}
 	if m.IntVal != 0 {
-		n += 1 + codec.Sov(uint64(m.IntVal))
+		n += 1 + codec.SizeVarint(uint64(m.IntVal))
 	}
 	if m.Fixed64Val != 0 {
 		n += 9
@@ -565,47 +565,47 @@ func (m *Evidence) SizeCodec() int {
 	}
 	var n int
 	if m.Kind != 0 {
-		n += 1 + codec.Sov(uint64(m.Kind))
+		n += 1 + codec.SizeVarint(uint64(m.Kind))
 	}
 	if m.Durability != 0 {
-		n += 1 + codec.Sov(uint64(m.Durability))
+		n += 1 + codec.SizeVarint(uint64(m.Durability))
 	}
 	if m.Access != 0 {
-		n += 1 + codec.Sov(uint64(m.Access))
+		n += 1 + codec.SizeVarint(uint64(m.Access))
 	}
 	if len(m.TraceID) > 0 {
 		l := len(m.TraceID)
-		n += 1 + codec.Sov(uint64(l)) + l
+		n += 1 + codec.SizeVarint(uint64(l)) + l
 	}
 	if len(m.FederationTraceID) > 0 {
 		l := len(m.FederationTraceID)
-		n += 1 + codec.Sov(uint64(l)) + l
+		n += 1 + codec.SizeVarint(uint64(l)) + l
 	}
 	if len(m.JobID) > 0 {
 		l := len(m.JobID)
-		n += 1 + codec.Sov(uint64(l)) + l
+		n += 1 + codec.SizeVarint(uint64(l)) + l
 	}
 	if len(m.ThreadID) > 0 {
 		l := len(m.ThreadID)
-		n += 1 + codec.Sov(uint64(l)) + l
+		n += 1 + codec.SizeVarint(uint64(l)) + l
 	}
 	if len(m.TenantID) > 0 {
 		l := len(m.TenantID)
-		n += 1 + codec.Sov(uint64(l)) + l
+		n += 1 + codec.SizeVarint(uint64(l)) + l
 	}
 	if m.TimestampMs != 0 {
-		n += 1 + codec.Sov(uint64(m.TimestampMs))
+		n += 1 + codec.SizeVarint(uint64(m.TimestampMs))
 	}
 	if m.PayloadRef != (Digest{}) {
 		n += 34
 	}
 	for _, s := range m.Jurisdictions {
 		l := len(s)
-		n += 1 + codec.Sov(uint64(l)) + l
+		n += 1 + codec.SizeVarint(uint64(l)) + l
 	}
 	if len(m.RetentionPolicyID) > 0 {
 		l := len(m.RetentionPolicyID)
-		n += 1 + codec.Sov(uint64(l)) + l
+		n += 1 + codec.SizeVarint(uint64(l)) + l
 	}
 	return n
 }
@@ -929,7 +929,7 @@ func (m *Minimal) SizeCodec() int {
 	var n int
 	if len(m.ID) > 0 {
 		l := len(m.ID)
-		n += 1 + codec.Sov(uint64(l)) + l
+		n += 1 + codec.SizeVarint(uint64(l)) + l
 	}
 	return n
 }
@@ -1026,13 +1026,13 @@ func (m *NumericOnly) SizeCodec() int {
 	}
 	var n int
 	if m.A != 0 {
-		n += 1 + codec.Sov(uint64(m.A))
+		n += 1 + codec.SizeVarint(uint64(m.A))
 	}
 	if m.B != 0 {
-		n += 1 + codec.Sov(uint64(m.B))
+		n += 1 + codec.SizeVarint(uint64(m.B))
 	}
 	if m.C != 0 {
-		n += 1 + codec.Sov(uint64(m.C))
+		n += 1 + codec.SizeVarint(uint64(m.C))
 	}
 	if m.D != 0 {
 		n += 9
@@ -1041,13 +1041,13 @@ func (m *NumericOnly) SizeCodec() int {
 		n += 2
 	}
 	if m.F != 0 {
-		n += 1 + codec.Sov(uint64(codec.ZigzagEncode32(int32(m.F))))
+		n += 1 + codec.SizeVarint(uint64(codec.ZigzagEncode32(int32(m.F))))
 	}
 	if m.G != 0 {
-		n += 1 + codec.Sov(codec.ZigzagEncode64(int64(m.G)))
+		n += 1 + codec.SizeVarint(codec.ZigzagEncode64(int64(m.G)))
 	}
 	if m.H != nil {
-		n += 1 + codec.Sov(uint64(*m.H))
+		n += 1 + codec.SizeVarint(uint64(*m.H))
 	}
 	if m.I != nil {
 		n += 2
@@ -1325,16 +1325,16 @@ func (m *PackedZigzag) SizeCodec() int {
 	if len(m.Values32) > 0 {
 		l := 0
 		for _, v := range m.Values32 {
-			l += codec.Sov(uint64(codec.ZigzagEncode32(int32(v))))
+			l += codec.SizeVarint(uint64(codec.ZigzagEncode32(int32(v))))
 		}
-		n += 1 + codec.Sov(uint64(l)) + l
+		n += 1 + codec.SizeVarint(uint64(l)) + l
 	}
 	if len(m.Values64) > 0 {
 		l := 0
 		for _, v := range m.Values64 {
-			l += codec.Sov(codec.ZigzagEncode64(int64(v)))
+			l += codec.SizeVarint(codec.ZigzagEncode64(int64(v)))
 		}
-		n += 1 + codec.Sov(uint64(l)) + l
+		n += 1 + codec.SizeVarint(uint64(l)) + l
 	}
 	return n
 }
@@ -1369,7 +1369,7 @@ func (m *PackedZigzag) MarshalCodecInternal(buf []byte) int {
 		n += 1
 		l := 0
 		for _, v := range m.Values32 {
-			l += codec.Sov(uint64(codec.ZigzagEncode32(int32(v))))
+			l += codec.SizeVarint(uint64(codec.ZigzagEncode32(int32(v))))
 		}
 		n += codec.EncodeVarint(buf[n:], uint64(l))
 		for _, v := range m.Values32 {
@@ -1381,7 +1381,7 @@ func (m *PackedZigzag) MarshalCodecInternal(buf []byte) int {
 		n += 1
 		l := 0
 		for _, v := range m.Values64 {
-			l += codec.Sov(codec.ZigzagEncode64(int64(v)))
+			l += codec.SizeVarint(codec.ZigzagEncode64(int64(v)))
 		}
 		n += codec.EncodeVarint(buf[n:], uint64(l))
 		for _, v := range m.Values64 {
@@ -1502,10 +1502,10 @@ func (m *Inner) SizeCodec() int {
 	var n int
 	if len(m.Label) > 0 {
 		l := len(m.Label)
-		n += 1 + codec.Sov(uint64(l)) + l
+		n += 1 + codec.SizeVarint(uint64(l)) + l
 	}
 	if m.Count != 0 {
-		n += 1 + codec.Sov(uint64(m.Count))
+		n += 1 + codec.SizeVarint(uint64(m.Count))
 	}
 	return n
 }
@@ -1620,11 +1620,11 @@ func (m *Container) SizeCodec() int {
 	var n int
 	if len(m.Name) > 0 {
 		l := len(m.Name)
-		n += 1 + codec.Sov(uint64(l)) + l
+		n += 1 + codec.SizeVarint(uint64(l)) + l
 	}
 	if m.Inner != nil {
 		if sz := m.Inner.SizeCodec(); sz > 0 {
-			n += 1 + codec.Sov(uint64(sz)) + sz
+			n += 1 + codec.SizeVarint(uint64(sz)) + sz
 		}
 	}
 	for _, elem := range m.Children {
@@ -1632,7 +1632,7 @@ func (m *Container) SizeCodec() int {
 			continue
 		}
 		sz := elem.SizeCodec()
-		n += 1 + codec.Sov(uint64(sz)) + sz
+		n += 1 + codec.SizeVarint(uint64(sz)) + sz
 	}
 	return n
 }
@@ -1863,15 +1863,15 @@ func (m *ValueContainer) SizeCodec() int {
 	var n int
 	if len(m.Name) > 0 {
 		l := len(m.Name)
-		n += 1 + codec.Sov(uint64(l)) + l
+		n += 1 + codec.SizeVarint(uint64(l)) + l
 	}
 	if sz := (&m.Inner).SizeCodec(); sz > 0 {
-		n += 1 + codec.Sov(uint64(sz)) + sz
+		n += 1 + codec.SizeVarint(uint64(sz)) + sz
 	}
 	for idx := range m.Items {
 		elem := &m.Items[idx]
 		sz := elem.SizeCodec()
-		n += 1 + codec.Sov(uint64(sz)) + sz
+		n += 1 + codec.SizeVarint(uint64(sz)) + sz
 	}
 	return n
 }
@@ -2078,14 +2078,14 @@ func (m *Tree) SizeCodec() int {
 	var n int
 	if len(m.Label) > 0 {
 		l := len(m.Label)
-		n += 1 + codec.Sov(uint64(l)) + l
+		n += 1 + codec.SizeVarint(uint64(l)) + l
 	}
 	for _, elem := range m.Children {
 		if elem == nil {
 			continue
 		}
 		sz := elem.SizeCodec()
-		n += 1 + codec.Sov(uint64(sz)) + sz
+		n += 1 + codec.SizeVarint(uint64(sz)) + sz
 	}
 	return n
 }
@@ -2280,12 +2280,12 @@ func (m *MapHolder) SizeCodec() int {
 	}
 	var n int
 	for k, v := range m.Attrs {
-		entrySz := 1 + codec.Sov(uint64(len(k))) + len(k) + 1 + codec.Sov(uint64(len(v))) + len(v)
-		n += 1 + codec.Sov(uint64(entrySz)) + entrySz
+		entrySz := 1 + codec.SizeVarint(uint64(len(k))) + len(k) + 1 + codec.SizeVarint(uint64(len(v))) + len(v)
+		n += 1 + codec.SizeVarint(uint64(entrySz)) + entrySz
 	}
 	for k, v := range m.Counts {
-		entrySz := 1 + codec.Sov(uint64(len(k))) + len(k) + 1 + codec.Sov(uint64(v))
-		n += 1 + codec.Sov(uint64(entrySz)) + entrySz
+		entrySz := 1 + codec.SizeVarint(uint64(len(k))) + len(k) + 1 + codec.SizeVarint(uint64(v))
+		n += 1 + codec.SizeVarint(uint64(entrySz)) + entrySz
 	}
 	return n
 }
@@ -2319,7 +2319,7 @@ func (m *MapHolder) MarshalCodecInternal(buf []byte) int {
 		v := m.Attrs[k]
 		buf[n+0] = 0x0a
 		n += 1
-		entrySz := 1 + codec.Sov(uint64(len(k))) + len(k) + 1 + codec.Sov(uint64(len(v))) + len(v)
+		entrySz := 1 + codec.SizeVarint(uint64(len(k))) + len(k) + 1 + codec.SizeVarint(uint64(len(v))) + len(v)
 		n += codec.EncodeVarint(buf[n:], uint64(entrySz))
 		buf[n+0] = 0x0a
 		n += 1
@@ -2334,7 +2334,7 @@ func (m *MapHolder) MarshalCodecInternal(buf []byte) int {
 		v := m.Counts[k]
 		buf[n+0] = 0x12
 		n += 1
-		entrySz := 1 + codec.Sov(uint64(len(k))) + len(k) + 1 + codec.Sov(uint64(v))
+		entrySz := 1 + codec.SizeVarint(uint64(len(k))) + len(k) + 1 + codec.SizeVarint(uint64(v))
 		n += codec.EncodeVarint(buf[n:], uint64(entrySz))
 		buf[n+0] = 0x0a
 		n += 1
@@ -2504,12 +2504,12 @@ func (m *TimeHolder) SizeCodec() int {
 		var zero time.Time
 		if m.CreatedAt != zero {
 			sz := codec.SizeTimestamp(m.CreatedAt)
-			n += 1 + codec.Sov(uint64(sz)) + sz
+			n += 1 + codec.SizeVarint(uint64(sz)) + sz
 		}
 	}
 	if m.Timeout != 0 {
 		sz := codec.SizeDuration(m.Timeout)
-		n += 1 + codec.Sov(uint64(sz)) + sz
+		n += 1 + codec.SizeVarint(uint64(sz)) + sz
 	}
 	return n
 }
@@ -2642,7 +2642,7 @@ func (m *BytesPool) SizeCodec() int {
 	var n int
 	if len(m.Payload) > 0 {
 		l := len(m.Payload)
-		n += 1 + codec.Sov(uint64(l)) + l
+		n += 1 + codec.SizeVarint(uint64(l)) + l
 	}
 	return n
 }

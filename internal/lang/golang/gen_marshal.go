@@ -319,15 +319,15 @@ func generateRepeatedFieldMarshal(g *protogen.GeneratedFile, _ map[string]*proto
 		switch f.ProtoKind {
 		case protoreflect.Sint32Kind:
 			g.P("for _, v := range ", accessor, " {")
-			g.P("l += ", identSov, "(uint64(", identZigzagEncode32, "(int32(v))))")
+			g.P("l += ", identSizeVarint, "(uint64(", identZigzagEncode32, "(int32(v))))")
 			g.P("}")
 		case protoreflect.Sint64Kind:
 			g.P("for _, v := range ", accessor, " {")
-			g.P("l += ", identSov, "(", identZigzagEncode64, "(int64(v)))")
+			g.P("l += ", identSizeVarint, "(", identZigzagEncode64, "(int64(v)))")
 			g.P("}")
 		default:
 			g.P("for _, v := range ", accessor, " {")
-			g.P("l += ", identSov, "(uint64(v))")
+			g.P("l += ", identSizeVarint, "(uint64(v))")
 			g.P("}")
 		}
 		g.P("n += ", identEncodeVarint, "(buf[n:],uint64(l))")

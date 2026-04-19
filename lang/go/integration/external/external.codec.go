@@ -15,10 +15,10 @@ func (m *External) SizeCodec() int {
 	var n int
 	if len(m.Tag) > 0 {
 		l := len(m.Tag)
-		n += 1 + codec.Sov(uint64(l)) + l
+		n += 1 + codec.SizeVarint(uint64(l)) + l
 	}
 	if m.Seq != 0 {
-		n += 1 + codec.Sov(uint64(m.Seq))
+		n += 1 + codec.SizeVarint(uint64(m.Seq))
 	}
 	return n
 }

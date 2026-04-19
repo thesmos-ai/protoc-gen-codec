@@ -16,24 +16,24 @@ func (m *CrossContainer) SizeCodec() int {
 	var n int
 	if len(m.Name) > 0 {
 		l := len(m.Name)
-		n += 1 + codec.Sov(uint64(l)) + l
+		n += 1 + codec.SizeVarint(uint64(l)) + l
 	}
 	if m.Item != nil {
 		if sz := m.Item.SizeCodec(); sz > 0 {
-			n += 1 + codec.Sov(uint64(sz)) + sz
+			n += 1 + codec.SizeVarint(uint64(sz)) + sz
 		}
 	}
 	for idx := range m.Items {
 		elem := &m.Items[idx]
 		sz := elem.SizeCodec()
-		n += 1 + codec.Sov(uint64(sz)) + sz
+		n += 1 + codec.SizeVarint(uint64(sz)) + sz
 	}
 	for _, elem := range m.PtrItems {
 		if elem == nil {
 			continue
 		}
 		sz := elem.SizeCodec()
-		n += 1 + codec.Sov(uint64(sz)) + sz
+		n += 1 + codec.SizeVarint(uint64(sz)) + sz
 	}
 	return n
 }

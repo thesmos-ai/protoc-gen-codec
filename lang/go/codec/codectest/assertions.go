@@ -18,7 +18,7 @@ import (
 // randomly-generated shapes use AssertWireStable instead.
 func AssertRoundtrip[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB, original T) {
 	t.Helper()
 	ptr := PT(&original)
@@ -48,7 +48,7 @@ func AssertRoundtrip[T any, PT interface {
 // (empty-slice vs nil) that reflect.DeepEqual distinguishes.
 func AssertWireStable[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB, original T) {
 	t.Helper()
 	re1, err := PT(&original).MarshalCodec()
@@ -77,7 +77,7 @@ func AssertWireStable[T any, PT interface {
 // subtests that share the same underlying map/slice references.
 func AssertReset[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB, populated T) {
 	t.Helper()
 	buf, err := PT(&populated).MarshalCodec()
@@ -107,7 +107,7 @@ func AssertReset[T any, PT interface {
 // AssertNilSafe verifies nil-pointer safety for all public Codec methods.
 func AssertNilSafe[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB) {
 	t.Helper()
 	var nilPtr PT
@@ -130,7 +130,7 @@ func AssertNilSafe[T any, PT interface {
 // tighter than the text format.
 func AssertWireSmallerThanJSON[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB, sample T) {
 	t.Helper()
 	ptr := PT(&sample)
@@ -152,7 +152,7 @@ func AssertWireSmallerThanJSON[T any, PT interface {
 // mapping bugs (wrong tag, wrong type) that pure self-roundtrip misses.
 func AssertCrossFormatConsistency[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB, original T) {
 	t.Helper()
 	codecBytes, err := PT(&original).MarshalCodec()
@@ -184,7 +184,7 @@ func AssertCrossFormatConsistency[T any, PT interface {
 // correctness check.
 func AssertCorruption[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB, sample T) {
 	t.Helper()
 	ptr := PT(&sample)
@@ -212,7 +212,7 @@ func AssertCorruption[T any, PT interface {
 // error branch fires on a malformed tag varint.
 func AssertCorruptTag[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB) {
 	t.Helper()
 	var got T
@@ -232,7 +232,7 @@ func AssertCorruptTag[T any, PT interface {
 // MarshalCodecInternal, bypassing the public MarshalToCodec wrapper).
 func AssertMarshalToCodec[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB, sample T) {
 	t.Helper()
 	ptr := PT(&sample)
@@ -252,7 +252,7 @@ func AssertMarshalToCodec[T any, PT interface {
 // declared SizeCodec.
 func AssertMarshalToShortBuffer[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB, sample T) {
 	t.Helper()
 	ptr := PT(&sample)
@@ -278,7 +278,7 @@ func AssertMarshalToShortBuffer[T any, PT interface {
 // payload has more elements than the receiver's current slice length.
 func AssertWarmPathGrowth[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB, primer, grower T) {
 	t.Helper()
 	primerBuf, err := PT(&primer).MarshalCodec()
@@ -303,7 +303,7 @@ func AssertWarmPathGrowth[T any, PT interface {
 // the hand-constructed unpacked wire.
 func AssertUnpackedRepeatedVarint[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB, wire []byte) {
 	t.Helper()
 	var got T
@@ -316,7 +316,7 @@ func AssertUnpackedRepeatedVarint[T any, PT interface {
 // whose body contains a malformed varint.
 func AssertCorruptPackedBody[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB, fieldNum int32) {
 	t.Helper()
 	var got T
@@ -339,7 +339,7 @@ func AssertCorruptPackedBody[T any, PT interface {
 // (nil element skipped) and roundtrips.
 func AssertMarshalWithNilPointerElement[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB, sample T) {
 	t.Helper()
 	ptr := PT(&sample)
@@ -367,7 +367,7 @@ func AssertMarshalWithNilPointerElement[T any, PT interface {
 // and their element's single-value wire type.
 func AssertAllFieldsWireTypeMismatch[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB, samples ...T) {
 	t.Helper()
 	seen := make(map[int32]byte)
@@ -410,7 +410,7 @@ func AssertAllFieldsWireTypeMismatch[T any, PT interface {
 // alternative encoding per proto3 packed/unpacked duality).
 func assertFieldWireTypeOrAcceptedAlternate[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB, fieldNum int32, wrongWireType uint64) {
 	t.Helper()
 	tag := uint64(fieldNum)<<3 | (wrongWireType & 0x7)
@@ -443,7 +443,7 @@ func assertFieldWireTypeOrAcceptedAlternate[T any, PT interface {
 // sent-as-unpacked alternate path.
 func AssertCorruptScalarVarint[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB, fieldNum int32) {
 	t.Helper()
 	tag := uint64(fieldNum) << 3
@@ -466,7 +466,7 @@ func AssertCorruptScalarVarint[T any, PT interface {
 // length-mismatch check.
 func AssertCorruptMapEntryValue[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB, mapFieldNum int32) {
 	t.Helper()
 	tag := uint64(mapFieldNum)<<3 | 2
@@ -510,7 +510,7 @@ func AssertCorruptMapEntryValue[T any, PT interface {
 // wire type.
 func AssertCorruptRepeatedMessagePrescan[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB, repeatedMsgFieldNum int32) {
 	t.Helper()
 	tag := uint64(repeatedMsgFieldNum)<<3 | 2
@@ -556,7 +556,7 @@ func AssertCorruptRepeatedMessagePrescan[T any, PT interface {
 // type 0).
 func AssertPrescanSkipsAllWireTypes[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB, sample T, unknownFieldNum int32) {
 	t.Helper()
 	ptr := PT(&sample)
@@ -600,7 +600,7 @@ func AssertPrescanSkipsAllWireTypes[T any, PT interface {
 // field's declared length.
 func AssertCorruptFixedLenBytes[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB, fieldNum int32, declaredLen uint32) {
 	t.Helper()
 	tag := uint64(fieldNum)<<3 | 2
@@ -636,7 +636,7 @@ func AssertCorruptFixedLenBytes[T any, PT interface {
 // fixed-width scalar.
 func AssertCorruptFixedWidth[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB, fieldNum int32, width int) {
 	t.Helper()
 	var wireType uint64
@@ -665,7 +665,7 @@ func AssertCorruptFixedWidth[T any, PT interface {
 // `default → i += n` success path in the decode switch.
 func AssertUnknownFieldSkipped[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB, sample T, unknownFieldNum int32) {
 	t.Helper()
 	ptr := PT(&sample)
@@ -688,7 +688,7 @@ func AssertUnknownFieldSkipped[T any, PT interface {
 // Duration payload to trigger the WKT decoder's error propagation.
 func AssertCorruptWKTPayload[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB, wktFieldNum int32) {
 	t.Helper()
 	tag := uint64(wktFieldNum)<<3 | 2
@@ -705,7 +705,7 @@ func AssertCorruptWKTPayload[T any, PT interface {
 // propagation fires.
 func AssertUnknownFieldInvalidWireType[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t TB, sample T, unknownFieldNum int32) {
 	t.Helper()
 	ptr := PT(&sample)

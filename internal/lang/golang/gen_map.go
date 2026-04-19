@@ -17,7 +17,7 @@ import (
 // keys and values. The expression references codec.Sov via the generated
 // file's import alias.
 func scalarSizeExpr(g *protogen.GeneratedFile, f *core.FieldInfo, v string) string {
-	sov := g.QualifiedGoIdent(identSov)
+	sov := g.QualifiedGoIdent(identSizeVarint)
 	switch {
 	case f.IsString, f.IsBytes:
 		return fmt.Sprintf("%s(uint64(len(%s))) + len(%s)", sov, v, v)

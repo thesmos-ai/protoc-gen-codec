@@ -24,8 +24,8 @@ var (
 		GoName:       "ErrInvalidWireType",
 		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
 	}
-	identSov = protogen.GoIdent{
-		GoName:       "Sov",
+	identSizeVarint = protogen.GoIdent{
+		GoName:       "SizeVarint",
 		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
 	}
 	identEncodeVarint = protogen.GoIdent{

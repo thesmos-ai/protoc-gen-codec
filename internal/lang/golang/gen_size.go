@@ -35,14 +35,14 @@ func generateFieldSize(g *protogen.GeneratedFile, fileMap map[string]*protogen.F
 		g.P("{ var zero ", identTimeTime)
 		g.P("if ", accessor, " != zero {")
 		g.P("sz := ", identSizeTimestamp, "(", accessor, ")")
-		g.P("n += ", ts, " + ", identSov, "(uint64(sz)) + sz")
+		g.P("n += ", ts, " + ", identSizeVarint, "(uint64(sz)) + sz")
 		g.P("} }")
 		return
 	}
 	if f.WellKnown == core.WKTDuration {
 		g.P("if ", accessor, " != 0 {")
 		g.P("sz := ", identSizeDuration, "(", accessor, ")")
-		g.P("n += ", ts, " + ", identSov, "(uint64(sz)) + sz")
+		g.P("n += ", ts, " + ", identSizeVarint, "(uint64(sz)) + sz")
 		g.P("}")
 		return
 	}
@@ -66,12 +66,12 @@ func generateFieldSize(g *protogen.GeneratedFile, fileMap map[string]*protogen.F
 			// alone is no longer a presence signal; only field content is.
 			g.P("if ", accessor, " != nil {")
 			g.P("if sz := ", accessor, ".SizeCodec(); sz > 0 {")
-			g.P("n += ", ts, " + ", identSov, "(uint64(sz)) + sz")
+			g.P("n += ", ts, " + ", identSizeVarint, "(uint64(sz)) + sz")
 			g.P("}")
 			g.P("}")
 		} else {
 			g.P("if sz := (&", accessor, ").SizeCodec(); sz > 0 {")
-			g.P("n += ", ts, " + ", identSov, "(uint64(sz)) + sz")
+			g.P("n += ", ts, " + ", identSizeVarint, "(uint64(sz)) + sz")
 			g.P("}")
 		}
 		return
@@ -87,11 +87,11 @@ func generateFieldSize(g *protogen.GeneratedFile, fileMap map[string]*protogen.F
 			case protoreflect.BoolKind:
 				g.P("n += ", ts+1)
 			case protoreflect.Sint32Kind:
-				g.P("n += ", ts, " + ", identSov, "(uint64(", identZigzagEncode32, "(int32(", derefAccessor, "))))")
+				g.P("n += ", ts, " + ", identSizeVarint, "(uint64(", identZigzagEncode32, "(int32(", derefAccessor, "))))")
 			case protoreflect.Sint64Kind:
-				g.P("n += ", ts, " + ", identSov, "(", identZigzagEncode64, "(int64(", derefAccessor, ")))")
+				g.P("n += ", ts, " + ", identSizeVarint, "(", identZigzagEncode64, "(int64(", derefAccessor, ")))")
 			default:
-				g.P("n += ", ts, " + ", identSov, "(uint64(", derefAccessor, "))")
+				g.P("n += ", ts, " + ", identSizeVarint, "(uint64(", derefAccessor, "))")
 			}
 		case core.WireFixed64:
 			g.P("n += ", ts+8)
@@ -116,13 +116,13 @@ func generateFieldSize(g *protogen.GeneratedFile, fileMap map[string]*protogen.F
 			g.P("n += ", ts+1)
 		case protoreflect.Sint32Kind:
 			g.P("if ", accessor, " != 0 {")
-			g.P("n += ", ts, " + ", identSov, "(uint64(", identZigzagEncode32, "(int32(", accessor, "))))")
+			g.P("n += ", ts, " + ", identSizeVarint, "(uint64(", identZigzagEncode32, "(int32(", accessor, "))))")
 		case protoreflect.Sint64Kind:
 			g.P("if ", accessor, " != 0 {")
-			g.P("n += ", ts, " + ", identSov, "(", identZigzagEncode64, "(int64(", accessor, ")))")
+			g.P("n += ", ts, " + ", identSizeVarint, "(", identZigzagEncode64, "(int64(", accessor, ")))")
 		default:
 			g.P("if ", accessor, " != 0 {")
-			g.P("n += ", ts, " + ", identSov, "(uint64(", accessor, "))")
+			g.P("n += ", ts, " + ", identSizeVarint, "(uint64(", accessor, "))")
 		}
 		g.P("}")
 
@@ -142,7 +142,7 @@ func generateFieldSize(g *protogen.GeneratedFile, fileMap map[string]*protogen.F
 	case f.IsString || f.IsBytes:
 		g.P("if len(", accessor, ") > 0 {")
 		g.P("l := len(", accessor, ")")
-		g.P("n += ", ts, " + ", identSov, "(uint64(l)) + l")
+		g.P("n += ", ts, " + ", identSizeVarint, "(uint64(l)) + l")
 		g.P("}")
 	}
 }
@@ -154,7 +154,7 @@ func generateMapFieldSize(g *protogen.GeneratedFile, f *core.FieldInfo, accessor
 	valTagSize := core.TagSize(f.MapValue.ProtoNum)
 	g.P("for k, v := range ", accessor, " {")
 	g.P("entrySz := ", keyTagSize, " + ", keySize, " + ", valTagSize, " + ", valSize)
-	g.P("n += ", ts, " + ", identSov, "(uint64(entrySz)) + entrySz")
+	g.P("n += ", ts, " + ", identSizeVarint, "(uint64(entrySz)) + entrySz")
 	g.P("}")
 }
 
@@ -166,13 +166,13 @@ func generateRepeatedFieldSize(g *protogen.GeneratedFile, _ map[string]*protogen
 			g.P("for _, elem := range ", accessor, " {")
 			g.P("if elem == nil { continue }")
 			g.P("sz := elem.SizeCodec()")
-			g.P("n += ", ts, " + ", identSov, "(uint64(sz)) + sz")
+			g.P("n += ", ts, " + ", identSizeVarint, "(uint64(sz)) + sz")
 			g.P("}")
 		} else {
 			g.P("for idx := range ", accessor, " {")
 			g.P("elem := &", accessor, "[idx]")
 			g.P("sz := elem.SizeCodec()")
-			g.P("n += ", ts, " + ", identSov, "(uint64(sz)) + sz")
+			g.P("n += ", ts, " + ", identSizeVarint, "(uint64(sz)) + sz")
 			g.P("}")
 		}
 		return
@@ -182,7 +182,7 @@ func generateRepeatedFieldSize(g *protogen.GeneratedFile, _ map[string]*protogen
 	case f.IsString:
 		g.P("for _, s := range ", accessor, " {")
 		g.P("l := len(s)")
-		g.P("n += ", ts, " + ", identSov, "(uint64(l)) + l")
+		g.P("n += ", ts, " + ", identSizeVarint, "(uint64(l)) + l")
 		g.P("}")
 
 	case f.IsBytes && f.FixedLen > 0:
@@ -192,7 +192,7 @@ func generateRepeatedFieldSize(g *protogen.GeneratedFile, _ map[string]*protogen
 	case f.IsBytes:
 		g.P("for _, b := range ", accessor, " {")
 		g.P("l := len(b)")
-		g.P("n += ", ts, " + ", identSov, "(uint64(l)) + l")
+		g.P("n += ", ts, " + ", identSizeVarint, "(uint64(l)) + l")
 		g.P("}")
 
 	case f.Wire == core.WireVarint:
@@ -201,30 +201,30 @@ func generateRepeatedFieldSize(g *protogen.GeneratedFile, _ map[string]*protogen
 		switch f.ProtoKind {
 		case protoreflect.Sint32Kind:
 			g.P("for _, v := range ", accessor, " {")
-			g.P("l += ", identSov, "(uint64(", identZigzagEncode32, "(int32(v))))")
+			g.P("l += ", identSizeVarint, "(uint64(", identZigzagEncode32, "(int32(v))))")
 			g.P("}")
 		case protoreflect.Sint64Kind:
 			g.P("for _, v := range ", accessor, " {")
-			g.P("l += ", identSov, "(", identZigzagEncode64, "(int64(v)))")
+			g.P("l += ", identSizeVarint, "(", identZigzagEncode64, "(int64(v)))")
 			g.P("}")
 		default:
 			g.P("for _, v := range ", accessor, " {")
-			g.P("l += ", identSov, "(uint64(v))")
+			g.P("l += ", identSizeVarint, "(uint64(v))")
 			g.P("}")
 		}
-		g.P("n += ", ts, " + ", identSov, "(uint64(l)) + l")
+		g.P("n += ", ts, " + ", identSizeVarint, "(uint64(l)) + l")
 		g.P("}")
 
 	case f.Wire == core.WireFixed64:
 		g.P("if len(", accessor, ") > 0 {")
 		g.P("l := len(", accessor, ") * 8")
-		g.P("n += ", ts, " + ", identSov, "(uint64(l)) + l")
+		g.P("n += ", ts, " + ", identSizeVarint, "(uint64(l)) + l")
 		g.P("}")
 
 	case f.Wire == core.WireFixed32:
 		g.P("if len(", accessor, ") > 0 {")
 		g.P("l := len(", accessor, ") * 4")
-		g.P("n += ", ts, " + ", identSov, "(uint64(l)) + l")
+		g.P("n += ", ts, " + ", identSizeVarint, "(uint64(l)) + l")
 		g.P("}")
 	}
 }

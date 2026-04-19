@@ -141,7 +141,7 @@ func (s Spec[T]) unknownFieldNum() int32 {
 // category probes), and property-based (if spec.Generator is set).
 func RunSuite[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t *testing.T, spec Spec[T]) {
 	t.Helper()
 
@@ -238,7 +238,7 @@ func RunSuite[T any, PT interface {
 // since those are shape-specific and not captured by the spec.
 func RunBenchSuite[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](b *testing.B, spec Spec[T]) {
 	b.Helper()
 
@@ -286,7 +286,7 @@ func RunBenchSuite[T any, PT interface {
 // decodes, a second marshal/unmarshal cycle produces byte-identical wire.
 func RunFuzzSuite[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](f *testing.F, spec Spec[T]) {
 	f.Helper()
 
@@ -325,7 +325,7 @@ func RunFuzzSuite[T any, PT interface {
 // pair declared on the spec.
 func runFieldCategoryTests[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t *testing.T, spec Spec[T]) {
 	for _, fn := range spec.ScalarVarintFields {
 		t.Run(fmt.Sprintf("CorruptScalarVarint/Field%d", fn), func(t *testing.T) {
@@ -385,7 +385,7 @@ func runFieldCategoryTests[T any, PT interface {
 // nil) that DeepEqual distinguishes but the wire does not.
 func runPBT[T any, PT interface {
 	*T
-	codec.Marshaler
+	codec.Codec
 }](t *testing.T, gen func(*rapid.T) T) {
 	t.Run("PBT/WireStability", func(t *testing.T) {
 		t.Parallel()
