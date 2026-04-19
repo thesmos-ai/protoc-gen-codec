@@ -4,15 +4,13 @@
 package integration_test
 
 import (
-	stderrors "errors"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
 	"pgregory.net/rapid"
 
-	"go.stealthscale.io/protoc-gen-codec/lang/go/codec"
+	"go.stealthscale.io/protoc-gen-codec/lang/go/codec/codectest"
 	"go.stealthscale.io/protoc-gen-codec/lang/go/integration"
 )
 
@@ -59,6 +57,16 @@ func samplePatchBlob() integration.Patch {
 	}
 }
 
+// patchAllFields populates every declared field of Patch so the
+// AllFieldsWireTypeMismatch helper observes all field tags.
+func patchAllFields() integration.Patch {
+	return integration.Patch{
+		Kind: integration.PatchKindText, VertexID: 7, Sequence: 1001,
+		Source:  integration.SourceInference,
+		TextVal: "t", IntVal: 42, Fixed64Val: 100, BlobRef: digest(0xAB),
+	}
+}
+
 func sampleEvidence() integration.Evidence {
 	return integration.Evidence{
 		Kind: integration.EvidenceDecision, Durability: integration.DurabilityHard,
@@ -72,6 +80,7 @@ func sampleEvidence() integration.Evidence {
 }
 
 func sampleMinimal() integration.Minimal { return integration.Minimal{ID: "min-001"} }
+
 func sampleNumericOnly() integration.NumericOnly {
 	h := int32(-7)
 	i := true
@@ -123,9 +132,7 @@ func sampleTree() integration.Tree {
 	}
 }
 
-func sampleInner() integration.Inner {
-	return integration.Inner{Label: "inner", Count: 42}
-}
+func sampleInner() integration.Inner { return integration.Inner{Label: "inner", Count: 42} }
 
 func sampleMapHolder() integration.MapHolder {
 	return integration.MapHolder{
@@ -134,57 +141,357 @@ func sampleMapHolder() integration.MapHolder {
 	}
 }
 
+func sampleTimeHolder() integration.TimeHolder {
+	return integration.TimeHolder{
+		CreatedAt: time.Unix(1713400000, 500_000_000).UTC(),
+		Timeout:   7*time.Second + 123*time.Nanosecond,
+	}
+}
+
+func sampleBytesPool() integration.BytesPool {
+	return integration.BytesPool{Payload: []byte{1, 2, 3}}
+}
+
 // ---------------------------------------------------------------------------
-// Standard codec suite per fixture
+// Rapid generators for PBT subtests
 // ---------------------------------------------------------------------------
+
+func genMapHolder(rt *rapid.T) integration.MapHolder {
+	nA := rapid.IntRange(0, 4).Draw(rt, "nA")
+	var attrs map[string]string
+	if nA > 0 {
+		attrs = make(map[string]string, nA)
+		for range nA {
+			attrs[rapid.String().Draw(rt, "k")] = rapid.String().Draw(rt, "v")
+		}
+	}
+	nC := rapid.IntRange(0, 4).Draw(rt, "nC")
+	var counts map[string]int64
+	if nC > 0 {
+		counts = make(map[string]int64, nC)
+		for range nC {
+			counts[rapid.String().Draw(rt, "ck")] = rapid.Int64().Draw(rt, "cv")
+		}
+	}
+	return integration.MapHolder{Attrs: attrs, Counts: counts}
+}
+
+func genNumericOnly(rt *rapid.T) integration.NumericOnly {
+	return integration.NumericOnly{
+		A: rapid.Uint32().Draw(rt, "a"),
+		B: rapid.Uint64().Draw(rt, "b"),
+		C: rapid.Int64().Draw(rt, "c"),
+		D: integration.Fixed64(rapid.Int64().Draw(rt, "d")),
+		E: rapid.Bool().Draw(rt, "e"),
+		F: rapid.Int32().Draw(rt, "f"),
+		G: rapid.Int64().Draw(rt, "g"),
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Per-fixture spec + Test/Bench/Fuzz
+// ---------------------------------------------------------------------------
+
+func ptrFixtureGrower() *integration.Fixture {
+	g := sampleFixture()
+	g.Tags = append(g.Tags, "delta", "epsilon")
+	return &g
+}
+
+var specFixture = codectest.Spec[integration.Fixture]{
+	Sample:              sampleFixture(),
+	Grower:              ptrFixtureGrower(),
+	ScalarVarintFields:  []int32{2, 3, 4, 5, 6, 7},                       // Kind, Status, Score, Sequence, Enabled, Timestamp
+	FixedLenBytesFields: []codectest.FixedLenField{{Num: 8, Length: 32}}, // Ref (Digest, fixed_len=32)
+}
 
 func TestFixture_Codec(t *testing.T) {
-	codec.RunTestSuite[integration.Fixture](t, sampleFixture())
+	codectest.RunSuite[integration.Fixture](t, specFixture)
+}
+func BenchmarkFixture_Codec(b *testing.B) {
+	codectest.RunBenchSuite[integration.Fixture](b, specFixture)
+}
+func FuzzFixture_Codec(f *testing.F) {
+	codectest.RunFuzzSuite[integration.Fixture](f, specFixture)
 }
 
-func TestPatch_Text_Codec(t *testing.T) {
-	codec.RunTestSuite[integration.Patch](t, samplePatchText())
+var specPatch = codectest.Spec[integration.Patch]{
+	Sample:              samplePatchText(),
+	Variants:            []integration.Patch{patchAllFields(), samplePatchFixed64(), samplePatchBlob()},
+	ScalarVarintFields:  []int32{1, 2, 3, 4, 6},                          // Kind, VertexID, Sequence, Source, IntVal
+	Fixed64Fields:       []int32{7},                                      // Fixed64Val (sfixed64)
+	FixedLenBytesFields: []codectest.FixedLenField{{Num: 8, Length: 32}}, // BlobRef (Digest, fixed_len=32)
 }
 
-func TestPatch_Fixed64_Codec(t *testing.T) {
-	codec.RunTestSuite[integration.Patch](t, samplePatchFixed64())
+func TestPatch_Codec(t *testing.T) {
+	codectest.RunSuite[integration.Patch](t, specPatch)
+}
+func BenchmarkPatch_Codec(b *testing.B) {
+	codectest.RunBenchSuite[integration.Patch](b, specPatch)
+}
+func FuzzPatch_Codec(f *testing.F) {
+	codectest.RunFuzzSuite[integration.Patch](f, specPatch)
 }
 
-func TestPatch_Blob_Codec(t *testing.T) {
-	codec.RunTestSuite[integration.Patch](t, samplePatchBlob())
+func ptrEvidenceGrower() *integration.Evidence {
+	g := sampleEvidence()
+	g.Jurisdictions = append(g.Jurisdictions, "JP", "AU")
+	return &g
+}
+
+var specEvidence = codectest.Spec[integration.Evidence]{
+	Sample:              sampleEvidence(),
+	Grower:              ptrEvidenceGrower(),
+	ScalarVarintFields:  []int32{1, 2, 3, 9},                              // Kind, Durability, Access, TimestampMs
+	FixedLenBytesFields: []codectest.FixedLenField{{Num: 10, Length: 32}}, // PayloadRef
 }
 
 func TestEvidence_Codec(t *testing.T) {
-	codec.RunTestSuite[integration.Evidence](t, sampleEvidence())
+	codectest.RunSuite[integration.Evidence](t, specEvidence)
+}
+func BenchmarkEvidence_Codec(b *testing.B) {
+	codectest.RunBenchSuite[integration.Evidence](b, specEvidence)
+}
+func FuzzEvidence_Codec(f *testing.F) {
+	codectest.RunFuzzSuite[integration.Evidence](f, specEvidence)
 }
 
+var specMinimal = codectest.Spec[integration.Minimal]{Sample: sampleMinimal()}
+
 func TestMinimal_Codec(t *testing.T) {
-	codec.RunTestSuite[integration.Minimal](t, sampleMinimal())
+	codectest.RunSuite[integration.Minimal](t, specMinimal)
+}
+func BenchmarkMinimal_Codec(b *testing.B) {
+	codectest.RunBenchSuite[integration.Minimal](b, specMinimal)
+}
+func FuzzMinimal_Codec(f *testing.F) {
+	codectest.RunFuzzSuite[integration.Minimal](f, specMinimal)
+}
+
+// numericWithFalseBool covers the `else` branch of `if *m.I { buf[n]=1 }`
+// by marshaling a NumericOnly whose optional *bool I is explicitly false.
+func numericWithFalseBool() integration.NumericOnly {
+	s := sampleNumericOnly()
+	f := false
+	s.I = &f
+	return s
+}
+
+var specNumericOnly = codectest.Spec[integration.NumericOnly]{
+	Sample:             sampleNumericOnly(),
+	Variants:           []integration.NumericOnly{numericWithFalseBool()},
+	Generator:          genNumericOnly,
+	ScalarVarintFields: []int32{1, 2, 3, 5, 6, 7, 8, 9}, // A,B,C,E,F,G,H,I (all varint-wire)
+	Fixed64Fields:      []int32{4, 10},                  // D (sfixed64), J (optional sfixed64)
 }
 
 func TestNumericOnly_Codec(t *testing.T) {
-	codec.RunTestSuite[integration.NumericOnly](t, sampleNumericOnly())
+	codectest.RunSuite[integration.NumericOnly](t, specNumericOnly)
+}
+func BenchmarkNumericOnly_Codec(b *testing.B) {
+	codectest.RunBenchSuite[integration.NumericOnly](b, specNumericOnly)
+}
+func FuzzNumericOnly_Codec(f *testing.F) {
+	codectest.RunFuzzSuite[integration.NumericOnly](f, specNumericOnly)
+}
+
+func ptrPackedZigzagGrower() *integration.PackedZigzag {
+	g := samplePackedZigzag()
+	g.Values32 = append(g.Values32, 7, 8, 9)
+	g.Values64 = append(g.Values64, 100, 200)
+	return &g
+}
+
+var specPackedZigzag = codectest.Spec[integration.PackedZigzag]{
+	Sample:       samplePackedZigzag(),
+	Grower:       ptrPackedZigzagGrower(),
+	PackedFields: []int32{1, 2},
+	// Packed repeated fields also accept single-value unpacked wire
+	// (proto3 duality). List them under ScalarVarintFields so the
+	// unpacked-alternate varint-decode error branch gets exercised.
+	ScalarVarintFields: []int32{1, 2},
 }
 
 func TestPackedZigzag_Codec(t *testing.T) {
-	codec.RunTestSuite[integration.PackedZigzag](t, samplePackedZigzag())
+	codectest.RunSuite[integration.PackedZigzag](t, specPackedZigzag)
+}
+func BenchmarkPackedZigzag_Codec(b *testing.B) {
+	codectest.RunBenchSuite[integration.PackedZigzag](b, specPackedZigzag)
+}
+func FuzzPackedZigzag_Codec(f *testing.F) {
+	codectest.RunFuzzSuite[integration.PackedZigzag](f, specPackedZigzag)
+}
+
+var specInner = codectest.Spec[integration.Inner]{
+	Sample:             sampleInner(),
+	ScalarVarintFields: []int32{2}, // Count
 }
 
 func TestInner_Codec(t *testing.T) {
-	codec.RunTestSuite[integration.Inner](t, sampleInner())
+	codectest.RunSuite[integration.Inner](t, specInner)
+}
+func BenchmarkInner_Codec(b *testing.B) {
+	codectest.RunBenchSuite[integration.Inner](b, specInner)
+}
+func FuzzInner_Codec(f *testing.F) {
+	codectest.RunFuzzSuite[integration.Inner](f, specInner)
+}
+
+func ptrContainerGrower() *integration.Container {
+	g := sampleContainer()
+	g.Children = append(g.Children,
+		&integration.Inner{Label: "c4", Count: 4},
+		&integration.Inner{Label: "c5", Count: 5})
+	return &g
+}
+
+func ptrContainerNilElement() *integration.Container {
+	s := integration.Container{
+		Name: "with-nil",
+		Children: []*integration.Inner{
+			{Label: "first", Count: 1},
+			nil,
+			{Label: "third", Count: 3},
+		},
+	}
+	return &s
+}
+
+var specContainer = codectest.Spec[integration.Container]{
+	Sample:                sampleContainer(),
+	Grower:                ptrContainerGrower(),
+	NilPointerSample:      ptrContainerNilElement(),
+	RepeatedMessageFields: []int32{3},
 }
 
 func TestContainer_Codec(t *testing.T) {
-	codec.RunTestSuite[integration.Container](t, sampleContainer())
+	codectest.RunSuite[integration.Container](t, specContainer)
+}
+func BenchmarkContainer_Codec(b *testing.B) {
+	codectest.RunBenchSuite[integration.Container](b, specContainer)
+}
+func FuzzContainer_Codec(f *testing.F) {
+	codectest.RunFuzzSuite[integration.Container](f, specContainer)
 }
 
-// TestContainer_SlabCorrectness guards the cross-message string slab
-// introduced in Phase 4.9. The top-level UnmarshalCodec allocates a single
-// string(data) slab that every nested UnmarshalCodecInternal call indexes
-// into with an absolute slabOff+i offset. A bug in the offset math would
-// either truncate a string, bleed neighbor bytes, or panic — this test
-// exercises strings at the outer level, in a singular nested message, and
-// across multiple repeated nested elements to catch any such regression.
+func ptrValueContainerGrower() *integration.ValueContainer {
+	g := sampleValueContainer()
+	g.Items = append(g.Items,
+		integration.Inner{Label: "fourth", Count: 4},
+		integration.Inner{Label: "fifth", Count: 5})
+	return &g
+}
+
+var specValueContainer = codectest.Spec[integration.ValueContainer]{
+	Sample:                sampleValueContainer(),
+	Grower:                ptrValueContainerGrower(),
+	RepeatedMessageFields: []int32{3},
+}
+
+func TestValueContainer_Codec(t *testing.T) {
+	codectest.RunSuite[integration.ValueContainer](t, specValueContainer)
+}
+func BenchmarkValueContainer_Codec(b *testing.B) {
+	codectest.RunBenchSuite[integration.ValueContainer](b, specValueContainer)
+}
+func FuzzValueContainer_Codec(f *testing.F) {
+	codectest.RunFuzzSuite[integration.ValueContainer](f, specValueContainer)
+}
+
+func ptrTreeGrower() *integration.Tree {
+	g := sampleTree()
+	g.Children = append(g.Children, &integration.Tree{Label: "c"})
+	return &g
+}
+
+func ptrTreeNilElement() *integration.Tree {
+	s := integration.Tree{
+		Label: "root",
+		Children: []*integration.Tree{
+			{Label: "a"},
+			nil,
+			{Label: "b"},
+		},
+	}
+	return &s
+}
+
+var specTree = codectest.Spec[integration.Tree]{
+	Sample:                sampleTree(),
+	Grower:                ptrTreeGrower(),
+	NilPointerSample:      ptrTreeNilElement(),
+	RepeatedMessageFields: []int32{2},
+}
+
+func TestTree_Codec(t *testing.T) {
+	codectest.RunSuite[integration.Tree](t, specTree)
+}
+func BenchmarkTree_Codec(b *testing.B) {
+	codectest.RunBenchSuite[integration.Tree](b, specTree)
+}
+func FuzzTree_Codec(f *testing.F) {
+	codectest.RunFuzzSuite[integration.Tree](f, specTree)
+}
+
+func ptrMapHolderGrower() *integration.MapHolder {
+	return &integration.MapHolder{
+		Attrs:  map[string]string{"region": "eu-west", "tier": "premium", "extra1": "a", "extra2": "b"},
+		Counts: map[string]int64{"retries": 3, "errors": 0, "hits": 99},
+	}
+}
+
+var specMapHolder = codectest.Spec[integration.MapHolder]{
+	Sample:    sampleMapHolder(),
+	Grower:    ptrMapHolderGrower(),
+	Generator: genMapHolder,
+	MapFields: []int32{1, 2},
+}
+
+func TestMapHolder_Codec(t *testing.T) {
+	codectest.RunSuite[integration.MapHolder](t, specMapHolder)
+}
+func BenchmarkMapHolder_Codec(b *testing.B) {
+	codectest.RunBenchSuite[integration.MapHolder](b, specMapHolder)
+}
+func FuzzMapHolder_Codec(f *testing.F) {
+	codectest.RunFuzzSuite[integration.MapHolder](f, specMapHolder)
+}
+
+var specTimeHolder = codectest.Spec[integration.TimeHolder]{
+	Sample:    sampleTimeHolder(),
+	WKTFields: []int32{1, 2},
+}
+
+func TestTimeHolder_Codec(t *testing.T) {
+	codectest.RunSuite[integration.TimeHolder](t, specTimeHolder)
+}
+func BenchmarkTimeHolder_Codec(b *testing.B) {
+	codectest.RunBenchSuite[integration.TimeHolder](b, specTimeHolder)
+}
+func FuzzTimeHolder_Codec(f *testing.F) {
+	codectest.RunFuzzSuite[integration.TimeHolder](f, specTimeHolder)
+}
+
+var specBytesPool = codectest.Spec[integration.BytesPool]{Sample: sampleBytesPool()}
+
+func TestBytesPool_Codec(t *testing.T) {
+	codectest.RunSuite[integration.BytesPool](t, specBytesPool)
+}
+func BenchmarkBytesPool_Codec(b *testing.B) {
+	codectest.RunBenchSuite[integration.BytesPool](b, specBytesPool)
+}
+func FuzzBytesPool_Codec(f *testing.F) {
+	codectest.RunFuzzSuite[integration.BytesPool](f, specBytesPool)
+}
+
+// ---------------------------------------------------------------------------
+// Type-specific behavioral tests (not captured by Spec)
+// ---------------------------------------------------------------------------
+
+// TestContainer_SlabCorrectness guards the cross-message string slab:
+// every nested UnmarshalCodecInternal call indexes into the top-level
+// slab via an absolute slabOff+i offset. Offset-math bugs would either
+// truncate a string, bleed neighbor bytes, or panic.
 func TestContainer_SlabCorrectness(t *testing.T) {
 	t.Parallel()
 	c := integration.Container{
@@ -212,202 +519,199 @@ func TestContainer_SlabCorrectness(t *testing.T) {
 	if len(got.Children) != 2 {
 		t.Fatalf("Children: want 2, got %d", len(got.Children))
 	}
-	if got.Children[0] == nil || got.Children[0].Label != "first" {
-		t.Errorf("Children[0].Label: want %q, got %+v", "first", got.Children[0])
-	}
-	if got.Children[1] == nil || got.Children[1].Label != "second" {
-		t.Errorf("Children[1].Label: want %q, got %+v", "second", got.Children[1])
+	if got.Children[0].Label != "first" || got.Children[1].Label != "second" {
+		t.Errorf("Children labels: want [first second], got [%s %s]",
+			got.Children[0].Label, got.Children[1].Label)
 	}
 }
 
-func TestValueContainer_Codec(t *testing.T) {
-	codec.RunTestSuite[integration.ValueContainer](t, sampleValueContainer())
-}
-
-func TestTree_Codec(t *testing.T) {
-	codec.RunTestSuite[integration.Tree](t, sampleTree())
-}
-
-func TestMapHolder_Codec(t *testing.T) {
-	codec.RunTestSuite[integration.MapHolder](t, sampleMapHolder())
-}
-
-func BenchmarkMapHolder_Codec(b *testing.B) {
-	codec.RunBenchSuite[integration.MapHolder](b, sampleMapHolder())
-}
-
-func FuzzMapHolder_Codec(f *testing.F) {
-	codec.RunFuzzRoundtrip[integration.MapHolder](f, sampleMapHolder(), integration.MapHolder{})
-}
-
-func TestMapHolder_Roundtrip_Empty(t *testing.T) {
+// TestNumericOnly_PointerPooling_AcrossResets verifies the seen-bitmap
+// pointer-pooling path: once H/I/J have been allocated by the first
+// unmarshal, subsequent unmarshals into the same receiver must reuse the
+// existing *int32 / *bool / *Fixed64 slots instead of allocating fresh.
+func TestNumericOnly_PointerPooling_AcrossResets(t *testing.T) {
 	t.Parallel()
-	codec.AssertRoundtrip[integration.MapHolder](t, integration.MapHolder{})
-}
-
-func TestMapHolder_Roundtrip_Populated(t *testing.T) {
-	t.Parallel()
-	codec.AssertRoundtrip[integration.MapHolder](t, integration.MapHolder{
-		Attrs:  map[string]string{"a": "1", "b": "2"},
-		Counts: map[string]int64{"x": 99},
-	})
-}
-
-func TestMapHolder_Roundtrip_PBT(t *testing.T) {
-	t.Parallel()
-	rapid.Check(t, func(t *rapid.T) {
-		nA := rapid.IntRange(0, 4).Draw(t, "nA")
-		var attrs map[string]string
-		if nA > 0 {
-			attrs = make(map[string]string, nA)
-			for range nA {
-				attrs[rapid.String().Draw(t, "k")] = rapid.String().Draw(t, "v")
-			}
-		}
-		nC := rapid.IntRange(0, 4).Draw(t, "nC")
-		var counts map[string]int64
-		if nC > 0 {
-			counts = make(map[string]int64, nC)
-			for range nC {
-				counts[rapid.String().Draw(t, "ck")] = rapid.Int64().Draw(t, "cv")
-			}
-		}
-		codec.AssertRoundtrip[integration.MapHolder](t, integration.MapHolder{
-			Attrs: attrs, Counts: counts,
-		})
-	})
-}
-
-func TestMapHolder_KeepCapacity_Reuse(t *testing.T) {
-	t.Parallel()
-	// First unmarshal allocates the map bucket storage.
-	first := sampleMapHolder()
-	buf, _ := first.MarshalCodec()
-	var receiver integration.MapHolder
-	if err := receiver.UnmarshalCodec(buf); err != nil {
+	s := sampleNumericOnly()
+	data, _ := s.MarshalCodec()
+	var got integration.NumericOnly
+	if err := got.UnmarshalCodec(data); err != nil {
 		t.Fatal(err)
 	}
-	if receiver.Counts == nil {
-		t.Fatal("expected Counts to be non-nil after first unmarshal")
-	}
-	if receiver.Attrs == nil {
-		t.Fatal("expected Attrs to be non-nil after first unmarshal")
-	}
-	// Capture map identities so we can verify clear() preserves them.
-	countsBefore := receiver.Counts
-	attrsBefore := receiver.Attrs
-	// Reset — Phase 4.10 always clears in place; both maps keep their backing
-	// storage regardless of the (now-deprecated) keep_capacity annotation.
-	receiver.ResetCodec()
-	if receiver.Counts == nil {
-		t.Fatal("Counts should be non-nil after ResetCodec (Phase 4.10 clear()-in-place)")
-	}
-	if len(receiver.Counts) != 0 {
-		t.Fatalf("Counts should be empty after Reset, got len=%d", len(receiver.Counts))
-	}
-	if receiver.Attrs == nil {
-		t.Fatal("Attrs should be non-nil after ResetCodec (Phase 4.10 clear()-in-place)")
-	}
-	if len(receiver.Attrs) != 0 {
-		t.Fatalf("Attrs should be empty after Reset, got len=%d", len(receiver.Attrs))
-	}
-	// Same map header (i.e. same backing buckets) — clear() preserves identity.
-	if reflect.ValueOf(receiver.Counts).Pointer() != reflect.ValueOf(countsBefore).Pointer() {
-		t.Errorf("Counts map identity changed after Reset (clear() should reuse buckets)")
-	}
-	if reflect.ValueOf(receiver.Attrs).Pointer() != reflect.ValueOf(attrsBefore).Pointer() {
-		t.Errorf("Attrs map identity changed after Reset (clear() should reuse buckets)")
-	}
-}
-
-func TestNumericOnly_Zigzag_NegativeValues(t *testing.T) {
-	t.Parallel()
-	n := integration.NumericOnly{F: -42, G: -9_000_000_000}
-	codec.AssertRoundtrip[integration.NumericOnly](t, n)
-}
-
-func TestNumericOnly_Optional_Unset(t *testing.T) {
-	t.Parallel()
-	n := integration.NumericOnly{A: 1} // H is nil
-	codec.AssertRoundtrip[integration.NumericOnly](t, n)
-}
-
-func TestNumericOnly_Optional_SetToZero(t *testing.T) {
-	t.Parallel()
-	zero := int32(0)
-	n := integration.NumericOnly{A: 1, H: &zero}
-	codec.AssertRoundtrip[integration.NumericOnly](t, n)
-}
-
-func TestNumericOnly_Optional_SetToValue(t *testing.T) {
-	t.Parallel()
-	v := int32(-42)
-	n := integration.NumericOnly{A: 1, H: &v}
-	codec.AssertRoundtrip[integration.NumericOnly](t, n)
-}
-
-func TestNumericOnly_OptionalBool_Unset(t *testing.T) {
-	t.Parallel()
-	codec.AssertRoundtrip[integration.NumericOnly](t, integration.NumericOnly{})
-}
-
-func TestNumericOnly_OptionalBool_SetFalse(t *testing.T) {
-	t.Parallel()
-	f := false
-	codec.AssertRoundtrip[integration.NumericOnly](t, integration.NumericOnly{I: &f})
-}
-
-func TestNumericOnly_OptionalBool_SetTrue(t *testing.T) {
-	t.Parallel()
-	v := true
-	codec.AssertRoundtrip[integration.NumericOnly](t, integration.NumericOnly{I: &v})
-}
-
-func TestNumericOnly_OptionalFixed64_SetMin(t *testing.T) {
-	t.Parallel()
-	v := integration.Fixed64(-1 << 62)
-	codec.AssertRoundtrip[integration.NumericOnly](t, integration.NumericOnly{J: &v})
-}
-
-func TestNumericOnly_OptionalFixed64_Unset(t *testing.T) {
-	t.Parallel()
-	codec.AssertRoundtrip[integration.NumericOnly](t, integration.NumericOnly{})
-}
-
-func TestNumericOnly_Zigzag_PBT(t *testing.T) {
-	t.Parallel()
-	rapid.Check(t, func(t *rapid.T) {
-		n := integration.NumericOnly{
-			F: rapid.Int32().Draw(t, "f"),
-			G: rapid.Int64().Draw(t, "g"),
+	primedH, primedI, primedJ := got.H, got.I, got.J
+	for range 5 {
+		if err := got.UnmarshalCodec(data); err != nil {
+			t.Fatal(err)
 		}
-		codec.AssertRoundtrip[integration.NumericOnly](t, n)
-	})
+		if got.H != primedH || got.I != primedI || got.J != primedJ {
+			t.Errorf("pointer slot reallocated across reset")
+		}
+	}
+}
+
+// TestBytesPool_KeepCapacity_ReusesBackingArray verifies the Payload
+// backing array is reused across unmarshals into a primed receiver.
+func TestBytesPool_KeepCapacity_ReusesBackingArray(t *testing.T) {
+	t.Parallel()
+	s := integration.BytesPool{Payload: []byte{1, 2, 3, 4, 5, 6, 7, 8}}
+	data, _ := s.MarshalCodec()
+	var got integration.BytesPool
+	if err := got.UnmarshalCodec(data); err != nil {
+		t.Fatal(err)
+	}
+	firstCap := cap(got.Payload)
+	for range 5 {
+		if err := got.UnmarshalCodec(data); err != nil {
+			t.Fatal(err)
+		}
+		if cap(got.Payload) != firstCap {
+			t.Errorf("backing array re-allocated: firstCap=%d currentCap=%d", firstCap, cap(got.Payload))
+		}
+	}
+}
+
+// TestMapHolder_KeepCapacity_Reuse verifies the map bucket storage is
+// preserved by ResetCodec (via clear()) so re-unmarshal into the same
+// receiver reuses buckets.
+func TestMapHolder_KeepCapacity_Reuse(t *testing.T) {
+	t.Parallel()
+	first := sampleMapHolder()
+	buf, _ := first.MarshalCodec()
+	var m integration.MapHolder
+	if err := m.UnmarshalCodec(buf); err != nil {
+		t.Fatal(err)
+	}
+	mCopy := reflect.ValueOf(m.Attrs)
+	addr1 := mCopy.Pointer()
+	m.ResetCodec()
+	if err := m.UnmarshalCodec(buf); err != nil {
+		t.Fatal(err)
+	}
+	addr2 := reflect.ValueOf(m.Attrs).Pointer()
+	if addr1 != addr2 {
+		t.Errorf("map bucket storage reallocated: first=%x second=%x", addr1, addr2)
+	}
+}
+
+// TestContainer_PreScanCapacityHint verifies the cold-path pre-scan
+// sizes the Children slice correctly based on wire element count.
+func TestContainer_PreScanCapacityHint(t *testing.T) {
+	t.Parallel()
+	s := integration.Container{
+		Name: "prescan-test",
+		Children: func() []*integration.Inner {
+			out := make([]*integration.Inner, 20)
+			for i := range out {
+				out[i] = &integration.Inner{Label: "child", Count: int64(i)}
+			}
+			return out
+		}(),
+	}
+	data, _ := s.MarshalCodec()
+	var got integration.Container
+	if err := got.UnmarshalCodec(data); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Children) != 20 {
+		t.Errorf("Children: want 20, got %d", len(got.Children))
+	}
+	if cap(got.Children) != 20 {
+		t.Errorf("Children cap: want 20 (pre-scan sized), got %d", cap(got.Children))
+	}
 }
 
 // ---------------------------------------------------------------------------
-// Benchmarks
+// Pooled-unmarshal benchmarks (warm-path, reused receiver)
+// Not captured by Spec — shape-specific, measure steady-state allocs.
 // ---------------------------------------------------------------------------
 
-func BenchmarkFixture_Codec(b *testing.B) {
-	codec.RunBenchSuite[integration.Fixture](b, sampleFixture())
+func BenchmarkNumericOnly_PooledUnmarshal(b *testing.B) {
+	s := sampleNumericOnly()
+	data, _ := s.MarshalCodec()
+	var got integration.NumericOnly
+	if err := got.UnmarshalCodec(data); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		_ = got.UnmarshalCodec(data)
+	}
 }
 
-func BenchmarkPatch_Codec(b *testing.B) {
-	codec.RunBenchSuite[integration.Patch](b, samplePatchText())
+func BenchmarkContainer_PooledUnmarshal(b *testing.B) {
+	s := sampleContainer()
+	data, _ := s.MarshalCodec()
+	var got integration.Container
+	if err := got.UnmarshalCodec(data); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		_ = got.UnmarshalCodec(data)
+	}
 }
 
-func BenchmarkEvidence_Codec(b *testing.B) {
-	codec.RunBenchSuite[integration.Evidence](b, sampleEvidence())
+func BenchmarkTree_PooledUnmarshal(b *testing.B) {
+	s := sampleTree()
+	data, _ := s.MarshalCodec()
+	var got integration.Tree
+	if err := got.UnmarshalCodec(data); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		_ = got.UnmarshalCodec(data)
+	}
 }
 
-func BenchmarkNumericOnly_Codec(b *testing.B) {
-	codec.RunBenchSuite[integration.NumericOnly](b, sampleNumericOnly())
+func BenchmarkValueContainer_PooledUnmarshal(b *testing.B) {
+	s := sampleValueContainer()
+	data, _ := s.MarshalCodec()
+	var got integration.ValueContainer
+	if err := got.UnmarshalCodec(data); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		_ = got.UnmarshalCodec(data)
+	}
 }
 
-// Dedicated MarshalCodec benches (RunBenchSuite only covers MarshalTo).
-// Used to measure the cost of trampolining MarshalCodec through a generic
-// codec.Marshal helper (coverage-refactor experiment).
+func BenchmarkPackedZigzag_PooledUnmarshal(b *testing.B) {
+	s := samplePackedZigzag()
+	data, _ := s.MarshalCodec()
+	var got integration.PackedZigzag
+	if err := got.UnmarshalCodec(data); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		_ = got.UnmarshalCodec(data)
+	}
+}
+
+func BenchmarkMapHolder_PooledUnmarshal(b *testing.B) {
+	s := sampleMapHolder()
+	data, _ := s.MarshalCodec()
+	var got integration.MapHolder
+	if err := got.UnmarshalCodec(data); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		_ = got.UnmarshalCodec(data)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// MarshalCodec allocation-path benchmarks
+// ---------------------------------------------------------------------------
+
 func BenchmarkMinimal_MarshalCodec(b *testing.B) {
 	s := sampleMinimal()
 	b.ReportAllocs()
@@ -441,1428 +745,5 @@ func BenchmarkContainer_MarshalCodec(b *testing.B) {
 	b.ResetTimer()
 	for b.Loop() {
 		_, _ = s.MarshalCodec()
-	}
-}
-
-// BenchmarkNumericOnly_PooledUnmarshal measures the warm-path, pooled-receiver
-// cost of UnmarshalCodec. After the first iteration primes H/I/J pointers,
-// subsequent iterations reuse those *T slots via the seenOptional-bitmap
-// pooling path, driving steady-state allocs to zero.
-func BenchmarkNumericOnly_PooledUnmarshal(b *testing.B) {
-	s := sampleNumericOnly()
-	data, _ := s.MarshalCodec()
-	var got integration.NumericOnly
-	// Prime: first unmarshal allocates the three optional pointers so the
-	// measured loop exercises the pooled-reuse path only.
-	if err := got.UnmarshalCodec(data); err != nil {
-		b.Fatal(err)
-	}
-	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
-		_ = got.UnmarshalCodec(data)
-	}
-}
-
-func TestNumericOnly_PointerPooling_AcrossResets(t *testing.T) {
-	t.Parallel()
-	s := sampleNumericOnly() // has H, I, J set
-	buf, _ := s.MarshalCodec()
-
-	var receiver integration.NumericOnly
-	// First unmarshal allocates H, I, J pointers.
-	if err := receiver.UnmarshalCodec(buf); err != nil {
-		t.Fatal(err)
-	}
-	hPtr := receiver.H
-	iPtr := receiver.I
-	jPtr := receiver.J
-	if hPtr == nil || iPtr == nil || jPtr == nil {
-		t.Fatal("expected H, I, J non-nil after first unmarshal")
-	}
-
-	// Second unmarshal should reuse the same *T heap slots.
-	if err := receiver.UnmarshalCodec(buf); err != nil {
-		t.Fatal(err)
-	}
-	if receiver.H != hPtr {
-		t.Errorf("H pointer changed: pooling failed (got %p, want %p)", receiver.H, hPtr)
-	}
-	if receiver.I != iPtr {
-		t.Errorf("I pointer changed: pooling failed (got %p, want %p)", receiver.I, iPtr)
-	}
-	if receiver.J != jPtr {
-		t.Errorf("J pointer changed: pooling failed (got %p, want %p)", receiver.J, jPtr)
-	}
-}
-
-func TestNumericOnly_PointerPooling_AbsentFieldsNilOut(t *testing.T) {
-	t.Parallel()
-	// Prime the receiver with all optional fields set.
-	s := sampleNumericOnly()
-	buf, _ := s.MarshalCodec()
-	var receiver integration.NumericOnly
-	if err := receiver.UnmarshalCodec(buf); err != nil {
-		t.Fatal(err)
-	}
-	if receiver.H == nil {
-		t.Fatal("expected H non-nil after first unmarshal")
-	}
-
-	// Marshal a NumericOnly WITHOUT H/I/J set.
-	minimal := integration.NumericOnly{A: 99}
-	buf, _ = minimal.MarshalCodec()
-
-	// Unmarshal into the primed receiver.
-	if err := receiver.UnmarshalCodec(buf); err != nil {
-		t.Fatal(err)
-	}
-
-	// Optional fields absent from the wire must be nilled out.
-	if receiver.H != nil {
-		t.Errorf("H should be nil after unmarshaling a message without it, got %v", *receiver.H)
-	}
-	if receiver.I != nil {
-		t.Errorf("I should be nil, got %v", *receiver.I)
-	}
-	if receiver.J != nil {
-		t.Errorf("J should be nil, got %v", *receiver.J)
-	}
-	if receiver.A != 99 {
-		t.Errorf("A should be 99, got %d", receiver.A)
-	}
-}
-
-func BenchmarkPackedZigzag_Codec(b *testing.B) {
-	codec.RunBenchSuite[integration.PackedZigzag](b, samplePackedZigzag())
-}
-
-func BenchmarkContainer_Codec(b *testing.B) {
-	codec.RunBenchSuite[integration.Container](b, sampleContainer())
-}
-
-func BenchmarkValueContainer_Codec(b *testing.B) {
-	codec.RunBenchSuite[integration.ValueContainer](b, sampleValueContainer())
-}
-
-func BenchmarkTree_Codec(b *testing.B) {
-	codec.RunBenchSuite[integration.Tree](b, sampleTree())
-}
-
-// ---------------------------------------------------------------------------
-// Fuzz targets
-// ---------------------------------------------------------------------------
-
-func FuzzFixture_Codec(f *testing.F) {
-	codec.RunFuzzRoundtrip[integration.Fixture](f, sampleFixture())
-}
-
-func FuzzPatch_Codec(f *testing.F) {
-	codec.RunFuzzRoundtrip[integration.Patch](f, samplePatchText(), samplePatchFixed64(), samplePatchBlob())
-}
-
-func FuzzEvidence_Codec(f *testing.F) {
-	codec.RunFuzzRoundtrip[integration.Evidence](f, sampleEvidence())
-}
-
-func FuzzNumericOnly_Codec(f *testing.F) {
-	codec.RunFuzzRoundtrip[integration.NumericOnly](f, sampleNumericOnly())
-}
-
-func FuzzPackedZigzag_Codec(f *testing.F) {
-	codec.RunFuzzRoundtrip[integration.PackedZigzag](f, samplePackedZigzag(), integration.PackedZigzag{})
-}
-
-func FuzzContainer_Codec(f *testing.F) {
-	codec.RunFuzzRoundtrip[integration.Container](f, sampleContainer(), integration.Container{}, integration.Container{Name: "empty"})
-}
-
-func FuzzValueContainer_Codec(f *testing.F) {
-	codec.RunFuzzRoundtrip[integration.ValueContainer](f, sampleValueContainer(), integration.ValueContainer{})
-}
-
-func FuzzTree_Codec(f *testing.F) {
-	codec.RunFuzzRoundtrip[integration.Tree](f, sampleTree(), integration.Tree{})
-}
-
-func TestTree_Roundtrip_PBT(t *testing.T) {
-	t.Parallel()
-	rapid.Check(t, func(t *rapid.T) {
-		// Bounded-depth recursive tree generator.
-		var gen func(depth int) *integration.Tree
-		gen = func(depth int) *integration.Tree {
-			n := integration.Tree{Label: rapid.String().Draw(t, "l")}
-			if depth < 3 {
-				nc := rapid.IntRange(0, 2).Draw(t, "nc")
-				for range nc {
-					n.Children = append(n.Children, gen(depth+1))
-				}
-			}
-			return &n
-		}
-		codec.AssertRoundtrip[integration.Tree](t, *gen(0))
-	})
-}
-
-func TestContainer_Roundtrip_WithInner(t *testing.T) {
-	t.Parallel()
-	codec.AssertRoundtrip[integration.Container](t, integration.Container{
-		Name:  "alpha",
-		Inner: &integration.Inner{Label: "x", Count: 7},
-	})
-}
-
-func TestContainer_Roundtrip_InnerNil(t *testing.T) {
-	t.Parallel()
-	codec.AssertRoundtrip[integration.Container](t, integration.Container{Name: "alpha"})
-}
-
-func TestContainer_Roundtrip_RepeatedChildren(t *testing.T) {
-	t.Parallel()
-	codec.AssertRoundtrip[integration.Container](t, integration.Container{
-		Name: "alpha",
-		Children: []*integration.Inner{
-			{Label: "x"}, {Label: "y", Count: 99},
-		},
-	})
-}
-
-func TestContainer_Roundtrip_PBT(t *testing.T) {
-	t.Parallel()
-	rapid.Check(t, func(t *rapid.T) {
-		nChildren := rapid.IntRange(0, 3).Draw(t, "n")
-		var children []*integration.Inner
-		if nChildren > 0 {
-			children = make([]*integration.Inner, nChildren)
-			for i := range nChildren {
-				children[i] = &integration.Inner{
-					Label: rapid.String().Draw(t, "l"),
-					Count: rapid.Int64().Draw(t, "c"),
-				}
-			}
-		}
-		// Singular *Inner: when present, force at least one non-default field.
-		// Phase 4.10 normalizes proto3 "all-defaults message" to absent on the
-		// wire (SizeCodec==0 ⇒ skip), so a present-but-empty &Inner{} would
-		// roundtrip back as nil and trip DeepEqual.
-		var inner *integration.Inner
-		if rapid.Bool().Draw(t, "hasInner") {
-			label := rapid.String().Draw(t, "il")
-			count := rapid.Int64().Draw(t, "ic")
-			if label == "" && count == 0 {
-				count = 1 // ensure non-default content
-			}
-			inner = &integration.Inner{Label: label, Count: count}
-		}
-		codec.AssertRoundtrip[integration.Container](t, integration.Container{
-			Name:     rapid.String().Draw(t, "name"),
-			Inner:    inner,
-			Children: children,
-		})
-	})
-}
-
-// ---------------------------------------------------------------------------
-// Property-based tests (draws random inputs)
-// ---------------------------------------------------------------------------
-
-func TestFixture_Roundtrip_PBT(t *testing.T) {
-	t.Parallel()
-	rapid.Check(t, func(t *rapid.T) {
-		var ref integration.Digest
-		for i := range ref {
-			ref[i] = rapid.Byte().Draw(t, "b")
-		}
-		nTags := rapid.IntRange(0, 5).Draw(t, "nTags")
-		var tags []string
-		if nTags > 0 {
-			tags = make([]string, nTags)
-			for i := range tags {
-				tags[i] = rapid.String().Draw(t, "tag")
-			}
-		}
-		nData := rapid.IntRange(0, 32).Draw(t, "nData")
-		var data []byte
-		if nData > 0 {
-			data = make([]byte, nData)
-			for i := range data {
-				data[i] = rapid.Byte().Draw(t, "db")
-			}
-		}
-		f := integration.Fixture{
-			ID: rapid.String().Draw(t, "id"), Kind: rapid.Uint32().Draw(t, "kind"),
-			Status: integration.Status(rapid.Uint8Range(0, 3).Draw(t, "status")),
-			Score:  rapid.Int64().Draw(t, "score"), Sequence: rapid.Uint64().Draw(t, "seq"),
-			Enabled: rapid.Bool().Draw(t, "enabled"), Timestamp: rapid.Int64().Draw(t, "ts"),
-			Ref: ref, Tags: tags, Data: data,
-		}
-		codec.AssertRoundtrip[integration.Fixture](t, f)
-	})
-}
-
-func TestPatch_Roundtrip_PBT(t *testing.T) {
-	t.Parallel()
-	rapid.Check(t, func(t *rapid.T) {
-		var d integration.Digest
-		for i := range d {
-			d[i] = rapid.Byte().Draw(t, "b")
-		}
-		p := integration.Patch{
-			Kind:     integration.PatchKind(rapid.Uint8Range(0, 4).Draw(t, "kind")),
-			VertexID: rapid.Uint32().Draw(t, "vid"), Sequence: rapid.Uint64().Draw(t, "seq"),
-			Source:  integration.Source(rapid.Uint8Range(0, 3).Draw(t, "src")),
-			TextVal: rapid.String().Draw(t, "tv"), IntVal: rapid.Int64().Draw(t, "iv"),
-			Fixed64Val: integration.Fixed64(rapid.Int64().Draw(t, "fv")), BlobRef: d,
-		}
-		codec.AssertRoundtrip[integration.Patch](t, p)
-	})
-}
-
-func TestEvidence_Roundtrip_PBT(t *testing.T) {
-	t.Parallel()
-	rapid.Check(t, func(t *rapid.T) {
-		var d integration.Digest
-		for i := range d {
-			d[i] = rapid.Byte().Draw(t, "b")
-		}
-		nJ := rapid.IntRange(0, 5).Draw(t, "nJ")
-		var js []string
-		if nJ > 0 {
-			js = make([]string, nJ)
-			for i := range js {
-				js[i] = rapid.String().Draw(t, "j")
-			}
-		}
-		e := integration.Evidence{
-			Kind:       integration.EvidenceKind(rapid.Uint8Range(0, 3).Draw(t, "kind")),
-			Durability: integration.Durability(rapid.Uint8Range(0, 1).Draw(t, "dur")),
-			Access:     integration.AccessTier(rapid.Uint8Range(0, 4).Draw(t, "acc")),
-			TraceID:    rapid.String().Draw(t, "tid"), FederationTraceID: rapid.String().Draw(t, "ftid"),
-			JobID: rapid.String().Draw(t, "jid"), ThreadID: rapid.String().Draw(t, "thid"),
-			TenantID: rapid.String().Draw(t, "tnid"), TimestampMs: rapid.Int64().Draw(t, "ts"),
-			PayloadRef: d, Jurisdictions: js,
-			RetentionPolicyID: rapid.String().Draw(t, "rpid"),
-		}
-		codec.AssertRoundtrip[integration.Evidence](t, e)
-	})
-}
-
-func TestNumericOnly_Roundtrip_PBT(t *testing.T) {
-	t.Parallel()
-	rapid.Check(t, func(t *rapid.T) {
-		n := integration.NumericOnly{
-			A: rapid.Uint32().Draw(t, "a"), B: rapid.Uint64().Draw(t, "b"),
-			C: rapid.Int64().Draw(t, "c"), D: integration.Fixed64(rapid.Int64().Draw(t, "d")),
-			E: rapid.Bool().Draw(t, "e"),
-		}
-		codec.AssertRoundtrip[integration.NumericOnly](t, n)
-	})
-}
-
-func TestPackedZigzag_Roundtrip_PBT(t *testing.T) {
-	t.Parallel()
-	rapid.Check(t, func(t *rapid.T) {
-		n32 := rapid.IntRange(0, 8).Draw(t, "n32")
-		var v32 []int32
-		if n32 > 0 {
-			v32 = make([]int32, n32)
-			for i := range v32 {
-				v32[i] = rapid.Int32().Draw(t, "v32")
-			}
-		}
-		n64 := rapid.IntRange(0, 8).Draw(t, "n64")
-		var v64 []int64
-		if n64 > 0 {
-			v64 = make([]int64, n64)
-			for i := range v64 {
-				v64[i] = rapid.Int64().Draw(t, "v64")
-			}
-		}
-		codec.AssertRoundtrip[integration.PackedZigzag](t, integration.PackedZigzag{
-			Values32: v32,
-			Values64: v64,
-		})
-	})
-}
-
-// ---------------------------------------------------------------------------
-// Targeted cases
-// ---------------------------------------------------------------------------
-
-func TestPatch_NegativeFixed64(t *testing.T) {
-	t.Parallel()
-	p := integration.Patch{Kind: integration.PatchKindFixed64, Fixed64Val: -85_000_000}
-	codec.AssertRoundtrip[integration.Patch](t, p)
-}
-
-func TestEvidence_LongStrings(t *testing.T) {
-	t.Parallel()
-	e := sampleEvidence()
-	e.TraceID = strings.Repeat("a", 4096)
-	e.JobID = strings.Repeat("b", 8192)
-	codec.AssertRoundtrip[integration.Evidence](t, e)
-}
-
-func TestFixture_Roundtrip_NilSlicesStayNil(t *testing.T) {
-	t.Parallel()
-	// Regression: a sparse Fixture (only Timestamp set, Tags/Data nil) must
-	// roundtrip back to a value that reflect.DeepEqual's equal to itself.
-	// UnmarshalCodec must not materialize empty-but-non-nil slices from a
-	// wire stream that carried no length-delimited records for those fields.
-	f := integration.Fixture{Timestamp: 1}
-	codec.AssertRoundtrip[integration.Fixture](t, f)
-}
-
-func TestFixture_Roundtrip_TagsWithEmptyString(t *testing.T) {
-	t.Parallel()
-	// Regression: empty strings inside a repeated string field encode as
-	// zero-length LEN records. A decoder that treats "no bytes" as "no
-	// element" would silently shorten the slice on unmarshal.
-	f := integration.Fixture{Tags: []string{"a", "", "c"}}
-	codec.AssertRoundtrip[integration.Fixture](t, f)
-}
-
-// ---------------------------------------------------------------------------
-// Wire size
-// ---------------------------------------------------------------------------
-
-func TestEvidence_WireSize_SmallerThanJSON(t *testing.T) {
-	t.Parallel()
-	codec.AssertWireSmallerThanJSON[integration.Evidence](t, sampleEvidence())
-}
-
-// ---------------------------------------------------------------------------
-// Error paths
-// ---------------------------------------------------------------------------
-
-func TestFixture_FixedLen_Reject31(t *testing.T) {
-	t.Parallel()
-	data := append([]byte{0x42, 31}, make([]byte, 31)...)
-	var f integration.Fixture
-	if err := f.UnmarshalCodec(data); !stderrors.Is(err, codec.ErrInvalidLength) {
-		t.Fatalf("expected ErrInvalidLength, got %v", err)
-	}
-}
-
-func TestFixture_WrongWireType(t *testing.T) {
-	t.Parallel()
-	data := []byte{0x09, 0, 0, 0, 0, 0, 0, 0, 0}
-	var f integration.Fixture
-	if err := f.UnmarshalCodec(data); !stderrors.Is(err, codec.ErrInvalidWireType) {
-		t.Fatalf("expected ErrInvalidWireType, got %v", err)
-	}
-}
-
-func TestFixture_WrongWireType_IncludesFieldNameAndNumber(t *testing.T) {
-	t.Parallel()
-	// field 9 (Tags, repeated string, wire type 2) sent as varint
-	data := []byte{0x48, 0x00}
-	var f integration.Fixture
-	err := f.UnmarshalCodec(data)
-	if !stderrors.Is(err, codec.ErrInvalidWireType) {
-		t.Fatalf("expected ErrInvalidWireType, got %v", err)
-	}
-	msg := err.Error()
-	if !strings.Contains(msg, "Tags") || !strings.Contains(msg, "(9)") {
-		t.Fatalf("error should include field name Tags and number (9), got: %v", err)
-	}
-}
-
-func TestFixture_MarshalToCodec_ShortBuffer(t *testing.T) {
-	t.Parallel()
-	f := sampleFixture()
-	size := f.SizeCodec()
-	short := make([]byte, size-1)
-	_, err := f.MarshalToCodec(short)
-	if !stderrors.Is(err, codec.ErrBufferTooShort) {
-		t.Fatalf("expected ErrBufferTooShort, got %v", err)
-	}
-}
-
-func TestFixture_InvalidTag(t *testing.T) {
-	t.Parallel()
-	data := []byte{0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
-	var f integration.Fixture
-	if err := f.UnmarshalCodec(data); !stderrors.Is(err, codec.ErrInvalidTag) {
-		t.Fatalf("expected ErrInvalidTag, got %v", err)
-	}
-}
-
-func TestFixture_UnknownField(t *testing.T) {
-	t.Parallel()
-	f := sampleFixture()
-	buf, _ := f.MarshalCodec()
-	buf = append(buf, 0xf8, 0x06, 42)
-	var got integration.Fixture
-	if err := got.UnmarshalCodec(buf); err != nil {
-		t.Fatalf("should skip unknown: %v", err)
-	}
-	if got.ID != f.ID {
-		t.Fatal("known fields corrupted")
-	}
-}
-
-func TestPatch_BlobRef_FixedLen(t *testing.T) {
-	t.Parallel()
-	data := append([]byte{0x42, 16}, make([]byte, 16)...)
-	var p integration.Patch
-	if err := p.UnmarshalCodec(data); !stderrors.Is(err, codec.ErrInvalidLength) {
-		t.Fatalf("expected ErrInvalidLength, got %v", err)
-	}
-}
-
-func TestEvidence_PayloadRef_FixedLen(t *testing.T) {
-	t.Parallel()
-	data := []byte{0x52, 0}
-	var e integration.Evidence
-	if err := e.UnmarshalCodec(data); !stderrors.Is(err, codec.ErrInvalidLength) {
-		t.Fatalf("expected ErrInvalidLength, got %v", err)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Security: zip bomb / DoS resistance
-// ---------------------------------------------------------------------------
-
-func TestFixture_ZipBomb_InflatedString(t *testing.T) {
-	t.Parallel()
-	data := []byte{0x0a, 0xff, 0xff, 0xff, 0xff, 0x0f}
-	var f integration.Fixture
-	if err := f.UnmarshalCodec(data); err == nil {
-		t.Fatal("should reject inflated length prefix")
-	}
-}
-
-func TestFixture_ZipBomb_InflatedBytes(t *testing.T) {
-	t.Parallel()
-	data := []byte{0x52, 0x80, 0x80, 0x80, 0x80, 0x08}
-	var f integration.Fixture
-	if err := f.UnmarshalCodec(data); err == nil {
-		t.Fatal("should reject inflated length prefix")
-	}
-}
-
-func TestEvidence_ZipBomb_SmartSlab(t *testing.T) {
-	t.Parallel()
-	data := []byte{0x22, 0xff, 0xff, 0xff, 0xff, 0x0f}
-	var e integration.Evidence
-	if err := e.UnmarshalCodec(data); err == nil {
-		t.Fatal("should reject inflated string in smart slab")
-	}
-}
-
-func TestNumericOnly_ZipBomb_PackedVarint(t *testing.T) {
-	t.Parallel()
-	data := []byte{0x0a, 0x80, 0x80, 0x80, 0x80, 0x04}
-	var n integration.NumericOnly
-	if err := n.UnmarshalCodec(data); err == nil {
-		t.Fatal("should reject inflated packed length")
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Pooled reuse
-// ---------------------------------------------------------------------------
-
-func TestFixture_PooledReuse(t *testing.T) {
-	// Verifies repeated slice is reset (not appended to) on unmarshal into a used receiver.
-	t.Parallel()
-	f := sampleFixture()
-	buf, _ := f.MarshalCodec()
-	old := integration.Fixture{ID: "old", Tags: []string{"x", "y", "z", "w", "q"}}
-	if err := old.UnmarshalCodec(buf); err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(f, old) {
-		t.Fatalf("pooled reuse mismatch:\n  want: %+v\n  got:  %+v", f, old)
-	}
-}
-
-func TestFixture_UnmarshalCodec_ClearsStalePopulatedScalars(t *testing.T) {
-	t.Parallel()
-	// Marshal a Fixture with only ID set; unmarshal into a populated receiver.
-	// Expect the receiver's unset scalar fields (Kind, Score, etc.) to be zero.
-	minimal := integration.Fixture{ID: "new"}
-	buf, err := minimal.MarshalCodec()
-	if err != nil {
-		t.Fatal(err)
-	}
-	receiver := integration.Fixture{
-		ID: "stale", Kind: 99, Score: 7, Sequence: 5, Enabled: true,
-		Timestamp: 123, Status: integration.StatusRunning,
-	}
-	if err := receiver.UnmarshalCodec(buf); err != nil {
-		t.Fatal(err)
-	}
-	if receiver.Kind != 0 || receiver.Score != 0 || receiver.Sequence != 0 ||
-		receiver.Enabled || receiver.Timestamp != 0 || receiver.Status != 0 {
-		t.Fatalf("stale scalars survived unmarshal: %+v", receiver)
-	}
-	if receiver.ID != "new" {
-		t.Fatalf("new value not applied: ID=%q", receiver.ID)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Well-known types: Timestamp + Duration
-// ---------------------------------------------------------------------------
-
-func sampleTimeHolder() integration.TimeHolder {
-	return integration.TimeHolder{
-		CreatedAt: time.Unix(1713400000, 500_000_000).UTC(),
-		Timeout:   7*time.Second + 123*time.Nanosecond,
-	}
-}
-
-func TestTimeHolder_Codec(t *testing.T) {
-	codec.RunTestSuite[integration.TimeHolder](t, sampleTimeHolder())
-}
-
-func BenchmarkTimeHolder_Codec(b *testing.B) {
-	codec.RunBenchSuite[integration.TimeHolder](b, sampleTimeHolder())
-}
-
-func FuzzTimeHolder_Codec(f *testing.F) {
-	codec.RunFuzzRoundtrip[integration.TimeHolder](f, sampleTimeHolder(), integration.TimeHolder{})
-}
-
-func TestTimeHolder_ZeroRoundtrip(t *testing.T) {
-	t.Parallel()
-	codec.AssertRoundtrip[integration.TimeHolder](t, integration.TimeHolder{})
-}
-
-func TestTimeHolder_NegativeDuration(t *testing.T) {
-	t.Parallel()
-	codec.AssertRoundtrip[integration.TimeHolder](t, integration.TimeHolder{Timeout: -3 * time.Second})
-}
-
-func TestTimeHolder_Roundtrip_PBT(t *testing.T) {
-	t.Parallel()
-	rapid.Check(t, func(t *rapid.T) {
-		// secs starts at 1: time.Unix(0, 0).UTC() and time.Time{} encode to
-		// identical wire bytes (empty body) but differ by struct identity,
-		// so DeepEqual distinguishes them. The zero case is covered by
-		// TestTimeHolder_ZeroRoundtrip.
-		secs := rapid.Int64Range(1, 253402300799).Draw(t, "secs")
-		nanos := rapid.Int32Range(0, 999_999_999).Draw(t, "nanos")
-		ds := rapid.Int64Range(-(1<<40), 1<<40).Draw(t, "ds")
-		dn := rapid.Int32Range(-999_999_999, 999_999_999).Draw(t, "dn")
-		codec.AssertRoundtrip[integration.TimeHolder](t, integration.TimeHolder{
-			CreatedAt: time.Unix(secs, int64(nanos)).UTC(),
-			Timeout:   time.Duration(ds)*time.Second + time.Duration(dn),
-		})
-	})
-}
-
-// ---------------------------------------------------------------------------
-// Phase 4.8: Tier-1 deep pooling
-// ---------------------------------------------------------------------------
-
-// TestContainer_MessagePointerPooling_AcrossResets verifies that a singular
-// nested-message pointer field (*Inner) is reused across unmarshals into the
-// same receiver. This exercises the seenOptional-bitmap pooling path extended
-// to cover message-kind pointers in Phase 4.8.
-func TestContainer_MessagePointerPooling_AcrossResets(t *testing.T) {
-	t.Parallel()
-	s := sampleContainer() // has Inner non-nil
-	buf, _ := s.MarshalCodec()
-
-	var receiver integration.Container
-	if err := receiver.UnmarshalCodec(buf); err != nil {
-		t.Fatal(err)
-	}
-	innerPtr := receiver.Inner
-	if innerPtr == nil {
-		t.Fatal("expected Inner non-nil after first unmarshal")
-	}
-	if err := receiver.UnmarshalCodec(buf); err != nil {
-		t.Fatal(err)
-	}
-	if receiver.Inner != innerPtr {
-		t.Errorf("Inner pointer changed: pooling failed (want %p, got %p)", innerPtr, receiver.Inner)
-	}
-}
-
-// TestContainer_MessagePointerPooling_AbsentFieldNilsOut verifies that a
-// pooled *Inner field correctly nils out when the subsequent wire payload
-// does not include it. Without this the pooling path would leak stale data.
-func TestContainer_MessagePointerPooling_AbsentFieldNilsOut(t *testing.T) {
-	t.Parallel()
-	s := sampleContainer()
-	buf, _ := s.MarshalCodec()
-	var receiver integration.Container
-	if err := receiver.UnmarshalCodec(buf); err != nil {
-		t.Fatal(err)
-	}
-	if receiver.Inner == nil {
-		t.Fatal("expected Inner non-nil after first unmarshal")
-	}
-
-	// Marshal a Container without Inner.
-	minimal := integration.Container{Name: "alpha"}
-	buf, _ = minimal.MarshalCodec()
-	if err := receiver.UnmarshalCodec(buf); err != nil {
-		t.Fatal(err)
-	}
-
-	if receiver.Inner != nil {
-		t.Errorf("Inner should be nil after unmarshaling a message without it, got %v", receiver.Inner)
-	}
-	if receiver.Name != "alpha" {
-		t.Errorf("Name should be alpha, got %q", receiver.Name)
-	}
-}
-
-// TestContainer_CursorReuse_AcrossResets verifies that the keep_capacity +
-// use_pointer repeated-message field reuses its *Inner slots across unmarshals.
-// The second pass must not allocate fresh *Inner values when the backing
-// slice still has capacity from the first pass.
-func TestContainer_CursorReuse_AcrossResets(t *testing.T) {
-	t.Parallel()
-	s := sampleContainer() // 3 children
-	buf, _ := s.MarshalCodec()
-
-	var receiver integration.Container
-	if err := receiver.UnmarshalCodec(buf); err != nil {
-		t.Fatal(err)
-	}
-	// Capture the pointers from the first pass.
-	childPtrs := make([]*integration.Inner, len(receiver.Children))
-	copy(childPtrs, receiver.Children)
-
-	if err := receiver.UnmarshalCodec(buf); err != nil {
-		t.Fatal(err)
-	}
-	// Second pass should reuse the same *Inner slots.
-	if len(receiver.Children) != len(childPtrs) {
-		t.Fatalf("child count changed: want %d got %d", len(childPtrs), len(receiver.Children))
-	}
-	for i := range receiver.Children {
-		if receiver.Children[i] != childPtrs[i] {
-			t.Errorf("Children[%d] pointer changed: want %p got %p (cursor reuse failed)", i, childPtrs[i], receiver.Children[i])
-		}
-	}
-}
-
-// BenchmarkContainer_PooledUnmarshal measures warm-path UnmarshalCodec cost
-// once Inner and the Children []*Inner slots have been primed on the receiver.
-// Phase 4.8 should drive the three slice-element pointer allocs and the Inner
-// pointer alloc to zero; steady-state remains the name string alloc only.
-func BenchmarkContainer_PooledUnmarshal(b *testing.B) {
-	s := sampleContainer()
-	data, _ := s.MarshalCodec()
-	var got integration.Container
-	// Prime: first unmarshal allocates Inner and the three *Inner children.
-	if err := got.UnmarshalCodec(data); err != nil {
-		b.Fatal(err)
-	}
-	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
-		_ = got.UnmarshalCodec(data)
-	}
-}
-
-// BenchmarkTree_PooledUnmarshal complements the Container bench: Tree uses
-// self-reference, so Children is []*Tree and the cursor-reuse path does not
-// apply (no keep_capacity annotation). Included to document the baseline for
-// non-keep_capacity repeated *T pooling behavior.
-func BenchmarkTree_PooledUnmarshal(b *testing.B) {
-	s := sampleTree()
-	data, _ := s.MarshalCodec()
-	var got integration.Tree
-	if err := got.UnmarshalCodec(data); err != nil {
-		b.Fatal(err)
-	}
-	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
-		_ = got.UnmarshalCodec(data)
-	}
-}
-
-// BenchmarkValueContainer_PooledUnmarshal measures the warm-path cost of
-// decoding a message with a value-inlined nested message and a value-slice of
-// nested messages ([]Inner). Phase 4.10 cursor-reuse on the value slice and
-// recursive ResetCodec drive steady-state allocs to ~1 (the top-level slab).
-func BenchmarkValueContainer_PooledUnmarshal(b *testing.B) {
-	s := sampleValueContainer()
-	data, _ := s.MarshalCodec()
-	var got integration.ValueContainer
-	if err := got.UnmarshalCodec(data); err != nil {
-		b.Fatal(err)
-	}
-	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
-		_ = got.UnmarshalCodec(data)
-	}
-}
-
-// BenchmarkPackedZigzag_PooledUnmarshal measures the warm-path cost of
-// decoding a message containing only packed-repeated scalars. With the
-// Phase 4.10 [:0] reset preserving the slice backing arrays, steady-state
-// should be 0 allocs (no nested messages, no strings — no slab needed).
-func BenchmarkPackedZigzag_PooledUnmarshal(b *testing.B) {
-	s := samplePackedZigzag()
-	data, _ := s.MarshalCodec()
-	var got integration.PackedZigzag
-	if err := got.UnmarshalCodec(data); err != nil {
-		b.Fatal(err)
-	}
-	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
-		_ = got.UnmarshalCodec(data)
-	}
-}
-
-// BenchmarkMapHolder_PooledUnmarshal measures the warm-path cost of decoding
-// a message with two map[string]X fields. The clear(m) reset preserves bucket
-// storage, but each entry's key/value strings are still freshly assigned per
-// call — map-entry string allocs are an unavoidable cost of the decode path.
-func BenchmarkMapHolder_PooledUnmarshal(b *testing.B) {
-	s := sampleMapHolder()
-	data, _ := s.MarshalCodec()
-	var got integration.MapHolder
-	if err := got.UnmarshalCodec(data); err != nil {
-		b.Fatal(err)
-	}
-	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
-		_ = got.UnmarshalCodec(data)
-	}
-}
-
-// TestContainer_PreScanCapacityHint verifies the cold-path pre-scan eliminates
-// repeated-slice append-growth reallocs. Without the pre-scan, decoding 20
-// children grows the backing slice log2(20) times; with it, a single make
-// allocates the correct capacity up front. Does not mark Parallel because
-// testing.AllocsPerRun panics inside a t.Parallel() test.
-func TestContainer_PreScanCapacityHint(t *testing.T) {
-	many := integration.Container{Name: "many"}
-	for i := range 20 {
-		many.Children = append(many.Children, &integration.Inner{Label: "x", Count: int64(i)})
-	}
-	buf, _ := many.MarshalCodec()
-
-	allocs := testing.AllocsPerRun(10, func() {
-		var got integration.Container
-		_ = got.UnmarshalCodec(buf)
-	})
-	t.Logf("cold-path allocs for 20-child Container: %.1f", allocs)
-	// Observed breakdown with pre-scan enabled: 20 children contribute
-	// two allocs each (*Inner heap slot + the child's dataStr slab for
-	// Label), plus one slice make for Children (pre-sized to 20) and one
-	// for the outer dataStr. Without the pre-scan, Children grows through
-	// ~5 append reallocations (1,2,4,8,16,32) as additional allocs. Measured
-	// delta: 47 -> 42 allocs. Budget allows a small amount of headroom.
-	if allocs > 44 {
-		t.Errorf("too many allocs: %.1f (expected <= 44 with pre-scan; baseline without pre-scan is 47)", allocs)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// BytesPool: keep_capacity = true on a []byte field (Phase 4.8-D)
-// ---------------------------------------------------------------------------
-
-func TestBytesPool_Codec(t *testing.T) {
-	codec.RunTestSuite[integration.BytesPool](t, integration.BytesPool{Payload: []byte{1, 2, 3}})
-}
-
-func BenchmarkBytesPool_Codec(b *testing.B) {
-	codec.RunBenchSuite[integration.BytesPool](b, integration.BytesPool{Payload: []byte{0xde, 0xad, 0xbe, 0xef}})
-}
-
-// ---------------------------------------------------------------------------
-// Coverage suite (Phase 5 Chunk B): RunCoverageSuite per fixture.
-// ---------------------------------------------------------------------------
-
-func TestFixture_Coverage(t *testing.T) {
-	codec.RunCoverageSuite[integration.Fixture](t, sampleFixture(), 999,
-		codec.WireMismatch{FieldNum: 1, WrongWireType: 0},  // string field as varint
-		codec.WireMismatch{FieldNum: 2, WrongWireType: 2},  // uint32 as len-delim
-		codec.WireMismatch{FieldNum: 8, WrongWireType: 0},  // bytes (fixed_len) as varint
-		codec.WireMismatch{FieldNum: 9, WrongWireType: 0},  // repeated string as varint
-		codec.WireMismatch{FieldNum: 10, WrongWireType: 0}, // bytes as varint
-	)
-}
-
-func TestPatch_Coverage(t *testing.T) {
-	codec.RunCoverageSuite[integration.Patch](t, samplePatchText(), 999,
-		codec.WireMismatch{FieldNum: 1, WrongWireType: 2}, // uint32 as len-delim
-		codec.WireMismatch{FieldNum: 5, WrongWireType: 0}, // string as varint
-		codec.WireMismatch{FieldNum: 7, WrongWireType: 0}, // sfixed64 as varint
-		codec.WireMismatch{FieldNum: 8, WrongWireType: 0}, // bytes as varint
-	)
-}
-
-func TestEvidence_Coverage(t *testing.T) {
-	codec.RunCoverageSuite[integration.Evidence](t, sampleEvidence(), 999,
-		codec.WireMismatch{FieldNum: 1, WrongWireType: 2},  // uint32 as len-delim
-		codec.WireMismatch{FieldNum: 4, WrongWireType: 0},  // string as varint
-		codec.WireMismatch{FieldNum: 9, WrongWireType: 2},  // int64 as len-delim
-		codec.WireMismatch{FieldNum: 10, WrongWireType: 0}, // bytes as varint
-		codec.WireMismatch{FieldNum: 11, WrongWireType: 0}, // repeated string as varint
-	)
-}
-
-func TestMinimal_Coverage(t *testing.T) {
-	codec.RunCoverageSuite[integration.Minimal](t, sampleMinimal(), 999,
-		codec.WireMismatch{FieldNum: 1, WrongWireType: 0}, // string as varint
-	)
-}
-
-func TestNumericOnly_Coverage(t *testing.T) {
-	codec.RunCoverageSuite[integration.NumericOnly](t, sampleNumericOnly(), 999,
-		codec.WireMismatch{FieldNum: 1, WrongWireType: 2},  // uint32 as len-delim
-		codec.WireMismatch{FieldNum: 4, WrongWireType: 0},  // sfixed64 as varint
-		codec.WireMismatch{FieldNum: 6, WrongWireType: 2},  // sint32 as len-delim
-		codec.WireMismatch{FieldNum: 8, WrongWireType: 2},  // optional int32 as len-delim
-		codec.WireMismatch{FieldNum: 10, WrongWireType: 0}, // optional sfixed64 as varint
-	)
-}
-
-func TestPackedZigzag_Coverage(t *testing.T) {
-	codec.RunCoverageSuite[integration.PackedZigzag](t, samplePackedZigzag(), 999,
-		codec.WireMismatch{FieldNum: 1, WrongWireType: 1}, // packed sint32 as fixed64
-		codec.WireMismatch{FieldNum: 2, WrongWireType: 5}, // packed sint64 as fixed32
-	)
-}
-
-func TestInner_Coverage(t *testing.T) {
-	codec.RunCoverageSuite[integration.Inner](t, sampleInner(), 999,
-		codec.WireMismatch{FieldNum: 1, WrongWireType: 0}, // string as varint
-		codec.WireMismatch{FieldNum: 2, WrongWireType: 2}, // int64 as len-delim
-	)
-}
-
-func TestContainer_Coverage(t *testing.T) {
-	codec.RunCoverageSuite[integration.Container](t, sampleContainer(), 999,
-		codec.WireMismatch{FieldNum: 1, WrongWireType: 0}, // string as varint
-		codec.WireMismatch{FieldNum: 2, WrongWireType: 0}, // nested message as varint
-		codec.WireMismatch{FieldNum: 3, WrongWireType: 0}, // repeated message as varint
-	)
-}
-
-func TestValueContainer_Coverage(t *testing.T) {
-	codec.RunCoverageSuite[integration.ValueContainer](t, sampleValueContainer(), 999,
-		codec.WireMismatch{FieldNum: 1, WrongWireType: 0}, // string as varint
-		codec.WireMismatch{FieldNum: 2, WrongWireType: 0}, // value-inlined message as varint
-		codec.WireMismatch{FieldNum: 3, WrongWireType: 0}, // value-slice message as varint
-	)
-}
-
-func TestTree_Coverage(t *testing.T) {
-	codec.RunCoverageSuite[integration.Tree](t, sampleTree(), 999,
-		codec.WireMismatch{FieldNum: 1, WrongWireType: 0}, // string as varint
-		codec.WireMismatch{FieldNum: 2, WrongWireType: 0}, // self-referential repeated message as varint
-	)
-}
-
-func TestMapHolder_Coverage(t *testing.T) {
-	codec.RunCoverageSuite[integration.MapHolder](t, sampleMapHolder(), 999,
-		codec.WireMismatch{FieldNum: 1, WrongWireType: 0}, // map as varint
-		codec.WireMismatch{FieldNum: 2, WrongWireType: 0}, // map as varint
-	)
-}
-
-func TestTimeHolder_Coverage(t *testing.T) {
-	codec.RunCoverageSuite[integration.TimeHolder](t, sampleTimeHolder(), 999,
-		codec.WireMismatch{FieldNum: 1, WrongWireType: 0}, // Timestamp as varint
-		codec.WireMismatch{FieldNum: 2, WrongWireType: 0}, // Duration as varint
-	)
-}
-
-func TestBytesPool_Coverage(t *testing.T) {
-	codec.RunCoverageSuite[integration.BytesPool](t, integration.BytesPool{Payload: []byte{1, 2, 3}}, 999,
-		codec.WireMismatch{FieldNum: 1, WrongWireType: 0}, // bytes as varint
-	)
-}
-
-// ---------------------------------------------------------------------------
-// Extended coverage suite — drives generated code toward 100%.
-// Exercises: CorruptTag (unterminated varint), MarshalToShortBuffer (one-byte
-// under), WarmPathGrowth (second decode with more elements).
-// For types without repeated fields, the grower is the zero value (warm-path
-// becomes a no-op growth — still exercises the primed-receiver entry).
-// ---------------------------------------------------------------------------
-
-// TestFixture_FullCoverage demonstrates the one-call spec-driven path to
-// 100% coverage. Consumers declare field-number categories; the suite runs
-// every generic helper plus one per-field-category corruption probe.
-// Replaces the per-fixture RunCoverageSuite + RunExtendedCoverageSuite +
-// targeted-edge-case test boilerplate.
-func TestFixture_FullCoverage(t *testing.T) {
-	grower := sampleFixture()
-	grower.Tags = append(grower.Tags, "delta", "epsilon")
-	codec.RunFullCoverageSuite[integration.Fixture](t, codec.CoverageSpec[integration.Fixture]{
-		Sample:             sampleFixture(),
-		Grower:             &grower,
-		UnknownFieldNum:    999,
-		ScalarVarintFields: []int32{2, 3, 4, 5, 6, 7}, // Kind, Status, Score, Sequence, Enabled, Timestamp
-	})
-}
-
-func TestFixture_CoverageExt(t *testing.T) {
-	grower := sampleFixture()
-	grower.Tags = append(grower.Tags, "delta", "epsilon") // force slice growth
-	codec.RunExtendedCoverageSuite[integration.Fixture](t, sampleFixture(), grower)
-}
-
-// patchAllFields is a synthetic sample that populates every Patch field so
-// AssertAllFieldsWireTypeMismatch observes all tags. The three real
-// variants (Text/Fixed64/Blob) each set only their discriminator-shape
-// payload field, leaving IntVal (field 6) unobserved.
-func patchAllFields() integration.Patch {
-	return integration.Patch{
-		Kind: integration.PatchKindText, VertexID: 7, Sequence: 1001,
-		Source:  integration.SourceInference,
-		TextVal: "t", IntVal: 42, Fixed64Val: 100, BlobRef: digest(0xAB),
-	}
-}
-
-func TestPatch_CoverageExt(t *testing.T) {
-	codec.RunExtendedCoverageSuite[integration.Patch](t, samplePatchText(), integration.Patch{})
-	codec.AssertAllFieldsWireTypeMismatch[integration.Patch](t, patchAllFields())
-}
-
-func TestEvidence_CoverageExt(t *testing.T) {
-	grower := sampleEvidence()
-	grower.Jurisdictions = append(grower.Jurisdictions, "JP", "AU")
-	codec.RunExtendedCoverageSuite[integration.Evidence](t, sampleEvidence(), grower)
-}
-
-func TestMinimal_CoverageExt(t *testing.T) {
-	codec.RunExtendedCoverageSuite[integration.Minimal](t, sampleMinimal(), integration.Minimal{})
-}
-
-func TestNumericOnly_CoverageExt(t *testing.T) {
-	codec.RunExtendedCoverageSuite[integration.NumericOnly](t, sampleNumericOnly(), integration.NumericOnly{})
-}
-
-func TestPackedZigzag_CoverageExt(t *testing.T) {
-	grower := samplePackedZigzag()
-	grower.Values32 = append(grower.Values32, 7, 8, 9)
-	grower.Values64 = append(grower.Values64, 100, 200)
-	codec.RunExtendedCoverageSuite[integration.PackedZigzag](t, samplePackedZigzag(), grower)
-}
-
-func TestInner_CoverageExt(t *testing.T) {
-	codec.RunExtendedCoverageSuite[integration.Inner](t, sampleInner(), integration.Inner{})
-}
-
-func TestContainer_CoverageExt(t *testing.T) {
-	grower := sampleContainer()
-	grower.Children = append(grower.Children,
-		&integration.Inner{Label: "c4", Count: 4},
-		&integration.Inner{Label: "c5", Count: 5})
-	codec.RunExtendedCoverageSuite[integration.Container](t, sampleContainer(), grower)
-}
-
-func TestValueContainer_CoverageExt(t *testing.T) {
-	grower := sampleValueContainer()
-	grower.Items = append(grower.Items,
-		integration.Inner{Label: "fourth", Count: 4},
-		integration.Inner{Label: "fifth", Count: 5})
-	codec.RunExtendedCoverageSuite[integration.ValueContainer](t, sampleValueContainer(), grower)
-}
-
-func TestTree_CoverageExt(t *testing.T) {
-	grower := sampleTree()
-	grower.Children = append(grower.Children, &integration.Tree{Label: "c"})
-	codec.RunExtendedCoverageSuite[integration.Tree](t, sampleTree(), grower)
-}
-
-func TestMapHolder_CoverageExt(t *testing.T) {
-	grower := integration.MapHolder{
-		Attrs:  map[string]string{"region": "eu-west", "tier": "premium", "extra1": "a", "extra2": "b"},
-		Counts: map[string]int64{"retries": 3, "errors": 0, "hits": 99},
-	}
-	codec.RunExtendedCoverageSuite[integration.MapHolder](t, sampleMapHolder(), grower)
-}
-
-func TestTimeHolder_CoverageExt(t *testing.T) {
-	codec.RunExtendedCoverageSuite[integration.TimeHolder](t, sampleTimeHolder(), integration.TimeHolder{})
-}
-
-func TestBytesPool_CoverageExt(t *testing.T) {
-	s := integration.BytesPool{Payload: []byte{1, 2, 3}}
-	codec.RunExtendedCoverageSuite[integration.BytesPool](t, s, integration.BytesPool{Payload: []byte{1, 2, 3, 4, 5}})
-}
-
-// ---------------------------------------------------------------------------
-// Targeted edge-case coverage — drives toward 100%.
-// Exercises branches that generic helpers can't reach because they need
-// either a contrived schema shape (nil pointer in a repeated slice) or a
-// corrupt wire payload of a specific structure.
-// ---------------------------------------------------------------------------
-
-// TestContainer_NilPointerElement exercises the "if elem == nil { continue }"
-// path in Container.SizeCodec and Container.MarshalCodecInternal for the
-// Children field, which is []*Inner.
-func TestContainer_NilPointerElement(t *testing.T) {
-	t.Parallel()
-	c := integration.Container{
-		Name: "with-nil",
-		Children: []*integration.Inner{
-			{Label: "first", Count: 1},
-			nil,
-			{Label: "third", Count: 3},
-		},
-	}
-	codec.AssertMarshalWithNilPointerElement[integration.Container](t, c)
-}
-
-// TestTree_NilPointerElement exercises the same path for the self-referential
-// Tree.Children field.
-func TestTree_NilPointerElement(t *testing.T) {
-	t.Parallel()
-	tree := integration.Tree{
-		Label: "root",
-		Children: []*integration.Tree{
-			{Label: "a"},
-			nil,
-			{Label: "b"},
-		},
-	}
-	codec.AssertMarshalWithNilPointerElement[integration.Tree](t, tree)
-}
-
-// TestPackedZigzag_CorruptBody exercises the varint-decode-fail branch
-// inside PackedZigzag.UnmarshalCodecInternal's packed-body loop. Sends a
-// field-1 packed payload whose body is a malformed varint.
-func TestPackedZigzag_CorruptBody(t *testing.T) {
-	t.Parallel()
-	codec.AssertCorruptPackedBody[integration.PackedZigzag](t, 1)
-	codec.AssertCorruptPackedBody[integration.PackedZigzag](t, 2)
-}
-
-// TestMapHolder_CorruptEntry sends a map-field wire where the entry's
-// declared length exceeds the remaining buffer, or the value-varint is
-// truncated. Targets the "if sN < 0 / entryEnd mismatch" branches in
-// MapHolder.UnmarshalCodecInternal.
-func TestMapHolder_CorruptEntry(t *testing.T) {
-	t.Parallel()
-	// Field 1 (Attrs: map<string,string>) tag = (1<<3)|2 = 0x0a.
-	// Entry structure: length varint + (tag=0x0a len=K key-bytes) + (tag=0x12 len=V val-bytes)
-	// Construct entry where value length varint is unterminated (all 0x80).
-	cases := [][]byte{
-		// declared entry length = 5; key tag 0x0a, len 0 (empty key); value tag 0x12, len varint = 0x80 (unterminated)
-		{0x0a, 0x05, 0x0a, 0x00, 0x12, 0x80, 0x80},
-		// declared entry length = 4; key tag 0x0a, len 3, but only 1 key byte follows (short)
-		{0x0a, 0x04, 0x0a, 0x03, 0x61, 0x12, 0x00},
-	}
-	for _, data := range cases {
-		var got integration.MapHolder
-		if err := got.UnmarshalCodec(data); err == nil {
-			t.Errorf("expected error on corrupt map entry %x, got nil", data)
-		}
-	}
-}
-
-// TestContainer_CorruptPrescan exercises the fixed32 / varint prescan
-// bounds-check branches that fire when the pre-scan walk encounters a
-// malformed length prefix on a repeated-message field.
-func TestContainer_CorruptPrescan(t *testing.T) {
-	t.Parallel()
-	codec.AssertCorruptRepeatedMessagePrescan[integration.Container](t, 3) // Children
-}
-
-// TestContainer_PrescanFixed32Short exercises the prescan's fixed32
-// bounds-check (if pi+4 > l) by feeding a wire that begins with an unknown
-// field at wireType 5 (fixed32) but with fewer than 4 remaining body bytes.
-// The prescan walks all tags; when it hits the unknown-field tag with
-// wireType 5 and the body is short, the pi+4>l branch fires.
-func TestContainer_PrescanFixed32Short(t *testing.T) {
-	t.Parallel()
-	// Tag for field 99 (unknown), wireType 5: (99<<3)|5 = 797 = 0x9d 0x06.
-	// Follow with only 2 bytes (not 4) so pi+4 > l.
-	data := []byte{0x9d, 0x06, 0x00, 0x00}
-	var got integration.Container
-	_ = got.UnmarshalCodec(data)
-}
-
-// TestCrossContainer_PrescanFixed32Short same as above for CrossContainer.
-func TestCrossContainer_PrescanFixed32Short(t *testing.T) {
-	t.Parallel()
-	data := []byte{0x9d, 0x06, 0x00, 0x00}
-	var got integration.CrossContainer
-	_ = got.UnmarshalCodec(data)
-}
-
-// TestContainer_PrescanCorruptVarintTag exercises `if pn < 0` in the
-// prescan's own tag-decode. Feeds an unterminated varint as the first tag.
-func TestContainer_PrescanCorruptVarintTag(t *testing.T) {
-	t.Parallel()
-	data := []byte{0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
-	var got integration.Container
-	_ = got.UnmarshalCodec(data)
-}
-
-// TestContainer_PrescanVarintValueCorrupt feeds a valid varint tag followed
-// by an unterminated varint VALUE, so the prescan's inner varint-decode
-// (case 0 / `if pn < 0`) fires during the walk-past-value step.
-func TestContainer_PrescanVarintValueCorrupt(t *testing.T) {
-	t.Parallel()
-	// Tag 0x08 = field 1 wireType 0 (varint). Then 10 bytes of 0x80 as the value.
-	data := []byte{0x08, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
-	var got integration.Container
-	_ = got.UnmarshalCodec(data)
-}
-
-// TestTree_PrescanVarintValueCorrupt same as Container variant but for
-// Tree.UnmarshalCodecInternal's prescan (self-referential []*Tree).
-func TestTree_PrescanVarintValueCorrupt(t *testing.T) {
-	t.Parallel()
-	data := []byte{0x08, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
-	var got integration.Tree
-	_ = got.UnmarshalCodec(data)
-}
-
-// TestValueContainer_PrescanVarintValueCorrupt same for ValueContainer's
-// prescan (value slice []Inner).
-func TestValueContainer_PrescanVarintValueCorrupt(t *testing.T) {
-	t.Parallel()
-	data := []byte{0x08, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
-	var got integration.ValueContainer
-	_ = got.UnmarshalCodec(data)
-}
-
-// TestMapHolder_CorruptEntryKeyVarint exercises the inner `if sN < 0` for
-// a map key whose length varint is malformed, across both Attrs (string
-// key) and Counts (string key) maps.
-func TestMapHolder_CorruptEntryKeyVarint(t *testing.T) {
-	t.Parallel()
-	// field 1 (Attrs), wire 2; entry length 12; key tag 0x0a, unterminated key-length
-	data := []byte{0x0a, 0x0c, 0x0a, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
-	var got integration.MapHolder
-	_ = got.UnmarshalCodec(data)
-	// field 2 (Counts map<string,int64>); key tag 0x0a, unterminated key-length
-	data2 := []byte{0x12, 0x0c, 0x0a, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
-	var got2 integration.MapHolder
-	_ = got2.UnmarshalCodec(data2)
-}
-
-// TestMapHolder_CorruptEntryTag targets the outer entry-tag varint decode
-// failure (`if en < 0`) inside the map entry loop. Sends a map field whose
-// entry body's first tag is an unterminated varint.
-func TestMapHolder_CorruptEntryTag(t *testing.T) {
-	t.Parallel()
-	// Attrs entry body starts with unterminated varint tag.
-	data := []byte{0x0a, 0x0a, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
-	var got integration.MapHolder
-	_ = got.UnmarshalCodec(data)
-	// Counts entry body starts with unterminated varint tag.
-	data2 := []byte{0x12, 0x0a, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
-	var got2 integration.MapHolder
-	_ = got2.UnmarshalCodec(data2)
-}
-
-// TestMapHolder_CorruptCountsValueVarint targets the Counts case-2 value
-// varint decode failure.
-func TestMapHolder_CorruptCountsValueVarint(t *testing.T) {
-	t.Parallel()
-	// Counts entry: key tag 0x0a len 0 (empty key), value tag 0x10, value = 10 unterminated bytes
-	data := []byte{0x12, 0x0d, 0x0a, 0x00, 0x10, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
-	var got integration.MapHolder
-	_ = got.UnmarshalCodec(data)
-}
-
-// TestMapHolder_EntryLengthMismatch exercises `if i != entryEnd` — the
-// entry declared-length exceeds the actual content. After decoding body
-// fields, i < entryEnd trips the final length check.
-func TestMapHolder_EntryLengthMismatch(t *testing.T) {
-	t.Parallel()
-	// Attrs field with entry length 10, but body only has tag 0x0a len 0 (2 bytes)
-	// — entry ends at i=4 but entryEnd=12; trailing bytes fill with zeros that SkipField accepts, we need unknown-tag corruption or similar.
-	// Simplest: entry length 4, body is tag-only (0x0a 0x00 = 2 bytes), leaving 2 unprocessed.
-	// Default case sees unknown tag; we need trailing bytes that DON'T get consumed.
-	// Use 0xFF (unknown wire type in tag & 0x7 = 7) so SkipField errors, leaving i<entryEnd.
-	// Actually easier: value-only entry (no key) length 4, body 0x12 (val tag) 0x00 (len) = 2 bytes.
-	data := []byte{0x0a, 0x06, 0x12, 0x00, 0x00, 0x00, 0x00, 0x00}
-	var got integration.MapHolder
-	_ = got.UnmarshalCodec(data)
-}
-
-// TestTree_CorruptPrescan same for Tree.Children (field 2, []*Tree).
-func TestTree_CorruptPrescan(t *testing.T) {
-	t.Parallel()
-	codec.AssertCorruptRepeatedMessagePrescan[integration.Tree](t, 2)
-}
-
-// TestValueContainer_CorruptPrescan same for ValueContainer.Items (field 3, []Inner).
-func TestValueContainer_CorruptPrescan(t *testing.T) {
-	t.Parallel()
-	codec.AssertCorruptRepeatedMessagePrescan[integration.ValueContainer](t, 3)
-}
-
-// TestPatch_CorruptScalarVarint exercises the `if n < 0` branch for every
-// varint-wire scalar Patch field (IntVal explicitly — Text/Fixed64/Blob
-// variants don't populate it in the sample).
-func TestPatch_CorruptScalarVarint(t *testing.T) {
-	t.Parallel()
-	codec.AssertCorruptScalarVarint[integration.Patch](t, 6) // IntVal
-}
-
-// TestPackedZigzag_UnpackedCorrupt exercises the unpacked-alternate path's
-// inner varint-decode failure for each packed field (wireType 0 + bad varint).
-func TestPackedZigzag_UnpackedCorrupt(t *testing.T) {
-	t.Parallel()
-	codec.AssertCorruptScalarVarint[integration.PackedZigzag](t, 1) // Values32
-	codec.AssertCorruptScalarVarint[integration.PackedZigzag](t, 2) // Values64
-}
-
-// TestMapHolder_CorruptEntryValue targets the inner map-entry
-// varint-decode-fail and entry-length-mismatch branches.
-func TestMapHolder_CorruptEntryValue(t *testing.T) {
-	t.Parallel()
-	codec.AssertCorruptMapEntryValue[integration.MapHolder](t, 1) // Attrs
-	codec.AssertCorruptMapEntryValue[integration.MapHolder](t, 2) // Counts
-}
-
-// TestTimeHolder_CorruptWKT targets the DecodeTimestamp / DecodeDuration
-// error-propagation branches.
-func TestTimeHolder_CorruptWKT(t *testing.T) {
-	t.Parallel()
-	codec.AssertCorruptWKTPayload[integration.TimeHolder](t, 1) // CreatedAt (Timestamp)
-	codec.AssertCorruptWKTPayload[integration.TimeHolder](t, 2) // Timeout (Duration)
-}
-
-// TestTimeHolder_UnknownFieldWireType3 targets the decode loop's default →
-// SkipField error-propagation branch via an unknown-field tag whose wire
-// type is reserved (3) and therefore rejected by SkipField.
-func TestTimeHolder_UnknownFieldWireType3(t *testing.T) {
-	t.Parallel()
-	codec.AssertUnknownFieldInvalidWireType[integration.TimeHolder](t, sampleTimeHolder(), 999)
-}
-
-// TestAll_Coverage_ShortInMiddle truncates a valid marshal at every offset
-// and tries to unmarshal each truncated buffer. The unmarshal results don't
-// matter — we exercise short-buffer error branches throughout the decoder
-// to push UnmarshalCodecInternal coverage above 95%.
-func TestAll_Coverage_ShortInMiddle(t *testing.T) {
-	t.Parallel()
-	type tc struct {
-		name string
-		buf  []byte
-	}
-	build := func(name string, m codec.Marshaler) tc {
-		buf, err := m.MarshalCodec()
-		if err != nil {
-			t.Fatalf("%s MarshalCodec: %v", name, err)
-		}
-		return tc{name, buf}
-	}
-	f := sampleFixture()
-	pt := samplePatchText()
-	pf := samplePatchFixed64()
-	pb := samplePatchBlob()
-	e := sampleEvidence()
-	n := sampleNumericOnly()
-	pz := samplePackedZigzag()
-	in := sampleInner()
-	c := sampleContainer()
-	vc := sampleValueContainer()
-	tr := sampleTree()
-	mh := sampleMapHolder()
-	th := sampleTimeHolder()
-	bp := integration.BytesPool{Payload: []byte{1, 2, 3, 4, 5, 6, 7, 8}}
-	mn := sampleMinimal()
-	cases := []tc{
-		build("Fixture", &f),
-		build("PatchText", &pt),
-		build("PatchFixed64", &pf),
-		build("PatchBlob", &pb),
-		build("Evidence", &e),
-		build("NumericOnly", &n),
-		build("PackedZigzag", &pz),
-		build("Inner", &in),
-		build("Container", &c),
-		build("ValueContainer", &vc),
-		build("Tree", &tr),
-		build("MapHolder", &mh),
-		build("TimeHolder", &th),
-		build("BytesPool", &bp),
-		build("Minimal", &mn),
-	}
-	for _, tt := range cases {
-		for i := 1; i < len(tt.buf); i++ {
-			truncated := tt.buf[:i]
-			switch tt.name {
-			case "Fixture":
-				var x integration.Fixture
-				_ = x.UnmarshalCodec(truncated)
-			case "PatchText", "PatchFixed64", "PatchBlob":
-				var x integration.Patch
-				_ = x.UnmarshalCodec(truncated)
-			case "Evidence":
-				var x integration.Evidence
-				_ = x.UnmarshalCodec(truncated)
-			case "NumericOnly":
-				var x integration.NumericOnly
-				_ = x.UnmarshalCodec(truncated)
-			case "PackedZigzag":
-				var x integration.PackedZigzag
-				_ = x.UnmarshalCodec(truncated)
-			case "Inner":
-				var x integration.Inner
-				_ = x.UnmarshalCodec(truncated)
-			case "Container":
-				var x integration.Container
-				_ = x.UnmarshalCodec(truncated)
-			case "ValueContainer":
-				var x integration.ValueContainer
-				_ = x.UnmarshalCodec(truncated)
-			case "Tree":
-				var x integration.Tree
-				_ = x.UnmarshalCodec(truncated)
-			case "MapHolder":
-				var x integration.MapHolder
-				_ = x.UnmarshalCodec(truncated)
-			case "TimeHolder":
-				var x integration.TimeHolder
-				_ = x.UnmarshalCodec(truncated)
-			case "BytesPool":
-				var x integration.BytesPool
-				_ = x.UnmarshalCodec(truncated)
-			case "Minimal":
-				var x integration.Minimal
-				_ = x.UnmarshalCodec(truncated)
-			}
-		}
-	}
-}
-
-// TestBytesPool_KeepCapacity_PooledReuse verifies that a bytes field annotated
-// with keep_capacity reuses its backing array on warm-path unmarshal. The
-// generated decoder emits `append(m.Payload[:0], data...)` which retains
-// capacity when cap is sufficient, so the warm path must not allocate. Does
-// not mark Parallel because testing.AllocsPerRun panics inside a t.Parallel()
-// test.
-func TestBytesPool_KeepCapacity_PooledReuse(t *testing.T) {
-	s := integration.BytesPool{Payload: []byte{0xde, 0xad, 0xbe, 0xef}}
-	buf, _ := s.MarshalCodec()
-
-	var receiver integration.BytesPool
-	if err := receiver.UnmarshalCodec(buf); err != nil {
-		t.Fatal(err)
-	}
-	firstCap := cap(receiver.Payload)
-	if firstCap < len(s.Payload) {
-		t.Fatalf("first unmarshal did not allocate sufficient capacity: %d", firstCap)
-	}
-
-	allocs := testing.AllocsPerRun(50, func() {
-		_ = receiver.UnmarshalCodec(buf)
-	})
-	// Warm path: backing array is reused, so the append(m.Payload[:0], ...)
-	// path stays in-place. Expect zero allocs.
-	if allocs > 0 {
-		t.Errorf("expected 0 allocs on warm path, got %.1f", allocs)
-	}
-	if cap(receiver.Payload) != firstCap {
-		t.Errorf("capacity changed: was %d now %d", firstCap, cap(receiver.Payload))
 	}
 }

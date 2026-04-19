@@ -6,14 +6,13 @@ package integration_test
 import (
 	"testing"
 
-	"go.stealthscale.io/protoc-gen-codec/lang/go/codec"
+	"go.stealthscale.io/protoc-gen-codec/lang/go/codec/codectest"
 	"go.stealthscale.io/protoc-gen-codec/lang/go/integration"
 	"go.stealthscale.io/protoc-gen-codec/lang/go/integration/external"
 )
 
 // sampleCrossContainer populates all three cross-package field shapes
-// (singular pointer, value-slice, pointer-slice) so the codegen for each
-// path is exercised under the standard suite.
+// (singular pointer, value-slice, pointer-slice).
 func sampleCrossContainer() integration.CrossContainer {
 	return integration.CrossContainer{
 		Name: "cross",
@@ -29,54 +28,34 @@ func sampleCrossContainer() integration.CrossContainer {
 	}
 }
 
-func TestExternal_Codec(t *testing.T) {
-	codec.RunTestSuite[external.External](t, external.External{Tag: "x", Seq: 7})
+// ---------------------------------------------------------------------------
+// External — cross-package leaf message
+// ---------------------------------------------------------------------------
+
+var specExternal = codectest.Spec[external.External]{
+	Sample:             external.External{Tag: "x", Seq: 7},
+	ScalarVarintFields: []int32{2}, // Seq (int64)
 }
 
-func TestCrossContainer_Codec(t *testing.T) {
-	codec.RunTestSuite[integration.CrossContainer](t, sampleCrossContainer())
+func TestExternal_Codec(t *testing.T) { codectest.RunSuite[external.External](t, specExternal) }
+func BenchmarkExternal_Codec(b *testing.B) {
+	codectest.RunBenchSuite[external.External](b, specExternal)
+}
+func FuzzExternal_Codec(f *testing.F) { codectest.RunFuzzSuite[external.External](f, specExternal) }
+
+// ---------------------------------------------------------------------------
+// CrossContainer — references external.External across 3 codegen shapes
+// ---------------------------------------------------------------------------
+
+func ptrCrossContainerGrower() *integration.CrossContainer {
+	g := sampleCrossContainer()
+	g.Items = append(g.Items, external.External{Tag: "v3", Seq: 30})
+	g.PtrItems = append(g.PtrItems, &external.External{Tag: "p3", Seq: 300})
+	return &g
 }
 
-func FuzzCrossContainer_Codec(f *testing.F) {
-	codec.RunFuzzRoundtrip[integration.CrossContainer](f,
-		sampleCrossContainer(),
-		integration.CrossContainer{},
-	)
-}
-
-func TestCrossContainer_Coverage(t *testing.T) {
-	codec.RunCoverageSuite[integration.CrossContainer](t, sampleCrossContainer(), 999,
-		codec.WireMismatch{FieldNum: 1, WrongWireType: 0}, // string as varint
-		codec.WireMismatch{FieldNum: 2, WrongWireType: 0}, // singular cross-pkg message as varint
-		codec.WireMismatch{FieldNum: 3, WrongWireType: 0}, // repeated value cross-pkg message as varint
-		codec.WireMismatch{FieldNum: 4, WrongWireType: 0}, // repeated pointer cross-pkg message as varint
-	)
-}
-
-func TestExternal_Coverage(t *testing.T) {
-	codec.RunCoverageSuite[external.External](t, external.External{Tag: "x", Seq: 7}, 999,
-		codec.WireMismatch{FieldNum: 1, WrongWireType: 0}, // string as varint
-		codec.WireMismatch{FieldNum: 2, WrongWireType: 2}, // int64 as length-delimited
-	)
-}
-
-func TestCrossContainer_CoverageExt(t *testing.T) {
-	grower := sampleCrossContainer()
-	grower.Items = append(grower.Items, external.External{Tag: "v3", Seq: 30})
-	grower.PtrItems = append(grower.PtrItems, &external.External{Tag: "p3", Seq: 300})
-	codec.RunExtendedCoverageSuite[integration.CrossContainer](t, sampleCrossContainer(), grower)
-}
-
-func TestExternal_CoverageExt(t *testing.T) {
-	codec.RunExtendedCoverageSuite[external.External](t, external.External{Tag: "x", Seq: 7}, external.External{})
-}
-
-// TestCrossContainer_NilPointerElement exercises the "if elem == nil { continue }"
-// branches in CrossContainer.SizeCodec and CrossContainer.MarshalCodecInternal
-// for PtrItems ([]*external.External).
-func TestCrossContainer_NilPointerElement(t *testing.T) {
-	t.Parallel()
-	c := integration.CrossContainer{
+func ptrCrossContainerNilElement() *integration.CrossContainer {
+	s := integration.CrossContainer{
 		Name: "with-nil",
 		PtrItems: []*external.External{
 			{Tag: "p1"},
@@ -84,49 +63,35 @@ func TestCrossContainer_NilPointerElement(t *testing.T) {
 			{Tag: "p2"},
 		},
 	}
-	codec.AssertMarshalWithNilPointerElement[integration.CrossContainer](t, c)
+	return &s
 }
 
-// TestCrossContainer_WarmPath primes the receiver with one decode, then
-// re-decodes the same payload — exercises cursor-reuse on the value slice
-// and *External pointer reuse that the cold-path decode skips. Then re-decodes
-// a *larger* payload so the new-element-append branch (elem = new(...)) is
-// also covered.
-func TestCrossContainer_WarmPath(t *testing.T) {
-	t.Parallel()
-	s := sampleCrossContainer()
-	data, err := s.MarshalCodec()
-	if err != nil {
-		t.Fatalf("MarshalCodec: %v", err)
-	}
-	var got integration.CrossContainer
-	if uerr := got.UnmarshalCodec(data); uerr != nil {
-		t.Fatalf("first UnmarshalCodec: %v", uerr)
-	}
-	if uerr := got.UnmarshalCodec(data); uerr != nil {
-		t.Fatalf("second UnmarshalCodec: %v", uerr)
-	}
-
-	larger := s
-	larger.Items = append(larger.Items, external.External{Tag: "v3", Seq: 30})
-	larger.PtrItems = append(larger.PtrItems, &external.External{Tag: "p3", Seq: 300})
-	bigData, merr := larger.MarshalCodec()
-	if merr != nil {
-		t.Fatalf("MarshalCodec(larger): %v", merr)
-	}
-	if uerr := got.UnmarshalCodec(bigData); uerr != nil {
-		t.Fatalf("third UnmarshalCodec (grown): %v", uerr)
-	}
+var specCrossContainer = codectest.Spec[integration.CrossContainer]{
+	Sample:                sampleCrossContainer(),
+	Grower:                ptrCrossContainerGrower(),
+	NilPointerSample:      ptrCrossContainerNilElement(),
+	RepeatedMessageFields: []int32{3, 4}, // Items (value), PtrItems (pointer)
 }
 
-// TestCrossContainer_BadTag exercises the tag-decode-fail branch
-// (codec.DecodeVarint returning n<0 inside the field loop).
-func TestCrossContainer_BadTag(t *testing.T) {
+func TestCrossContainer_Codec(t *testing.T) {
+	codectest.RunSuite[integration.CrossContainer](t, specCrossContainer)
+}
+func BenchmarkCrossContainer_Codec(b *testing.B) {
+	codectest.RunBenchSuite[integration.CrossContainer](b, specCrossContainer)
+}
+func FuzzCrossContainer_Codec(f *testing.F) {
+	codectest.RunFuzzSuite[integration.CrossContainer](f, specCrossContainer)
+}
+
+// ---------------------------------------------------------------------------
+// Type-specific extras the Spec can't express
+// ---------------------------------------------------------------------------
+
+// TestCrossContainer_PrescanFixed32Short exercises the prescan's
+// `if pi+4 > l` branch via an unknown-field wireType-5 tag with short body.
+func TestCrossContainer_PrescanFixed32Short(t *testing.T) {
 	t.Parallel()
-	// 10 bytes of 0x80 form an unterminated varint — DecodeVarint returns -1.
-	bad := []byte{0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
+	data := []byte{0x9d, 0x06, 0x00, 0x00}
 	var got integration.CrossContainer
-	if err := got.UnmarshalCodec(bad); err == nil {
-		t.Fatal("expected error from unterminated varint tag")
-	}
+	_ = got.UnmarshalCodec(data)
 }
