@@ -107,9 +107,13 @@ type FieldInfo struct {
 	// internally represented as a synthetic oneof. Distinguished from
 	// message-kind presence.
 	IsProto3Optional bool
-	// IsMessage is true for fields whose wire kind is MessageKind (nested
-	// messages, both singular and repeated). Map fields are also modeled as
-	// nested messages at the wire level; handled separately.
+	// IsMessage is true for nested-message fields (singular and repeated)
+	// that the emitter should treat as a user-provided codec.type target.
+	//
+	// Contract: IsMessage and IsMap are mutually exclusive. Proto3 maps are
+	// modeled as MessageKind on the wire, but AnalyzeMessage sets IsMap and
+	// clears IsMessage for them so emitters can dispatch on IsMap without
+	// racing against IsMessage. The invariant is asserted post-analysis.
 	IsMessage bool
 	// MessageRef is non-nil iff IsMessage. It identifies the referenced
 	// target type, qualifying across .proto files as needed.
@@ -331,6 +335,13 @@ func analyzeField(
 			return fi, err
 		}
 		fi.CastRef = &ref
+	}
+
+	// Invariant: IsMessage and IsMap must not both be set. The map branch
+	// clears IsMessage explicitly, but this guards against a future refactor
+	// that sets IsMessage after the map branch.
+	if fi.IsMessage && fi.IsMap {
+		return fi, fmt.Errorf("internal: both IsMessage and IsMap set (field %q)", fi.TargetName)
 	}
 
 	return fi, nil

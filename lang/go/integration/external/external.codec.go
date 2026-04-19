@@ -84,25 +84,25 @@ func (m *External) UnmarshalCodecInternal(data []byte, slab string, slabOff int)
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Tag (%d): %w", 1, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Tag (%d): %w", 1, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
+				return fmt.Errorf("field Tag (%d): %w", 1, codec.ErrBufferTooShort)
 			}
 			m.Tag = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		case 2:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Seq (%d): %w", 2, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Seq (%d): %w", 2, codec.ErrInvalidVarint)
 			}
 			i += n
 			m.Seq = int64(v)

@@ -167,120 +167,120 @@ func (m *Fixture) UnmarshalCodecInternal(data []byte, slab string, slabOff int) 
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
+				return fmt.Errorf("field ID (%d): %w", 1, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+				return fmt.Errorf("field ID (%d): %w", 1, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
+				return fmt.Errorf("field ID (%d): %w", 1, codec.ErrBufferTooShort)
 			}
 			m.ID = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		case 2:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Kind (%d): %w", 2, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Kind (%d): %w", 2, codec.ErrInvalidVarint)
 			}
 			i += n
 			m.Kind = uint32(v)
 		case 3:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 3, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Status (%d): %w", 3, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 3, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Status (%d): %w", 3, codec.ErrInvalidVarint)
 			}
 			i += n
 			m.Status = Status(v)
 		case 4:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 4, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Score (%d): %w", 4, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 4, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Score (%d): %w", 4, codec.ErrInvalidVarint)
 			}
 			i += n
 			m.Score = int64(v)
 		case 5:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 5, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Sequence (%d): %w", 5, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 5, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Sequence (%d): %w", 5, codec.ErrInvalidVarint)
 			}
 			i += n
 			m.Sequence = v
 		case 6:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 6, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Enabled (%d): %w", 6, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 6, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Enabled (%d): %w", 6, codec.ErrInvalidVarint)
 			}
 			i += n
 			m.Enabled = v != 0
 		case 7:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 7, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Timestamp (%d): %w", 7, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 7, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Timestamp (%d): %w", 7, codec.ErrInvalidVarint)
 			}
 			i += n
 			m.Timestamp = int64(v)
 		case 8:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 8, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Ref (%d): %w", 8, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 8, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Ref (%d): %w", 8, codec.ErrInvalidVarint)
 			}
 			i += n
 			if vLen != 32 {
-				return fmt.Errorf("field %d: %w", 8, codec.ErrInvalidLength)
+				return fmt.Errorf("field Ref (%d): %w", 8, codec.ErrInvalidLength)
 			}
 			if l-i < 32 {
-				return fmt.Errorf("field %d: %w", 8, codec.ErrBufferTooShort)
+				return fmt.Errorf("field Ref (%d): %w", 8, codec.ErrBufferTooShort)
 			}
 			copy(m.Ref[:], data[i:i+32])
 			i += 32
 		case 9:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 9, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Tags (%d): %w", 9, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 9, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Tags (%d): %w", 9, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 9, codec.ErrBufferTooShort)
+				return fmt.Errorf("field Tags (%d): %w", 9, codec.ErrBufferTooShort)
 			}
 			m.Tags = append(m.Tags, slab[slabOff+i:slabOff+i+int(vLen)])
 			i += int(vLen)
 		case 10:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 10, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Data (%d): %w", 10, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 10, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Data (%d): %w", 10, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 10, codec.ErrBufferTooShort)
+				return fmt.Errorf("field Data (%d): %w", 10, codec.ErrBufferTooShort)
 			}
 			m.Data = append(m.Data[:0], data[i:i+int(vLen)]...)
 			i += int(vLen)
@@ -444,91 +444,91 @@ func (m *Patch) UnmarshalCodecInternal(data []byte, slab string, slabOff int) er
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Kind (%d): %w", 1, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Kind (%d): %w", 1, codec.ErrInvalidVarint)
 			}
 			i += n
 			m.Kind = PatchKind(v)
 		case 2:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidWireType)
+				return fmt.Errorf("field VertexID (%d): %w", 2, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+				return fmt.Errorf("field VertexID (%d): %w", 2, codec.ErrInvalidVarint)
 			}
 			i += n
 			m.VertexID = uint32(v)
 		case 3:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 3, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Sequence (%d): %w", 3, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 3, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Sequence (%d): %w", 3, codec.ErrInvalidVarint)
 			}
 			i += n
 			m.Sequence = v
 		case 4:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 4, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Source (%d): %w", 4, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 4, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Source (%d): %w", 4, codec.ErrInvalidVarint)
 			}
 			i += n
 			m.Source = Source(v)
 		case 5:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 5, codec.ErrInvalidWireType)
+				return fmt.Errorf("field TextVal (%d): %w", 5, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 5, codec.ErrInvalidVarint)
+				return fmt.Errorf("field TextVal (%d): %w", 5, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 5, codec.ErrBufferTooShort)
+				return fmt.Errorf("field TextVal (%d): %w", 5, codec.ErrBufferTooShort)
 			}
 			m.TextVal = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		case 6:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 6, codec.ErrInvalidWireType)
+				return fmt.Errorf("field IntVal (%d): %w", 6, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 6, codec.ErrInvalidVarint)
+				return fmt.Errorf("field IntVal (%d): %w", 6, codec.ErrInvalidVarint)
 			}
 			i += n
 			m.IntVal = int64(v)
 		case 7:
 			if wireType != 1 {
-				return fmt.Errorf("field %d: %w", 7, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Fixed64Val (%d): %w", 7, codec.ErrInvalidWireType)
 			}
 			if l-i < 8 {
-				return fmt.Errorf("field %d: %w", 7, codec.ErrBufferTooShort)
+				return fmt.Errorf("field Fixed64Val (%d): %w", 7, codec.ErrBufferTooShort)
 			}
 			m.Fixed64Val = Fixed64(binary.LittleEndian.Uint64(data[i:]))
 			i += 8
 		case 8:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 8, codec.ErrInvalidWireType)
+				return fmt.Errorf("field BlobRef (%d): %w", 8, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 8, codec.ErrInvalidVarint)
+				return fmt.Errorf("field BlobRef (%d): %w", 8, codec.ErrInvalidVarint)
 			}
 			i += n
 			if vLen != 32 {
-				return fmt.Errorf("field %d: %w", 8, codec.ErrInvalidLength)
+				return fmt.Errorf("field BlobRef (%d): %w", 8, codec.ErrInvalidLength)
 			}
 			if l-i < 32 {
-				return fmt.Errorf("field %d: %w", 8, codec.ErrBufferTooShort)
+				return fmt.Errorf("field BlobRef (%d): %w", 8, codec.ErrBufferTooShort)
 			}
 			copy(m.BlobRef[:], data[i:i+32])
 			i += 32
@@ -737,156 +737,156 @@ func (m *Evidence) UnmarshalCodecInternal(data []byte, slab string, slabOff int)
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Kind (%d): %w", 1, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Kind (%d): %w", 1, codec.ErrInvalidVarint)
 			}
 			i += n
 			m.Kind = EvidenceKind(v)
 		case 2:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Durability (%d): %w", 2, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Durability (%d): %w", 2, codec.ErrInvalidVarint)
 			}
 			i += n
 			m.Durability = Durability(v)
 		case 3:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 3, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Access (%d): %w", 3, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 3, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Access (%d): %w", 3, codec.ErrInvalidVarint)
 			}
 			i += n
 			m.Access = AccessTier(v)
 		case 4:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 4, codec.ErrInvalidWireType)
+				return fmt.Errorf("field TraceID (%d): %w", 4, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 4, codec.ErrInvalidVarint)
+				return fmt.Errorf("field TraceID (%d): %w", 4, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 4, codec.ErrBufferTooShort)
+				return fmt.Errorf("field TraceID (%d): %w", 4, codec.ErrBufferTooShort)
 			}
 			m.TraceID = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		case 5:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 5, codec.ErrInvalidWireType)
+				return fmt.Errorf("field FederationTraceID (%d): %w", 5, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 5, codec.ErrInvalidVarint)
+				return fmt.Errorf("field FederationTraceID (%d): %w", 5, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 5, codec.ErrBufferTooShort)
+				return fmt.Errorf("field FederationTraceID (%d): %w", 5, codec.ErrBufferTooShort)
 			}
 			m.FederationTraceID = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		case 6:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 6, codec.ErrInvalidWireType)
+				return fmt.Errorf("field JobID (%d): %w", 6, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 6, codec.ErrInvalidVarint)
+				return fmt.Errorf("field JobID (%d): %w", 6, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 6, codec.ErrBufferTooShort)
+				return fmt.Errorf("field JobID (%d): %w", 6, codec.ErrBufferTooShort)
 			}
 			m.JobID = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		case 7:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 7, codec.ErrInvalidWireType)
+				return fmt.Errorf("field ThreadID (%d): %w", 7, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 7, codec.ErrInvalidVarint)
+				return fmt.Errorf("field ThreadID (%d): %w", 7, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 7, codec.ErrBufferTooShort)
+				return fmt.Errorf("field ThreadID (%d): %w", 7, codec.ErrBufferTooShort)
 			}
 			m.ThreadID = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		case 8:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 8, codec.ErrInvalidWireType)
+				return fmt.Errorf("field TenantID (%d): %w", 8, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 8, codec.ErrInvalidVarint)
+				return fmt.Errorf("field TenantID (%d): %w", 8, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 8, codec.ErrBufferTooShort)
+				return fmt.Errorf("field TenantID (%d): %w", 8, codec.ErrBufferTooShort)
 			}
 			m.TenantID = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		case 9:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 9, codec.ErrInvalidWireType)
+				return fmt.Errorf("field TimestampMs (%d): %w", 9, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 9, codec.ErrInvalidVarint)
+				return fmt.Errorf("field TimestampMs (%d): %w", 9, codec.ErrInvalidVarint)
 			}
 			i += n
 			m.TimestampMs = int64(v)
 		case 10:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 10, codec.ErrInvalidWireType)
+				return fmt.Errorf("field PayloadRef (%d): %w", 10, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 10, codec.ErrInvalidVarint)
+				return fmt.Errorf("field PayloadRef (%d): %w", 10, codec.ErrInvalidVarint)
 			}
 			i += n
 			if vLen != 32 {
-				return fmt.Errorf("field %d: %w", 10, codec.ErrInvalidLength)
+				return fmt.Errorf("field PayloadRef (%d): %w", 10, codec.ErrInvalidLength)
 			}
 			if l-i < 32 {
-				return fmt.Errorf("field %d: %w", 10, codec.ErrBufferTooShort)
+				return fmt.Errorf("field PayloadRef (%d): %w", 10, codec.ErrBufferTooShort)
 			}
 			copy(m.PayloadRef[:], data[i:i+32])
 			i += 32
 		case 11:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 11, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Jurisdictions (%d): %w", 11, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 11, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Jurisdictions (%d): %w", 11, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 11, codec.ErrBufferTooShort)
+				return fmt.Errorf("field Jurisdictions (%d): %w", 11, codec.ErrBufferTooShort)
 			}
 			m.Jurisdictions = append(m.Jurisdictions, slab[slabOff+i:slabOff+i+int(vLen)])
 			i += int(vLen)
 		case 12:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 12, codec.ErrInvalidWireType)
+				return fmt.Errorf("field RetentionPolicyID (%d): %w", 12, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 12, codec.ErrInvalidVarint)
+				return fmt.Errorf("field RetentionPolicyID (%d): %w", 12, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 12, codec.ErrBufferTooShort)
+				return fmt.Errorf("field RetentionPolicyID (%d): %w", 12, codec.ErrBufferTooShort)
 			}
 			m.RetentionPolicyID = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
@@ -986,15 +986,15 @@ func (m *Minimal) UnmarshalCodecInternal(data []byte, slab string, slabOff int) 
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
+				return fmt.Errorf("field ID (%d): %w", 1, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+				return fmt.Errorf("field ID (%d): %w", 1, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
+				return fmt.Errorf("field ID (%d): %w", 1, codec.ErrBufferTooShort)
 			}
 			m.ID = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
@@ -1168,80 +1168,80 @@ func (m *NumericOnly) UnmarshalCodecInternal(data []byte, slab string, slabOff i
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
+				return fmt.Errorf("field A (%d): %w", 1, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+				return fmt.Errorf("field A (%d): %w", 1, codec.ErrInvalidVarint)
 			}
 			i += n
 			m.A = uint32(v)
 		case 2:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidWireType)
+				return fmt.Errorf("field B (%d): %w", 2, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+				return fmt.Errorf("field B (%d): %w", 2, codec.ErrInvalidVarint)
 			}
 			i += n
 			m.B = v
 		case 3:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 3, codec.ErrInvalidWireType)
+				return fmt.Errorf("field C (%d): %w", 3, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 3, codec.ErrInvalidVarint)
+				return fmt.Errorf("field C (%d): %w", 3, codec.ErrInvalidVarint)
 			}
 			i += n
 			m.C = int64(v)
 		case 4:
 			if wireType != 1 {
-				return fmt.Errorf("field %d: %w", 4, codec.ErrInvalidWireType)
+				return fmt.Errorf("field D (%d): %w", 4, codec.ErrInvalidWireType)
 			}
 			if l-i < 8 {
-				return fmt.Errorf("field %d: %w", 4, codec.ErrBufferTooShort)
+				return fmt.Errorf("field D (%d): %w", 4, codec.ErrBufferTooShort)
 			}
 			m.D = Fixed64(binary.LittleEndian.Uint64(data[i:]))
 			i += 8
 		case 5:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 5, codec.ErrInvalidWireType)
+				return fmt.Errorf("field E (%d): %w", 5, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 5, codec.ErrInvalidVarint)
+				return fmt.Errorf("field E (%d): %w", 5, codec.ErrInvalidVarint)
 			}
 			i += n
 			m.E = v != 0
 		case 6:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 6, codec.ErrInvalidWireType)
+				return fmt.Errorf("field F (%d): %w", 6, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 6, codec.ErrInvalidVarint)
+				return fmt.Errorf("field F (%d): %w", 6, codec.ErrInvalidVarint)
 			}
 			i += n
 			m.F = codec.ZigzagDecode32(uint32(v))
 		case 7:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 7, codec.ErrInvalidWireType)
+				return fmt.Errorf("field G (%d): %w", 7, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 7, codec.ErrInvalidVarint)
+				return fmt.Errorf("field G (%d): %w", 7, codec.ErrInvalidVarint)
 			}
 			i += n
 			m.G = codec.ZigzagDecode64(v)
 		case 8:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 8, codec.ErrInvalidWireType)
+				return fmt.Errorf("field H (%d): %w", 8, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 8, codec.ErrInvalidVarint)
+				return fmt.Errorf("field H (%d): %w", 8, codec.ErrInvalidVarint)
 			}
 			i += n
 			if m.H == nil {
@@ -1251,11 +1251,11 @@ func (m *NumericOnly) UnmarshalCodecInternal(data []byte, slab string, slabOff i
 			seenOptional |= 1 << 8
 		case 9:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 9, codec.ErrInvalidWireType)
+				return fmt.Errorf("field I (%d): %w", 9, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 9, codec.ErrInvalidVarint)
+				return fmt.Errorf("field I (%d): %w", 9, codec.ErrInvalidVarint)
 			}
 			i += n
 			if m.I == nil {
@@ -1265,10 +1265,10 @@ func (m *NumericOnly) UnmarshalCodecInternal(data []byte, slab string, slabOff i
 			seenOptional |= 1 << 9
 		case 10:
 			if wireType != 1 {
-				return fmt.Errorf("field %d: %w", 10, codec.ErrInvalidWireType)
+				return fmt.Errorf("field J (%d): %w", 10, codec.ErrInvalidWireType)
 			}
 			if l-i < 8 {
-				return fmt.Errorf("field %d: %w", 10, codec.ErrBufferTooShort)
+				return fmt.Errorf("field J (%d): %w", 10, codec.ErrBufferTooShort)
 			}
 			if m.J == nil {
 				m.J = new(Fixed64)
@@ -1410,11 +1410,11 @@ func (m *PackedZigzag) UnmarshalCodecInternal(data []byte, slab string, slabOff 
 			if wireType == 2 {
 				pLen, n := codec.DecodeVarint(data[i:])
 				if n < 0 {
-					return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+					return fmt.Errorf("field Values32 (%d): %w", 1, codec.ErrInvalidVarint)
 				}
 				i += n
 				if pLen > uint64(l-i) {
-					return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
+					return fmt.Errorf("field Values32 (%d): %w", 1, codec.ErrBufferTooShort)
 				}
 				end := i + int(pLen)
 				if m.Values32 == nil {
@@ -1423,7 +1423,7 @@ func (m *PackedZigzag) UnmarshalCodecInternal(data []byte, slab string, slabOff 
 				for i < end {
 					v, n := codec.DecodeVarint(data[i:])
 					if n < 0 {
-						return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+						return fmt.Errorf("field Values32 (%d): %w", 1, codec.ErrInvalidVarint)
 					}
 					i += n
 					m.Values32 = append(m.Values32, codec.ZigzagDecode32(uint32(v)))
@@ -1431,22 +1431,22 @@ func (m *PackedZigzag) UnmarshalCodecInternal(data []byte, slab string, slabOff 
 			} else if wireType == 0 {
 				v, n := codec.DecodeVarint(data[i:])
 				if n < 0 {
-					return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+					return fmt.Errorf("field Values32 (%d): %w", 1, codec.ErrInvalidVarint)
 				}
 				i += n
 				m.Values32 = append(m.Values32, codec.ZigzagDecode32(uint32(v)))
 			} else {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Values32 (%d): %w", 1, codec.ErrInvalidWireType)
 			}
 		case 2:
 			if wireType == 2 {
 				pLen, n := codec.DecodeVarint(data[i:])
 				if n < 0 {
-					return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+					return fmt.Errorf("field Values64 (%d): %w", 2, codec.ErrInvalidVarint)
 				}
 				i += n
 				if pLen > uint64(l-i) {
-					return fmt.Errorf("field %d: %w", 2, codec.ErrBufferTooShort)
+					return fmt.Errorf("field Values64 (%d): %w", 2, codec.ErrBufferTooShort)
 				}
 				end := i + int(pLen)
 				if m.Values64 == nil {
@@ -1455,7 +1455,7 @@ func (m *PackedZigzag) UnmarshalCodecInternal(data []byte, slab string, slabOff 
 				for i < end {
 					v, n := codec.DecodeVarint(data[i:])
 					if n < 0 {
-						return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+						return fmt.Errorf("field Values64 (%d): %w", 2, codec.ErrInvalidVarint)
 					}
 					i += n
 					m.Values64 = append(m.Values64, codec.ZigzagDecode64(v))
@@ -1463,12 +1463,12 @@ func (m *PackedZigzag) UnmarshalCodecInternal(data []byte, slab string, slabOff 
 			} else if wireType == 0 {
 				v, n := codec.DecodeVarint(data[i:])
 				if n < 0 {
-					return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+					return fmt.Errorf("field Values64 (%d): %w", 2, codec.ErrInvalidVarint)
 				}
 				i += n
 				m.Values64 = append(m.Values64, codec.ZigzagDecode64(v))
 			} else {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Values64 (%d): %w", 2, codec.ErrInvalidWireType)
 			}
 		default:
 			n, err := codec.SkipField(data[i:], wireType)
@@ -1565,25 +1565,25 @@ func (m *Inner) UnmarshalCodecInternal(data []byte, slab string, slabOff int) er
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Label (%d): %w", 1, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Label (%d): %w", 1, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
+				return fmt.Errorf("field Label (%d): %w", 1, codec.ErrBufferTooShort)
 			}
 			m.Label = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		case 2:
 			if wireType != 0 {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Count (%d): %w", 2, codec.ErrInvalidWireType)
 			}
 			v, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Count (%d): %w", 2, codec.ErrInvalidVarint)
 			}
 			i += n
 			m.Count = int64(v)
@@ -1766,49 +1766,49 @@ func (m *Container) UnmarshalCodecInternal(data []byte, slab string, slabOff int
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Name (%d): %w", 1, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Name (%d): %w", 1, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
+				return fmt.Errorf("field Name (%d): %w", 1, codec.ErrBufferTooShort)
 			}
 			m.Name = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Inner (%d): %w", 2, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Inner (%d): %w", 2, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrBufferTooShort)
+				return fmt.Errorf("field Inner (%d): %w", 2, codec.ErrBufferTooShort)
 			}
 			if m.Inner == nil {
 				m.Inner = new(Inner)
 			}
 			if err := m.Inner.UnmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {
-				return fmt.Errorf("field %d: %w", 2, err)
+				return fmt.Errorf("field Inner (%d): %w", 2, err)
 			}
 			seenOptional |= 1 << 2
 			i += int(vLen)
 		case 3:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 3, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Children (%d): %w", 3, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 3, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Children (%d): %w", 3, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 3, codec.ErrBufferTooShort)
+				return fmt.Errorf("field Children (%d): %w", 3, codec.ErrBufferTooShort)
 			}
 			var elem *Inner
 			if len(m.Children) < cap(m.Children) {
@@ -1823,7 +1823,7 @@ func (m *Container) UnmarshalCodecInternal(data []byte, slab string, slabOff int
 				m.Children = append(m.Children, elem)
 			}
 			if err := elem.UnmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {
-				return fmt.Errorf("field %d: %w", 3, err)
+				return fmt.Errorf("field Children (%d): %w", 3, err)
 			}
 			i += int(vLen)
 		default:
@@ -2006,45 +2006,45 @@ func (m *ValueContainer) UnmarshalCodecInternal(data []byte, slab string, slabOf
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Name (%d): %w", 1, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Name (%d): %w", 1, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
+				return fmt.Errorf("field Name (%d): %w", 1, codec.ErrBufferTooShort)
 			}
 			m.Name = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Inner (%d): %w", 2, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Inner (%d): %w", 2, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrBufferTooShort)
+				return fmt.Errorf("field Inner (%d): %w", 2, codec.ErrBufferTooShort)
 			}
 			if err := (&m.Inner).UnmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {
-				return fmt.Errorf("field %d: %w", 2, err)
+				return fmt.Errorf("field Inner (%d): %w", 2, err)
 			}
 			i += int(vLen)
 		case 3:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 3, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Items (%d): %w", 3, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 3, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Items (%d): %w", 3, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 3, codec.ErrBufferTooShort)
+				return fmt.Errorf("field Items (%d): %w", 3, codec.ErrBufferTooShort)
 			}
 			if len(m.Items) < cap(m.Items) {
 				m.Items = m.Items[:len(m.Items)+1]
@@ -2052,7 +2052,7 @@ func (m *ValueContainer) UnmarshalCodecInternal(data []byte, slab string, slabOf
 				m.Items = append(m.Items, Inner{})
 			}
 			if err := m.Items[len(m.Items)-1].UnmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {
-				return fmt.Errorf("field %d: %w", 3, err)
+				return fmt.Errorf("field Items (%d): %w", 3, err)
 			}
 			i += int(vLen)
 		default:
@@ -2220,29 +2220,29 @@ func (m *Tree) UnmarshalCodecInternal(data []byte, slab string, slabOff int) err
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Label (%d): %w", 1, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Label (%d): %w", 1, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
+				return fmt.Errorf("field Label (%d): %w", 1, codec.ErrBufferTooShort)
 			}
 			m.Label = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Children (%d): %w", 2, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Children (%d): %w", 2, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrBufferTooShort)
+				return fmt.Errorf("field Children (%d): %w", 2, codec.ErrBufferTooShort)
 			}
 			var elem *Tree
 			if len(m.Children) < cap(m.Children) {
@@ -2257,7 +2257,7 @@ func (m *Tree) UnmarshalCodecInternal(data []byte, slab string, slabOff int) err
 				m.Children = append(m.Children, elem)
 			}
 			if err := elem.UnmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {
-				return fmt.Errorf("field %d: %w", 2, err)
+				return fmt.Errorf("field Children (%d): %w", 2, err)
 			}
 			i += int(vLen)
 		default:
@@ -2379,15 +2379,15 @@ func (m *MapHolder) UnmarshalCodecInternal(data []byte, slab string, slabOff int
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Attrs (%d): %w", 1, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Attrs (%d): %w", 1, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
+				return fmt.Errorf("field Attrs (%d): %w", 1, codec.ErrBufferTooShort)
 			}
 			if m.Attrs == nil {
 				m.Attrs = make(map[string]string)
@@ -2398,7 +2398,7 @@ func (m *MapHolder) UnmarshalCodecInternal(data []byte, slab string, slabOff int
 			for i < entryEnd {
 				etag, en := codec.DecodeVarint(data[i:entryEnd])
 				if en < 0 {
-					return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+					return fmt.Errorf("field Attrs (%d): %w", 1, codec.ErrInvalidVarint)
 				}
 				i += en
 				switch etag >> 3 {
@@ -2433,20 +2433,20 @@ func (m *MapHolder) UnmarshalCodecInternal(data []byte, slab string, slabOff int
 				}
 			}
 			if i != entryEnd {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
+				return fmt.Errorf("field Attrs (%d): %w", 1, codec.ErrBufferTooShort)
 			}
 			m.Attrs[mk] = mv
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Counts (%d): %w", 2, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Counts (%d): %w", 2, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrBufferTooShort)
+				return fmt.Errorf("field Counts (%d): %w", 2, codec.ErrBufferTooShort)
 			}
 			if m.Counts == nil {
 				m.Counts = make(map[string]int64)
@@ -2457,7 +2457,7 @@ func (m *MapHolder) UnmarshalCodecInternal(data []byte, slab string, slabOff int
 			for i < entryEnd {
 				etag, en := codec.DecodeVarint(data[i:entryEnd])
 				if en < 0 {
-					return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+					return fmt.Errorf("field Counts (%d): %w", 2, codec.ErrInvalidVarint)
 				}
 				i += en
 				switch etag >> 3 {
@@ -2488,7 +2488,7 @@ func (m *MapHolder) UnmarshalCodecInternal(data []byte, slab string, slabOff int
 				}
 			}
 			if i != entryEnd {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrBufferTooShort)
+				return fmt.Errorf("field Counts (%d): %w", 2, codec.ErrBufferTooShort)
 			}
 			m.Counts[mk] = mv
 		default:
@@ -2596,37 +2596,37 @@ func (m *TimeHolder) UnmarshalCodecInternal(data []byte, slab string, slabOff in
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
+				return fmt.Errorf("field CreatedAt (%d): %w", 1, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+				return fmt.Errorf("field CreatedAt (%d): %w", 1, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
+				return fmt.Errorf("field CreatedAt (%d): %w", 1, codec.ErrBufferTooShort)
 			}
 			wktV, err := codec.DecodeTimestamp(data[i : i+int(vLen)])
 			if err != nil {
-				return fmt.Errorf("field %d: %w", 1, err)
+				return fmt.Errorf("field CreatedAt (%d): %w", 1, err)
 			}
 			m.CreatedAt = wktV
 			i += int(vLen)
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Timeout (%d): %w", 2, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Timeout (%d): %w", 2, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrBufferTooShort)
+				return fmt.Errorf("field Timeout (%d): %w", 2, codec.ErrBufferTooShort)
 			}
 			wktV, err := codec.DecodeDuration(data[i : i+int(vLen)])
 			if err != nil {
-				return fmt.Errorf("field %d: %w", 2, err)
+				return fmt.Errorf("field Timeout (%d): %w", 2, err)
 			}
 			m.Timeout = wktV
 			i += int(vLen)
@@ -2716,15 +2716,15 @@ func (m *BytesPool) UnmarshalCodecInternal(data []byte, slab string, slabOff int
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Payload (%d): %w", 1, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Payload (%d): %w", 1, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
+				return fmt.Errorf("field Payload (%d): %w", 1, codec.ErrBufferTooShort)
 			}
 			m.Payload = append(m.Payload[:0], data[i:i+int(vLen)]...)
 			i += int(vLen)

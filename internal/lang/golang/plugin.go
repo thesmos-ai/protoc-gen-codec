@@ -23,7 +23,7 @@ func Run() {
 			if !f.Generate {
 				continue
 			}
-			if err := generateFile(plugin, f, fileMap); err != nil {
+			if err := GenerateFile(plugin, f, fileMap); err != nil {
 				plugin.Error(fmt.Errorf("%s: %w", f.Desc.Path(), err))
 				if firstErr == nil {
 					firstErr = err
@@ -42,24 +42,10 @@ func buildFileMap(plugin *protogen.Plugin) map[string]*protogen.File {
 	return m
 }
 
-func generateFile(
-	plugin *protogen.Plugin,
-	file *protogen.File,
-	fileMap map[string]*protogen.File,
-) error {
-	return GenerateFile(plugin, file, fileMap)
-}
-
-// GenerateFile is exported for testing.
+// GenerateFile emits the codec methods for every annotated message in file.
+// Exported so integration and compile tests can invoke it directly without
+// driving the protoc plugin entry point.
 func GenerateFile(
-	plugin *protogen.Plugin,
-	file *protogen.File,
-	fileMap map[string]*protogen.File,
-) error {
-	return generateFileImpl(plugin, file, fileMap)
-}
-
-func generateFileImpl(
 	plugin *protogen.Plugin,
 	file *protogen.File,
 	fileMap map[string]*protogen.File,

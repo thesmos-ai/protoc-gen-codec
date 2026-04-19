@@ -814,7 +814,7 @@ func TestFixture_WrongWireType(t *testing.T) {
 	}
 }
 
-func TestFixture_WrongWireType_IncludesFieldNumber(t *testing.T) {
+func TestFixture_WrongWireType_IncludesFieldNameAndNumber(t *testing.T) {
 	t.Parallel()
 	// field 9 (Tags, repeated string, wire type 2) sent as varint
 	data := []byte{0x48, 0x00}
@@ -823,8 +823,9 @@ func TestFixture_WrongWireType_IncludesFieldNumber(t *testing.T) {
 	if !stderrors.Is(err, codec.ErrInvalidWireType) {
 		t.Fatalf("expected ErrInvalidWireType, got %v", err)
 	}
-	if !strings.Contains(err.Error(), "field 9") {
-		t.Fatalf("error should include field number, got: %v", err)
+	msg := err.Error()
+	if !strings.Contains(msg, "Tags") || !strings.Contains(msg, "(9)") {
+		t.Fatalf("error should include field name Tags and number (9), got: %v", err)
 	}
 }
 

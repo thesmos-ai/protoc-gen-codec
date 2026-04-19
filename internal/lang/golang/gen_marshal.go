@@ -194,14 +194,10 @@ func generateFieldMarshal(g *protogen.GeneratedFile, fileMap map[string]*protoge
 		g.P("n += 4")
 		g.P("}")
 
-	case f.IsString:
-		g.P("if len(", accessor, ") > 0 {")
-		emitTag(g, f.ProtoNum, f.Wire)
-		g.P("n += ", identEncodeVarint, "(buf[n:],uint64(len(", accessor, ")))")
-		g.P("n += copy(buf[n:], ", accessor, ")")
-		g.P("}")
-
-	case f.IsBytes:
+	// String and bytes are wire-identical: both are length-delimited and
+	// emit len-prefix + payload. The distinction matters only in unmarshal
+	// (slab vs append copy); at marshal/size level they share one arm.
+	case f.IsString || f.IsBytes:
 		g.P("if len(", accessor, ") > 0 {")
 		emitTag(g, f.ProtoNum, f.Wire)
 		g.P("n += ", identEncodeVarint, "(buf[n:],uint64(len(", accessor, ")))")

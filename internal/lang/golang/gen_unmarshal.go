@@ -12,20 +12,36 @@ import (
 	"go.stealthscale.io/protoc-gen-codec/internal/core"
 )
 
-func emitErrVarint(g *protogen.GeneratedFile, fieldNum int32) {
-	g.P("return ", identFmtErrorf, `("field %d: %w", `, fieldNum, ", ", identErrInvalidVarint, ")")
+// emitErr emits a `return fmt.Errorf("field <Name> (<num>): %w", <errExpr>)`
+// statement. The field name is emitted as a static literal in the format
+// string (zero runtime cost), and errExpr is the already-qualified Go
+// expression for the error value — either a package sentinel (e.g. the result
+// of g.QualifiedGoIdent(identErrBufferTooShort)) or the string "err" for a
+// wrapped sub-error from a nested UnmarshalCodecInternal call.
+func emitErr(g *protogen.GeneratedFile, f *core.FieldInfo, errExpr string) {
+	g.P("return ", identFmtErrorf, `("field `, f.TargetName, ` (%d): %w", `, f.ProtoNum, ", ", errExpr, ")")
 }
 
-func emitErrShort(g *protogen.GeneratedFile, fieldNum int32) {
-	g.P("return ", identFmtErrorf, `("field %d: %w", `, fieldNum, ", ", identErrBufferTooShort, ")")
+func emitErrVarint(g *protogen.GeneratedFile, f *core.FieldInfo) {
+	emitErr(g, f, g.QualifiedGoIdent(identErrInvalidVarint))
 }
 
-func emitErrWireType(g *protogen.GeneratedFile, fieldNum int32) {
-	g.P("return ", identFmtErrorf, `("field %d: %w", `, fieldNum, ", ", identErrInvalidWireType, ")")
+func emitErrShort(g *protogen.GeneratedFile, f *core.FieldInfo) {
+	emitErr(g, f, g.QualifiedGoIdent(identErrBufferTooShort))
 }
 
-func emitErrFixedLen(g *protogen.GeneratedFile, fieldNum int32) {
-	g.P("return ", identFmtErrorf, `("field %d: %w", `, fieldNum, ", ", identErrInvalidLength, ")")
+func emitErrWireType(g *protogen.GeneratedFile, f *core.FieldInfo) {
+	emitErr(g, f, g.QualifiedGoIdent(identErrInvalidWireType))
+}
+
+func emitErrFixedLen(g *protogen.GeneratedFile, f *core.FieldInfo) {
+	emitErr(g, f, g.QualifiedGoIdent(identErrInvalidLength))
+}
+
+// emitErrNested emits the wrap-a-sub-error pattern used after nested
+// UnmarshalCodecInternal calls (wkt Decode, singular/repeated message decode).
+func emitErrNested(g *protogen.GeneratedFile, f *core.FieldInfo) {
+	emitErr(g, f, "err")
 }
 
 // messageNeedsSlab reports whether the public UnmarshalCodec wrapper should
@@ -276,15 +292,15 @@ func generateFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*proto
 	// WKT dispatch must precede IsMessage/IsMap checks; see generateFieldMarshal.
 	if f.WellKnown == core.WKTTimestamp || f.WellKnown == core.WKTDuration {
 		g.P("if wireType != ", int(core.WireLenDel), " {")
-		emitErrWireType(g, f.ProtoNum)
+		emitErrWireType(g, f)
 		g.P("}")
 		g.P("vLen, n := ", identDecodeVarint, "(data[i:])")
 		g.P("if n < 0 {")
-		emitErrVarint(g, f.ProtoNum)
+		emitErrVarint(g, f)
 		g.P("}")
 		g.P("i += n")
 		g.P("if uint64(l-i) < vLen {")
-		emitErrShort(g, f.ProtoNum)
+		emitErrShort(g, f)
 		g.P("}")
 		if f.WellKnown == core.WKTTimestamp {
 			g.P("wktV, err := ", identDecodeTimestamp, "(data[i:i+int(vLen)])")
@@ -292,7 +308,7 @@ func generateFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*proto
 			g.P("wktV, err := ", identDecodeDuration, "(data[i:i+int(vLen)])")
 		}
 		g.P("if err != nil {")
-		g.P("return ", identFmtErrorf, `("field %d: %w", `, f.ProtoNum, ", err)")
+		emitErrNested(g, f)
 		g.P("}")
 		g.P(accessor, " = wktV")
 		g.P("i += int(vLen)")
@@ -311,22 +327,22 @@ func generateFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*proto
 
 	if f.IsMessage {
 		g.P("if wireType != ", int(core.WireLenDel), " {")
-		emitErrWireType(g, f.ProtoNum)
+		emitErrWireType(g, f)
 		g.P("}")
 		g.P("vLen, n := ", identDecodeVarint, "(data[i:])")
 		g.P("if n < 0 {")
-		emitErrVarint(g, f.ProtoNum)
+		emitErrVarint(g, f)
 		g.P("}")
 		g.P("i += n")
 		g.P("if uint64(l-i) < vLen {")
-		emitErrShort(g, f.ProtoNum)
+		emitErrShort(g, f)
 		g.P("}")
 		if f.UsePointer {
 			g.P("if ", accessor, " == nil {")
 			g.P(accessor, " = new(", goIdentForMessage(g, fileMap, f), ")")
 			g.P("}")
 			g.P("if err := ", accessor, ".UnmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {")
-			g.P("return ", identFmtErrorf, `("field %d: %w", `, f.ProtoNum, ", err)")
+			emitErrNested(g, f)
 			g.P("}")
 			if poolingEnabled {
 				// Mark as seen so the post-loop nil-out pass skips this field.
@@ -336,7 +352,7 @@ func generateFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*proto
 			}
 		} else {
 			g.P("if err := (&", accessor, ").UnmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {")
-			g.P("return ", identFmtErrorf, `("field %d: %w", `, f.ProtoNum, ", err)")
+			emitErrNested(g, f)
 			g.P("}")
 		}
 		g.P("i += int(vLen)")
@@ -349,21 +365,21 @@ func generateFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*proto
 	}
 
 	g.P("if wireType != ", int(f.Wire), " {")
-	emitErrWireType(g, f.ProtoNum)
+	emitErrWireType(g, f)
 	g.P("}")
 
 	switch {
 	case f.FixedLen > 0:
 		g.P("vLen, n := ", identDecodeVarint, "(data[i:])")
 		g.P("if n < 0 {")
-		emitErrVarint(g, f.ProtoNum)
+		emitErrVarint(g, f)
 		g.P("}")
 		g.P("i += n")
 		g.P("if vLen != ", f.FixedLen, " {")
-		emitErrFixedLen(g, f.ProtoNum)
+		emitErrFixedLen(g, f)
 		g.P("}")
 		g.P("if l-i < ", f.FixedLen, " {")
-		emitErrShort(g, f.ProtoNum)
+		emitErrShort(g, f)
 		g.P("}")
 		g.P("copy(", accessor, "[:], data[i:i+", f.FixedLen, "])")
 		g.P("i += ", f.FixedLen)
@@ -371,7 +387,7 @@ func generateFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*proto
 	case f.Wire == core.WireVarint:
 		g.P("v, n := ", identDecodeVarint, "(data[i:])")
 		g.P("if n < 0 {")
-		emitErrVarint(g, f.ProtoNum)
+		emitErrVarint(g, f)
 		g.P("}")
 		g.P("i += n")
 		switch f.ProtoKind {
@@ -387,7 +403,7 @@ func generateFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*proto
 
 	case f.Wire == core.WireFixed64:
 		g.P("if l-i < 8 {")
-		emitErrShort(g, f.ProtoNum)
+		emitErrShort(g, f)
 		g.P("}")
 		readExpr := g.QualifiedGoIdent(identBinaryLE) + ".Uint64(data[i:])"
 		g.P(accessor, " = ", castExpr64(g, fileMap, f, readExpr))
@@ -395,7 +411,7 @@ func generateFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*proto
 
 	case f.Wire == core.WireFixed32:
 		g.P("if l-i < 4 {")
-		emitErrShort(g, f.ProtoNum)
+		emitErrShort(g, f)
 		g.P("}")
 		readExpr := g.QualifiedGoIdent(identBinaryLE) + ".Uint32(data[i:])"
 		g.P(accessor, " = ", castExpr32(g, fileMap, f, readExpr))
@@ -404,11 +420,11 @@ func generateFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*proto
 	case f.IsString:
 		g.P("vLen, n := ", identDecodeVarint, "(data[i:])")
 		g.P("if n < 0 {")
-		emitErrVarint(g, f.ProtoNum)
+		emitErrVarint(g, f)
 		g.P("}")
 		g.P("i += n")
 		g.P("if uint64(l-i) < vLen {")
-		emitErrShort(g, f.ProtoNum)
+		emitErrShort(g, f)
 		g.P("}")
 		g.P(accessor, " = slab[slabOff+i : slabOff+i+int(vLen)]")
 		g.P("i += int(vLen)")
@@ -416,11 +432,11 @@ func generateFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*proto
 	case f.IsBytes:
 		g.P("vLen, n := ", identDecodeVarint, "(data[i:])")
 		g.P("if n < 0 {")
-		emitErrVarint(g, f.ProtoNum)
+		emitErrVarint(g, f)
 		g.P("}")
 		g.P("i += n")
 		g.P("if uint64(l-i) < vLen {")
-		emitErrShort(g, f.ProtoNum)
+		emitErrShort(g, f)
 		g.P("}")
 		g.P(accessor, " = append(", accessor, "[:0], data[i:i+int(vLen)]...)")
 		g.P("i += int(vLen)")
@@ -432,15 +448,15 @@ func generateFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*proto
 // key (field 1) and value (field 2) pair. The Go target is map[K]V.
 func generateMapFieldUnmarshal(g *protogen.GeneratedFile, f *core.FieldInfo, accessor string) {
 	g.P("if wireType != ", int(core.WireLenDel), " {")
-	emitErrWireType(g, f.ProtoNum)
+	emitErrWireType(g, f)
 	g.P("}")
 	g.P("vLen, n := ", identDecodeVarint, "(data[i:])")
 	g.P("if n < 0 {")
-	emitErrVarint(g, f.ProtoNum)
+	emitErrVarint(g, f)
 	g.P("}")
 	g.P("i += n")
 	g.P("if uint64(l-i) < vLen {")
-	emitErrShort(g, f.ProtoNum)
+	emitErrShort(g, f)
 	g.P("}")
 	keyType := mapKeyGoType(f)
 	valType := mapValueGoType(f)
@@ -453,7 +469,7 @@ func generateMapFieldUnmarshal(g *protogen.GeneratedFile, f *core.FieldInfo, acc
 	g.P("for i < entryEnd {")
 	g.P("etag, en := ", identDecodeVarint, "(data[i:entryEnd])")
 	g.P("if en < 0 {")
-	emitErrVarint(g, f.ProtoNum)
+	emitErrVarint(g, f)
 	g.P("}")
 	g.P("i += en")
 	g.P("switch etag >> 3 {")
@@ -468,7 +484,7 @@ func generateMapFieldUnmarshal(g *protogen.GeneratedFile, f *core.FieldInfo, acc
 	g.P("}")
 	g.P("}")
 	g.P("if i != entryEnd {")
-	emitErrShort(g, f.ProtoNum)
+	emitErrShort(g, f)
 	g.P("}")
 	g.P(accessor, "[mk] = mv")
 }
@@ -485,7 +501,7 @@ func generateMapFieldUnmarshal(g *protogen.GeneratedFile, f *core.FieldInfo, acc
 // fields were decoded so absent ones are nilled at end-of-method.
 func generatePresenceFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*protogen.File, f *core.FieldInfo, accessor string, poolingEnabled bool) {
 	g.P("if wireType != ", int(f.Wire), " {")
-	emitErrWireType(g, f.ProtoNum)
+	emitErrWireType(g, f)
 	g.P("}")
 
 	var rhs string
@@ -494,7 +510,7 @@ func generatePresenceFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 	case core.WireVarint:
 		g.P("v, n := ", identDecodeVarint, "(data[i:])")
 		g.P("if n < 0 {")
-		emitErrVarint(g, f.ProtoNum)
+		emitErrVarint(g, f)
 		g.P("}")
 		g.P("i += n")
 		switch f.ProtoKind {
@@ -509,13 +525,13 @@ func generatePresenceFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 		}
 	case core.WireFixed64:
 		g.P("if l-i < 8 {")
-		emitErrShort(g, f.ProtoNum)
+		emitErrShort(g, f)
 		g.P("}")
 		readExpr := g.QualifiedGoIdent(identBinaryLE) + ".Uint64(data[i:])"
 		rhs = castExpr64(g, fileMap, f, readExpr)
 	case core.WireFixed32:
 		g.P("if l-i < 4 {")
-		emitErrShort(g, f.ProtoNum)
+		emitErrShort(g, f)
 		g.P("}")
 		readExpr := g.QualifiedGoIdent(identBinaryLE) + ".Uint32(data[i:])"
 		rhs = castExpr32(g, fileMap, f, readExpr)
@@ -547,15 +563,15 @@ func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 
 	if f.IsMessage {
 		g.P("if wireType != ", int(core.WireLenDel), " {")
-		emitErrWireType(g, f.ProtoNum)
+		emitErrWireType(g, f)
 		g.P("}")
 		g.P("vLen, n := ", identDecodeVarint, "(data[i:])")
 		g.P("if n < 0 {")
-		emitErrVarint(g, f.ProtoNum)
+		emitErrVarint(g, f)
 		g.P("}")
 		g.P("i += n")
 		g.P("if uint64(l-i) < vLen {")
-		emitErrShort(g, f.ProtoNum)
+		emitErrShort(g, f)
 		g.P("}")
 		elemType := goIdentForMessage(g, fileMap, f)
 		if f.UsePointer {
@@ -576,7 +592,7 @@ func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 			g.P(accessor, " = append(", accessor, ", elem)")
 			g.P("}")
 			g.P("if err := elem.UnmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {")
-			g.P("return ", identFmtErrorf, `("field %d: %w", `, f.ProtoNum, ", err)")
+			emitErrNested(g, f)
 			g.P("}")
 		} else {
 			// Value-slice cursor reuse: extend into spare capacity when
@@ -589,7 +605,7 @@ func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 			g.P(accessor, " = append(", accessor, ", ", elemType, "{})")
 			g.P("}")
 			g.P("if err := ", accessor, "[len(", accessor, ")-1].UnmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {")
-			g.P("return ", identFmtErrorf, `("field %d: %w", `, f.ProtoNum, ", err)")
+			emitErrNested(g, f)
 			g.P("}")
 		}
 		g.P("i += int(vLen)")
@@ -598,35 +614,35 @@ func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 
 	switch {
 	case f.IsString:
-		g.P("if wireType != 2 {")
-		emitErrWireType(g, f.ProtoNum)
+		g.P("if wireType != ", int(core.WireLenDel), " {")
+		emitErrWireType(g, f)
 		g.P("}")
 		g.P("vLen, n := ", identDecodeVarint, "(data[i:])")
 		g.P("if n < 0 {")
-		emitErrVarint(g, f.ProtoNum)
+		emitErrVarint(g, f)
 		g.P("}")
 		g.P("i += n")
 		g.P("if uint64(l-i) < vLen {")
-		emitErrShort(g, f.ProtoNum)
+		emitErrShort(g, f)
 		g.P("}")
 		g.P(accessor, " = append(", accessor, ", slab[slabOff+i : slabOff+i+int(vLen)])")
 		g.P("i += int(vLen)")
 
 	case f.IsBytes && f.FixedLen > 0:
 		zeroType := goCastName(g, fileMap, f)
-		g.P("if wireType != 2 {")
-		emitErrWireType(g, f.ProtoNum)
+		g.P("if wireType != ", int(core.WireLenDel), " {")
+		emitErrWireType(g, f)
 		g.P("}")
 		g.P("vLen, n := ", identDecodeVarint, "(data[i:])")
 		g.P("if n < 0 {")
-		emitErrVarint(g, f.ProtoNum)
+		emitErrVarint(g, f)
 		g.P("}")
 		g.P("i += n")
 		g.P("if vLen != ", f.FixedLen, " {")
-		emitErrFixedLen(g, f.ProtoNum)
+		emitErrFixedLen(g, f)
 		g.P("}")
 		g.P("if l-i < ", f.FixedLen, " {")
-		emitErrShort(g, f.ProtoNum)
+		emitErrShort(g, f)
 		g.P("}")
 		if zeroType != "" {
 			g.P("var elem ", zeroType)
@@ -638,16 +654,16 @@ func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 		g.P("i += ", f.FixedLen)
 
 	case f.IsBytes:
-		g.P("if wireType != 2 {")
-		emitErrWireType(g, f.ProtoNum)
+		g.P("if wireType != ", int(core.WireLenDel), " {")
+		emitErrWireType(g, f)
 		g.P("}")
 		g.P("vLen, n := ", identDecodeVarint, "(data[i:])")
 		g.P("if n < 0 {")
-		emitErrVarint(g, f.ProtoNum)
+		emitErrVarint(g, f)
 		g.P("}")
 		g.P("i += n")
 		g.P("if uint64(l-i) < vLen {")
-		emitErrShort(g, f.ProtoNum)
+		emitErrShort(g, f)
 		g.P("}")
 		g.P("elem := make([]byte, vLen)")
 		g.P("copy(elem, data[i:i+int(vLen)])")
@@ -664,10 +680,10 @@ func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 		default:
 			elemExpr = castExpr(g, fileMap, f, "v")
 		}
-		g.P("if wireType == 2 {")
+		g.P("if wireType == ", int(core.WireLenDel), " {")
 		g.P("pLen, n := ", identDecodeVarint, "(data[i:])")
 		g.P("if n < 0 {")
-		emitErrVarint(g, f.ProtoNum)
+		emitErrVarint(g, f)
 		g.P("}")
 		g.P("i += n")
 		// Bound pLen in uint64 space before converting to int, otherwise a
@@ -675,7 +691,7 @@ func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 		// and (a) the `end > l` check incorrectly passes and (b) `make` panics
 		// with "cap out of range".
 		g.P("if pLen > uint64(l-i) {")
-		emitErrShort(g, f.ProtoNum)
+		emitErrShort(g, f)
 		g.P("}")
 		g.P("end := i + int(pLen)")
 		g.P("if ", accessor, " == nil {")
@@ -684,28 +700,28 @@ func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 		g.P("for i < end {")
 		g.P("v, n := ", identDecodeVarint, "(data[i:])")
 		g.P("if n < 0 {")
-		emitErrVarint(g, f.ProtoNum)
+		emitErrVarint(g, f)
 		g.P("}")
 		g.P("i += n")
 		g.P(accessor, " = append(", accessor, ", ", elemExpr, ")")
 		g.P("}")
-		g.P("} else if wireType == 0 {")
+		g.P("} else if wireType == ", int(core.WireVarint), " {")
 		g.P("v, n := ", identDecodeVarint, "(data[i:])")
 		g.P("if n < 0 {")
-		emitErrVarint(g, f.ProtoNum)
+		emitErrVarint(g, f)
 		g.P("}")
 		g.P("i += n")
 		g.P(accessor, " = append(", accessor, ", ", elemExpr, ")")
 		g.P("} else {")
-		emitErrWireType(g, f.ProtoNum)
+		emitErrWireType(g, f)
 		g.P("}")
 
 	case f.Wire == core.WireFixed64:
 		readExpr := g.QualifiedGoIdent(identBinaryLE) + ".Uint64(data[i:])"
-		g.P("if wireType == 2 {")
+		g.P("if wireType == ", int(core.WireLenDel), " {")
 		g.P("pLen, n := ", identDecodeVarint, "(data[i:])")
 		g.P("if n < 0 {")
-		emitErrVarint(g, f.ProtoNum)
+		emitErrVarint(g, f)
 		g.P("}")
 		g.P("i += n")
 		// Bound pLen in uint64 space before converting to int, otherwise a
@@ -713,7 +729,7 @@ func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 		// and (a) the `end > l` check incorrectly passes and (b) `make` panics
 		// with "cap out of range".
 		g.P("if pLen > uint64(l-i) {")
-		emitErrShort(g, f.ProtoNum)
+		emitErrShort(g, f)
 		g.P("}")
 		g.P("end := i + int(pLen)")
 		g.P("if ", accessor, " == nil {")
@@ -723,22 +739,22 @@ func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 		g.P(accessor, " = append(", accessor, ", ", castExpr64(g, fileMap, f, readExpr), ")")
 		g.P("i += 8")
 		g.P("}")
-		g.P("} else if wireType == 1 {")
+		g.P("} else if wireType == ", int(core.WireFixed64), " {")
 		g.P("if l-i < 8 {")
-		emitErrShort(g, f.ProtoNum)
+		emitErrShort(g, f)
 		g.P("}")
 		g.P(accessor, " = append(", accessor, ", ", castExpr64(g, fileMap, f, readExpr), ")")
 		g.P("i += 8")
 		g.P("} else {")
-		emitErrWireType(g, f.ProtoNum)
+		emitErrWireType(g, f)
 		g.P("}")
 
 	case f.Wire == core.WireFixed32:
 		readExpr := g.QualifiedGoIdent(identBinaryLE) + ".Uint32(data[i:])"
-		g.P("if wireType == 2 {")
+		g.P("if wireType == ", int(core.WireLenDel), " {")
 		g.P("pLen, n := ", identDecodeVarint, "(data[i:])")
 		g.P("if n < 0 {")
-		emitErrVarint(g, f.ProtoNum)
+		emitErrVarint(g, f)
 		g.P("}")
 		g.P("i += n")
 		// Bound pLen in uint64 space before converting to int, otherwise a
@@ -746,7 +762,7 @@ func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 		// and (a) the `end > l` check incorrectly passes and (b) `make` panics
 		// with "cap out of range".
 		g.P("if pLen > uint64(l-i) {")
-		emitErrShort(g, f.ProtoNum)
+		emitErrShort(g, f)
 		g.P("}")
 		g.P("end := i + int(pLen)")
 		g.P("if ", accessor, " == nil {")
@@ -756,14 +772,14 @@ func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 		g.P(accessor, " = append(", accessor, ", ", castExpr32(g, fileMap, f, readExpr), ")")
 		g.P("i += 4")
 		g.P("}")
-		g.P("} else if wireType == 5 {")
+		g.P("} else if wireType == ", int(core.WireFixed32), " {")
 		g.P("if l-i < 4 {")
-		emitErrShort(g, f.ProtoNum)
+		emitErrShort(g, f)
 		g.P("}")
 		g.P(accessor, " = append(", accessor, ", ", castExpr32(g, fileMap, f, readExpr), ")")
 		g.P("i += 4")
 		g.P("} else {")
-		emitErrWireType(g, f.ProtoNum)
+		emitErrWireType(g, f)
 		g.P("}")
 	}
 }

@@ -5,7 +5,6 @@ package golang
 
 import (
 	"google.golang.org/protobuf/compiler/protogen"
-	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"go.stealthscale.io/protoc-gen-codec/internal/core"
 )
@@ -47,29 +46,11 @@ func goIdentForMessage(g *protogen.GeneratedFile, fileMap map[string]*protogen.F
 }
 
 // elemGoType returns the Go element type for a repeated field, used when
-// pre-allocating slices in packed-unmarshal paths.
+// pre-allocating slices in packed-unmarshal paths. Delegates to scalarGoType
+// for the kind → Go type mapping so the single switch table lives there.
 func elemGoType(g *protogen.GeneratedFile, fileMap map[string]*protogen.File, f *core.FieldInfo) string {
 	if f.CastRef != nil {
 		return goCastName(g, fileMap, f)
 	}
-	switch f.ProtoKind {
-	case protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Sfixed32Kind:
-		return "int32"
-	case protoreflect.Uint32Kind, protoreflect.Fixed32Kind:
-		return "uint32"
-	case protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Sfixed64Kind:
-		return "int64"
-	case protoreflect.Uint64Kind, protoreflect.Fixed64Kind:
-		return "uint64"
-	case protoreflect.FloatKind:
-		return "float32"
-	case protoreflect.DoubleKind:
-		return "float64"
-	case protoreflect.EnumKind:
-		return "uint32"
-	case protoreflect.BoolKind:
-		return "bool"
-	default:
-		return ""
-	}
+	return scalarGoType(f)
 }

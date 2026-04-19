@@ -196,49 +196,49 @@ func (m *CrossContainer) UnmarshalCodecInternal(data []byte, slab string, slabOf
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Name (%d): %w", 1, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Name (%d): %w", 1, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 1, codec.ErrBufferTooShort)
+				return fmt.Errorf("field Name (%d): %w", 1, codec.ErrBufferTooShort)
 			}
 			m.Name = slab[slabOff+i : slabOff+i+int(vLen)]
 			i += int(vLen)
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Item (%d): %w", 2, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Item (%d): %w", 2, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 2, codec.ErrBufferTooShort)
+				return fmt.Errorf("field Item (%d): %w", 2, codec.ErrBufferTooShort)
 			}
 			if m.Item == nil {
 				m.Item = new(external.External)
 			}
 			if err := m.Item.UnmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {
-				return fmt.Errorf("field %d: %w", 2, err)
+				return fmt.Errorf("field Item (%d): %w", 2, err)
 			}
 			seenOptional |= 1 << 2
 			i += int(vLen)
 		case 3:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 3, codec.ErrInvalidWireType)
+				return fmt.Errorf("field Items (%d): %w", 3, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 3, codec.ErrInvalidVarint)
+				return fmt.Errorf("field Items (%d): %w", 3, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 3, codec.ErrBufferTooShort)
+				return fmt.Errorf("field Items (%d): %w", 3, codec.ErrBufferTooShort)
 			}
 			if len(m.Items) < cap(m.Items) {
 				m.Items = m.Items[:len(m.Items)+1]
@@ -246,20 +246,20 @@ func (m *CrossContainer) UnmarshalCodecInternal(data []byte, slab string, slabOf
 				m.Items = append(m.Items, external.External{})
 			}
 			if err := m.Items[len(m.Items)-1].UnmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {
-				return fmt.Errorf("field %d: %w", 3, err)
+				return fmt.Errorf("field Items (%d): %w", 3, err)
 			}
 			i += int(vLen)
 		case 4:
 			if wireType != 2 {
-				return fmt.Errorf("field %d: %w", 4, codec.ErrInvalidWireType)
+				return fmt.Errorf("field PtrItems (%d): %w", 4, codec.ErrInvalidWireType)
 			}
 			vLen, n := codec.DecodeVarint(data[i:])
 			if n < 0 {
-				return fmt.Errorf("field %d: %w", 4, codec.ErrInvalidVarint)
+				return fmt.Errorf("field PtrItems (%d): %w", 4, codec.ErrInvalidVarint)
 			}
 			i += n
 			if uint64(l-i) < vLen {
-				return fmt.Errorf("field %d: %w", 4, codec.ErrBufferTooShort)
+				return fmt.Errorf("field PtrItems (%d): %w", 4, codec.ErrBufferTooShort)
 			}
 			var elem *external.External
 			if len(m.PtrItems) < cap(m.PtrItems) {
@@ -274,7 +274,7 @@ func (m *CrossContainer) UnmarshalCodecInternal(data []byte, slab string, slabOf
 				m.PtrItems = append(m.PtrItems, elem)
 			}
 			if err := elem.UnmarshalCodecInternal(data[i:i+int(vLen)], slab, slabOff+i); err != nil {
-				return fmt.Errorf("field %d: %w", 4, err)
+				return fmt.Errorf("field PtrItems (%d): %w", 4, err)
 			}
 			i += int(vLen)
 		default:

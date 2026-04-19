@@ -136,13 +136,10 @@ func generateFieldSize(g *protogen.GeneratedFile, fileMap map[string]*protogen.F
 		g.P("n += ", ts+4)
 		g.P("}")
 
-	case f.IsString:
-		g.P("if len(", accessor, ") > 0 {")
-		g.P("l := len(", accessor, ")")
-		g.P("n += ", ts, " + ", identSov, "(uint64(l)) + l")
-		g.P("}")
-
-	case f.IsBytes:
+	// String and bytes are wire-identical: both are length-delimited and
+	// contribute tag + Sov(len) + len bytes. The distinction matters only in
+	// unmarshal (slab vs append copy); size/marshal share one arm.
+	case f.IsString || f.IsBytes:
 		g.P("if len(", accessor, ") > 0 {")
 		g.P("l := len(", accessor, ")")
 		g.P("n += ", ts, " + ", identSov, "(uint64(l)) + l")
