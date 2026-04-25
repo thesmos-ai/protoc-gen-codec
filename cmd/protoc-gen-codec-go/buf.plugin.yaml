@@ -1,0 +1,36 @@
+# Plugin metadata for Buf Schema Registry remote-plugin submission.
+# Submitted via PR to https://github.com/bufbuild/plugins under
+# plugins/thesmos/codec-go/v1.0.0/. Bump plugin_version on each
+# release; the BSR keeps a separate revision for every version.
+#
+# Submission flow: see ./README.md in this directory.
+
+version: v1
+name: buf.build/thesmos/codec-go
+plugin_version: v1.0.0
+
+source_url: https://github.com/thesmos-ai/protoc-gen-codec
+integration_guide_url: https://github.com/thesmos-ai/protoc-gen-codec#quick-start-go
+
+description: >-
+  Emits proto3 marshal/unmarshal/size/reset methods on hand-written
+  Go types via codec.* annotations — no generated structs, zero-alloc
+  marshal, deterministic output.
+
+output_languages:
+  - go
+
+# Runtime module that generated *.codec.go files import. Consumers
+# pulling the plugin via `buf generate` will get this dependency
+# wired into their go.mod automatically.
+registry:
+  go:
+    min_version: "1.26"
+    deps:
+      - module: go.thesmos.sh/protoc-gen-codec
+        version: v1.0.0
+    opts:
+      - paths=source_relative
+
+spdx_license_id: Apache-2.0
+license_url: https://github.com/thesmos-ai/protoc-gen-codec/blob/v1.0.0/LICENSE

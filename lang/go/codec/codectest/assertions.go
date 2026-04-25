@@ -7,9 +7,33 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"flag"
+	"os"
+	"path/filepath"
 	"reflect"
 
 	"go.thesmos.sh/protoc-gen-codec/lang/go/codec"
+)
+
+// updateWireSnapshots refreshes the per-fixture wire-byte snapshots from
+// the current MarshalCodec output. Off by default; opt-in via
+// -update-wire-snapshots so a green run always validates committed bytes.
+//
+// Wire-byte snapshots complement mutation testing by anchoring the
+// concrete encoding format. Mutation testing kills any single change
+// to the marshal/unmarshal logic; wire snapshots additionally catch
+// semantic-equivalent encoding changes (e.g. a refactor that swaps
+// map iteration order while keeping roundtrip green) and consistent
+// bidirectional mutations (both marshal and unmarshal renumber a
+// field — gremlins doesn't combine two mutations, but a refactor PR
+// could ship both at once).
+//
+// Snapshots live next to the test that runs them, under
+// testdata/wire/<TypeName>.bin.
+var updateWireSnapshots = flag.Bool(
+	"update-wire-snapshots",
+	false,
+	"refresh testdata/wire/*.bin from current MarshalCodec output",
 )
 
 // Assertion-message convention (per testing-runbook Phase 4.3):
@@ -73,6 +97,66 @@ func AssertWireStable[T any, PT interface {
 	if !bytes.Equal(re1, re2) {
 		t.Fatalf("wire must be byte-identical across one Marshal/Unmarshal/Marshal cycle — deterministic encoding contract\n  re1=%x\n  re2=%x",
 			re1, re2)
+	}
+}
+
+// AssertWireSnapshot pins the concrete wire-byte output of MarshalCodec
+// for a sample to a checked-in `testdata/wire/<TypeName>.bin` file.
+//
+// The snapshot lives in the test's package directory so each consumer
+// owns its own committed wire bytes. Refresh after intentional
+// encoding changes:
+//
+//	go test ./<pkg>/ -update-wire-snapshots
+//
+// Then `git diff testdata/wire/` to review the byte-level effect.
+//
+// This complements mutation testing: gremlins kills any single change
+// to marshal/unmarshal logic, but a refactor PR could simultaneously
+// change both (e.g. renumber a field on both sides) and pass roundtrip
+// while breaking wire compatibility for already-deployed consumers.
+// The snapshot diff catches that class of change.
+func AssertWireSnapshot[T any, PT interface {
+	*T
+	codec.Codec
+}](t TB, sample T) {
+	t.Helper()
+	got, err := PT(&sample).MarshalCodec()
+	if err != nil {
+		t.Fatalf("MarshalCodec must succeed on a valid sample (got: %v)", err)
+	}
+	name := reflect.TypeOf(sample).Name()
+	path := filepath.Join("testdata", "wire", name+".bin")
+
+	if *updateWireSnapshots {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("mkdir snapshot dir %s: %v", filepath.Dir(path), err)
+		}
+		if err := os.WriteFile(path, got, 0o644); err != nil {
+			t.Fatalf("write snapshot %s: %v", path, err)
+		}
+		return
+	}
+
+	want, rerr := os.ReadFile(path)
+	if rerr != nil {
+		t.Fatalf(
+			"read wire snapshot %s: %v\n"+
+				"if this is a new fixture, generate the snapshot with:\n"+
+				"\tgo test ./... -update-wire-snapshots",
+			path, rerr,
+		)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf(
+			"MarshalCodec wire bytes differ from snapshot %s — wire-format stability contract\n"+
+				"  emitted (%d bytes):  %x\n"+
+				"  snapshot (%d bytes): %x\n"+
+				"if the change is intentional, refresh with:\n"+
+				"\tgo test ./... -update-wire-snapshots\n"+
+				"and review the diff before committing.",
+			path, len(got), got, len(want), want,
+		)
 	}
 }
 

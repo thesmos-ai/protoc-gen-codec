@@ -48,27 +48,10 @@ func ptrCrossContainerNilElement() *integration.CrossContainer {
 	return &s
 }
 
-// === External ================================================================
-
-var specExternal = codectest.Spec[external.External]{
-	Sample:              external.External{Tag: "x", Seq: 7},
-	ScalarVarintFields:  []int32{2}, // Seq (int64)
-	MarshalToLatencyMax: 50 * time.Nanosecond,
-}
-
-func TestExternal(t *testing.T) {
-	t.Run("Codec", func(t *testing.T) {
-		codectest.RunSuite[external.External](t, specExternal)
-	})
-}
-
-func BenchmarkExternal(b *testing.B) {
-	codectest.RunBenchSuite[external.External](b, specExternal)
-}
-
-func FuzzExternal_Codec(f *testing.F) {
-	codectest.RunFuzzSuite[external.External](f, specExternal)
-}
+// External codec tests live in the external/ package itself
+// (external/external_test.go) so gremlins runs them when mutating
+// external.codec.go — gremlins is package-scoped and tests in this
+// integration_test package don't kill mutants in external/.
 
 // === CrossContainer ==========================================================
 

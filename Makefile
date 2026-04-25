@@ -160,7 +160,18 @@ verify-deterministic-gen: build ## Verify generator output is byte-identical acr
 # fast baseline (~ms); mutations that introduce infinite loops still time
 # out and gremlins counts them as detected (not LIVED).
 
-GREMLINS_RUN = $(GREMLINS) unleash --timeout-coefficient=200
+# Resource caps: gremlins defaults to (workers × test-cpu) = NumCPU²
+# which on a 16-core machine spawns ~256 contended CPU slots and can
+# spike load past 100. Cap to (workers × test-cpu) ≈ NumCPU so peak
+# parallelism stays at one core per slot. Tuned for a 16-core dev box;
+# override per invocation if needed:
+#   GREMLINS_WORKERS=4 GREMLINS_TEST_CPU=2 make test-mutation-integration
+GREMLINS_WORKERS ?= 8
+GREMLINS_TEST_CPU ?= 2
+GREMLINS_RUN = $(GREMLINS) unleash \
+	--timeout-coefficient=200 \
+	--workers=$(GREMLINS_WORKERS) \
+	--test-cpu=$(GREMLINS_TEST_CPU)
 
 # Runtime: 5 documented equivalents (DecodeVarint contract: n >= 1 or
 # n == -1; n == 0 unreachable, so `<` and `<=` are semantically identical).
@@ -174,7 +185,20 @@ test-mutation-codec: ## Mutation-test lang/go/codec/ (threshold 91% numerical)
 test-mutation-core: ## Mutation-test internal/core/ (threshold 80% numerical)
 	$(GREMLINS_RUN) --threshold-efficacy=80 ./internal/core/
 
-test-mutation: test-mutation-codec test-mutation-core ## Run all mutation-testing layers
+# Integration: mutates the generated *.codec.go files (and hand-written
+# fixture types) and runs the full codectest suite against each mutant.
+# This tests the END artifact — what runs in production — rather than
+# the emitter that produces it.
+#
+# Two invocations because gremlins is package-scoped and doesn't
+# recurse cleanly via `./...`: external/ is its own package with its
+# own tests (lang/go/integration/external/external_test.go) so its
+# mutants are killed by tests in the same package.
+test-mutation-integration: ## Mutation-test lang/go/integration/ + sub-pkgs (threshold 100%)
+	$(GREMLINS_RUN) --threshold-efficacy=100 ./lang/go/integration/
+	$(GREMLINS_RUN) --threshold-efficacy=100 ./lang/go/integration/external/
+
+test-mutation: test-mutation-codec test-mutation-core test-mutation-integration ## Run all mutation-testing layers
 
 # ===========================================================================
 # Composite gates
@@ -223,6 +247,6 @@ tools: ## Install developer tools (buf, golangci-lint, gremlins, benchstat) into
 	lint fmt \
 	bench-baseline bench-compare \
 	verify-deterministic-gen \
-	test-mutation test-mutation-codec test-mutation-core \
+	test-mutation test-mutation-codec test-mutation-core test-mutation-integration \
 	check ci \
 	tools

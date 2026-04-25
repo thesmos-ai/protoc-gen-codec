@@ -184,9 +184,14 @@ func (s Spec[T]) unknownFieldNum() int32 {
 }
 
 // RunSuite runs the full Test-suite subtree for T: behavioral (roundtrip,
-// reset, nil-safe, cross-format, wire-size, corruption), coverage
-// (per-field wire-type mismatch, short buffer, tag corruption, per-field
-// category probes), and property-based (if spec.Generator is set).
+// reset, wire-snapshot, nil-safe, cross-format, wire-size, corruption),
+// coverage (per-field wire-type mismatch, short buffer, tag corruption,
+// per-field category probes), and property-based (if spec.Generator is
+// set).
+//
+// The WireSnapshot subtest pins the concrete MarshalCodec output to a
+// committed `testdata/wire/<TypeName>.bin` file. Refresh after
+// intentional encoding changes via `go test -update-wire-snapshots`.
 func RunSuite[T any, PT interface {
 	*T
 	codec.Codec
@@ -206,6 +211,10 @@ func RunSuite[T any, PT interface {
 	t.Run("Reset", func(t *testing.T) {
 		t.Parallel()
 		AssertReset[T, PT](t, spec.Sample)
+	})
+	t.Run("WireSnapshot", func(t *testing.T) {
+		t.Parallel()
+		AssertWireSnapshot[T, PT](t, spec.Sample)
 	})
 	t.Run("NilSafe", func(t *testing.T) {
 		t.Parallel()

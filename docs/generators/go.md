@@ -414,6 +414,7 @@ Behavioural subtests (always run):
 | `Roundtrip`       | `MarshalCodec` → `UnmarshalCodec` yields a `reflect.DeepEqual` match. |
 | `Roundtrip/Zero`  | Zero value round-trips identically.                                   |
 | `Reset`           | After `ResetCodec`, `SizeCodec()==0` and `MarshalCodec()` is empty.   |
+| `WireSnapshot`    | `MarshalCodec(Sample)` matches a checked-in `testdata/wire/<TypeName>.bin`. Refresh after intentional encoding changes via `go test -update-wire-snapshots`. Catches semantic-equivalent encoding changes (e.g. map-sort refactor) and consistent bidirectional renumbering that single-mutation testing misses. |
 | `NilSafe`         | Methods on a nil receiver don't panic.                                |
 | `CrossFormat`     | Codec and `encoding/json` agree on the same source data.              |
 | `WireSize`        | Codec output is strictly smaller than JSON output.                    |
@@ -448,28 +449,106 @@ Opt-in subtests (run when the corresponding spec field is set):
 
 ### Field-category cheatsheet
 
-When filling in a `Spec`, walk the `.proto` once and classify each
-field:
+The bucket each proto field number lands in is determined by the
+field's **proto wire type** (proto3 wire format §[Encoding](https://protobuf.dev/programming-guides/encoding/)).
+Each bucket drives a corruption assertion appropriate to that wire
+type — wire type 0 (varint) gets a malformed-varint probe; wire types
+1 (fixed64) and 5 (fixed32) get short-buffer probes; wire type 2
+(length-delimited) gets length-mismatch and short-payload probes; etc.
 
-| Proto declaration                                                                | Spec bucket             |
-|----------------------------------------------------------------------------------|-------------------------|
-| `int32` / `int64` / `uint32` / `uint64` / `sint32` / `sint64` / `bool` / `enum`  | `ScalarVarintFields`    |
-| `repeated` packed varint scalars (`int*`/`uint*`/`sint*`/`bool`/enum)            | `PackedVarintFields`    |
-| `repeated` packed `fixed64` / `sfixed64` / `double`                              | `PackedFixed64Fields`   |
-| `repeated` packed `fixed32` / `sfixed32` / `float`                               | `PackedFixed32Fields`   |
-| `map<K, V>`                                                                      | `MapFields`             |
-| `repeated MsgType`                                                               | `RepeatedMessageFields` |
-| `google.protobuf.Timestamp` / `Duration`                                         | `WKTFields`             |
-| `fixed64` / `sfixed64` / `double`                                                | `Fixed64Fields`         |
-| `fixed32` / `sfixed32` / `float`                                                 | `Fixed32Fields`         |
-| `bytes` with `(codec.fixed_len)`                                                 | `FixedLenBytesFields` (pass `{Num, Length}`) |
-| `string`, `bytes` (variable), singular `MsgType`                                 | *none — covered automatically* |
+Walk the `.proto` once and classify each field:
+
+| Proto declaration                                                                | Wire type | Spec bucket             |
+|----------------------------------------------------------------------------------|-----------|-------------------------|
+| `int32` / `int64` / `uint32` / `uint64` / `sint32` / `sint64` / `bool` / `enum`  | 0 varint  | `ScalarVarintFields`    |
+| `repeated` packed varint scalars (`int*`/`uint*`/`sint*`/`bool`/enum)            | 2 + 0     | `PackedVarintFields`    |
+| `repeated` packed `fixed64` / `sfixed64` / `double`                              | 2 + 1     | `PackedFixed64Fields`   |
+| `repeated` packed `fixed32` / `sfixed32` / `float`                               | 2 + 5     | `PackedFixed32Fields`   |
+| `map<K, V>`                                                                      | 2         | `MapFields`             |
+| `repeated MsgType`                                                               | 2         | `RepeatedMessageFields` |
+| `google.protobuf.Timestamp` / `Duration`                                         | 2         | `WKTFields`             |
+| `fixed64` / `sfixed64` / `double`                                                | 1 fixed64 | `Fixed64Fields`         |
+| `fixed32` / `sfixed32` / `float`                                                 | 5 fixed32 | `Fixed32Fields`         |
+| `bytes` with `(codec.fixed_len)`                                                 | 2         | `FixedLenBytesFields` (pass `{Num, Length}`) |
+| `string`, `bytes` (variable), singular `MsgType`, oneof                          | 2 / various | *none — covered automatically by `Roundtrip` + `AllFieldsWireTypeMismatch`* |
+
+Each entry in these lists is the **proto field number** (`= N` from
+the `.proto`), not a Go struct field index. The runner registers one
+subtest per `(category, field-number)` pair. The wire type and (for
+fixed-width categories) element size are wired into the assertion so
+the constructed wire bytes match what the generated unmarshal expects.
 
 The legacy `PackedFields` bucket is accepted as an alias for
 `PackedVarintFields` so older Spec definitions keep working, but new
 code should use the element-wire-type-specific bucket so the runner
 can synthesize a wire-correct unpacked-alternate body for the
 dual-encoding test.
+
+### Worked example
+
+Given the `Fixture` proto in the integration package:
+
+```protobuf
+message Fixture {
+  string  id        = 1 [(codec.field) = "ID"];
+  uint32  kind      = 2 [(codec.field) = "Kind"];                                     // varint
+  uint32  status    = 3 [(codec.field) = "Status", (codec.cast) = "Status"];          // varint (enum cast)
+  int64   score     = 4 [(codec.field) = "Score"];                                    // varint
+  uint64  sequence  = 5 [(codec.field) = "Sequence"];                                 // varint
+  bool    enabled   = 6 [(codec.field) = "Enabled"];                                  // varint
+  int64   timestamp = 7 [(codec.field) = "Timestamp"];                                // varint
+  bytes   ref       = 8 [(codec.field) = "Ref", (codec.cast) = "Digest",
+                         (codec.fixed_len) = 32];                                     // length-delim, fixed-len
+  repeated string tags = 9 [(codec.field) = "Tags"];                                  // length-delim repeated string
+  bytes   data      = 10 [(codec.field) = "Data"];                                    // length-delim
+}
+```
+
+The matching spec:
+
+```go
+var specFixture = codectest.Spec[integration.Fixture]{
+    Sample:              sampleFixture(),
+    Grower:              ptrFixtureGrower(),
+    ScalarVarintFields:  []int32{2, 3, 4, 5, 6, 7},                       // Kind, Status, Score, Sequence, Enabled, Timestamp
+    FixedLenBytesFields: []codectest.FixedLenField{{Num: 8, Length: 32}}, // Ref
+    MarshalToLatencyMax: 150 * time.Nanosecond,
+}
+```
+
+Reading off:
+
+- **Field 1 (`id`, string)** — wire type 2 (length-delim). Not listed; covered by `Roundtrip` + `AllFieldsWireTypeMismatch` automatically.
+- **Fields 2–7 (varint scalars)** — wire type 0. Listed in `ScalarVarintFields`. Each gets a `CorruptScalarVarint/FieldN` subtest.
+- **Field 8 (`ref`, fixed-length bytes)** — wire type 2 with a `(codec.fixed_len) = 32` annotation. Listed in `FixedLenBytesFields` with the declared length so `CorruptFixedLenBytes/Field8` covers all three error branches (bad length varint, wrong length, short body).
+- **Field 9 (`tags`, repeated string)** — wire type 2; repeated of length-delim is *not* packed-eligible (proto3 packed only applies to scalar fields). Not listed; covered automatically.
+- **Field 10 (`data`, bytes)** — wire type 2. Not listed; covered automatically.
+
+`Grower` is set so `WarmPathGrowth` runs (verifies that decoding a
+larger payload into a primed receiver grows the existing slice rather
+than reallocating). `MarshalToLatencyMax` gates the bench against
+order-of-magnitude regressions at ~5× the dev-box ns/op.
+
+### Filling out a new spec — rules of thumb
+
+1. Open the `.proto`. For each field, classify by wire type using the
+   cheat-sheet above.
+2. Drop the field number into the matching list. Most varint fields
+   end up in `ScalarVarintFields`; everything else has a more specific
+   bucket.
+3. If a field has `(codec.fixed_len)`, also add to `FixedLenBytesFields`
+   with the declared length.
+4. If the type has a non-synthetic oneof, add one `Variants` entry
+   per branch so every branch's field number is observable on the wire
+   for `AllFieldsWireTypeMismatch`.
+5. If the type contains maps, set `MarshalToAllocsMax: 1` (the sort
+   allocates once per marshal). Otherwise leave it `0` (zero-alloc
+   contract).
+6. Set `MarshalToLatencyMax` to ~5× the measured `Codec/MarshalTo`
+   ns/op so order-of-magnitude regressions trip the in-bench gate.
+7. After the spec compiles, generate the wire snapshot once with
+   `go test ./<your-pkg>/ -update-wire-snapshots` and commit
+   `testdata/wire/<TypeName>.bin`.
 
 Spec fields not tied to a field-category bucket:
 

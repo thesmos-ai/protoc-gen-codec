@@ -182,8 +182,10 @@ behaviours the imperative tests miss.
 | Runtime (`lang/go/codec/`)                   | 90%+ (bench-only paths excluded by `go test -cover`); mutation-tested at **57 KILLED + 5 documented equivalents = 100% effective** |
 | Analyzer (`internal/core/`)                  | 85% direct + indirect via integration; mutation-tested at **76 KILLED + 19 documented equivalents = 100% effective**       |
 | Generator emission (`internal/lang/golang/`) | **84.5% direct** via `internal/lang/golang/generator_test.go` (synthetic `FileDescriptorProto`s drive `GenerateAll` end-to-end). Byte-level emitter stability is covered separately by `make verify-deterministic-gen` against the committed `*.codec.go` files in `lang/go/integration/`. Remaining 15.5% is cross-package goIdent paths needing a multi-file fixture, defensive map-key emit branches for proto-disallowed key types (truly unreachable; DCE candidate), and `Run()`'s one-line `protogen.Options{}.Run` delegation. |
+| Generated code (`lang/go/integration/...`)   | Mutation-tested via `make test-mutation-integration`: **1296 KILLED + 0 LIVED + 0 NOT COVERED = 100% effective, 100% mutator coverage**. Tests the END artifact — the generated `*.codec.go` marshal/unmarshal/size/reset code that consumers run in production — rather than the emitter that produces it. Run with `GREMLINS_WORKERS=8 GREMLINS_TEST_CPU=2` (or any product ≤ NumCPU) to avoid CPU oversubscription that produces spurious LIVED mutants. |
 | Bench baseline                               | pinned at `.bench-baseline/main.txt`; `make bench-compare` fails on any alloc regression or >5% wall-time regression       |
 | Cross-format consistency                     | `AssertCrossFormatConsistency` checks decode parity vs `encoding/json` for every fixture                                   |
+| Wire-byte snapshots                          | `AssertWireSnapshot` (run as the `WireSnapshot` subtest in `RunSuite`) pins `MarshalCodec` output for each fixture sample to a committed `testdata/wire/<TypeName>.bin`. Refresh after intentional encoding changes via `go test -update-wire-snapshots`. Catches semantic-equivalent encoding changes (e.g. map sort refactor) and consistent bidirectional renumbering that single-mutation testing misses. |
 
 ## REQ coverage
 
@@ -252,7 +254,7 @@ multiple times, the most direct cite is given.
 | REQ | Covering test(s)                                                                                                          |
 |-----|---------------------------------------------------------------------------------------------------------------------------|
 | 080 | every `RunSuite` Roundtrip subtest                                                                                        |
-| 081 | `AssertWireStable` (PBT subtest); `RunFuzzSuite`                                                                          |
+| 081 | `AssertWireStable` (PBT subtest); `RunFuzzSuite`; `AssertWireSnapshot` (committed bytes per fixture)                       |
 | 082 | `AssertReset` (size + marshal-len assertions)                                                                             |
 | 083 | `AssertCrossFormatConsistency`                                                                                            |
 | 084 | `AssertWireSmallerThanJSON`                                                                                               |
@@ -274,13 +276,11 @@ multiple times, the most direct cite is given.
 
 ## Follow-ups
 
-Open work items beyond the per-REQ table:
-
-1. **Generator emission mutation testing.** `internal/lang/golang/`
-   has direct tests (84.5% coverage) so `gremlins` can run on it.
-   Remaining work is triaging the surviving mutants — pulling the
-   generator up to the same 100% effective kill rate already in
-   place for the runtime and analyzer.
+No open work items at this time. The previously-tracked generator
+mutation-testing follow-up was closed out by the `make
+test-mutation-integration` target above, which mutation-tests the
+end artifact (generated `*.codec.go` code) rather than the emitter,
+and reaches 100% effective kill rate.
 
 ## Exceptions
 

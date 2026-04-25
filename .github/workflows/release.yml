@@ -3,12 +3,10 @@ name: goreleaser
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 permissions:
   contents: write
-  # Required for Sigstore keyless signing: goreleaser exchanges this token
-  # at Fulcio for a short-lived signing certificate.
   id-token: write
 
 jobs:
@@ -22,10 +20,6 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          # Pin to the version declared in go.mod so the runner's
-          # preinstalled Go (currently 1.24.x on ubuntu-latest) doesn't
-          # trip goreleaser's `before` hooks. GOTOOLCHAIN=local (set by
-          # goreleaser-action) blocks auto-upgrade.
           go-version-file: go.mod
       - name: Install UPX
         run: sudo apt-get update && sudo apt-get install -y upx
@@ -34,10 +28,9 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:
-          # either 'goreleaser' (default) or 'goreleaser-pro'
           distribution: goreleaser
-          # 'latest', 'nightly', or a semver
           version: "~> v2"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
