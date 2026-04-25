@@ -341,7 +341,7 @@ Generated `.codec.go` files are written next to their `.proto` source.
 Generated Go code imports exactly one runtime package:
 
 ```go
-import "go.stealthscale.io/protoc-gen-codec/lang/go/codec"
+import "go.thesmos.sh/protoc-gen-codec/lang/go/codec"
 ```
 
 The `codec` package provides wire primitives, sentinel errors, and the
@@ -352,7 +352,7 @@ Testing helpers live in a separate sub-package so the runtime stays
 stdlib-only:
 
 ```go
-import "go.stealthscale.io/protoc-gen-codec/lang/go/codec/codectest"
+import "go.thesmos.sh/protoc-gen-codec/lang/go/codec/codectest"
 ```
 
 Consumers who import `codec` for production code do not transitively
@@ -548,7 +548,7 @@ import (
     "time"
 
     "pgregory.net/rapid"
-    "go.stealthscale.io/protoc-gen-codec/lang/go/codec/codectest"
+    "go.thesmos.sh/protoc-gen-codec/lang/go/codec/codectest"
 
     "example.com/banking"
 )

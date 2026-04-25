@@ -1,4 +1,4 @@
-module go.stealthscale.io/protoc-gen-codec
+module go.thesmos.sh/protoc-gen-codec
 
 go 1.26.1
 

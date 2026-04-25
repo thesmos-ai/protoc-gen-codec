@@ -3,7 +3,7 @@
 
 syntax = "proto3";
 package integration;
-option go_package = "go.stealthscale.io/protoc-gen-codec/lang/go/integration";
+option go_package = "go.thesmos.sh/protoc-gen-codec/lang/go/integration";
 
 import "codec/options.proto";
 import "lang/go/integration/external/external.proto";

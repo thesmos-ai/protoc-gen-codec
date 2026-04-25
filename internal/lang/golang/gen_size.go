@@ -7,7 +7,7 @@ import (
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
-	"go.stealthscale.io/protoc-gen-codec/internal/core"
+	"go.thesmos.sh/protoc-gen-codec/internal/core"
 )
 
 func generateSizeCodec(g *protogen.GeneratedFile, fileMap map[string]*protogen.File, info *core.MessageInfo) {

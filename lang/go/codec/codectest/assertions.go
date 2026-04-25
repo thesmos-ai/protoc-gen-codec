@@ -9,7 +9,7 @@ import (
 	"errors"
 	"reflect"
 
-	"go.stealthscale.io/protoc-gen-codec/lang/go/codec"
+	"go.thesmos.sh/protoc-gen-codec/lang/go/codec"
 )
 
 // Assertion-message convention (per testing-runbook Phase 4.3):

@@ -6,7 +6,7 @@ package integration
 import (
 	binary "encoding/binary"
 	fmt "fmt"
-	codec "go.stealthscale.io/protoc-gen-codec/lang/go/codec"
+	codec "go.thesmos.sh/protoc-gen-codec/lang/go/codec"
 	slices "slices"
 	time "time"
 )

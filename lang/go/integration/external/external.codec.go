@@ -5,7 +5,7 @@ package external
 
 import (
 	fmt "fmt"
-	codec "go.stealthscale.io/protoc-gen-codec/lang/go/codec"
+	codec "go.thesmos.sh/protoc-gen-codec/lang/go/codec"
 )
 
 func (m *External) SizeCodec() int {

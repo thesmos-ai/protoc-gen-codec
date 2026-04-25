@@ -14,6 +14,10 @@ builds:
     binary: protoc-gen-codec-go
     env:
       - CGO_ENABLED=0
+    # Reproducible builds: anchor the binary timestamp to the commit so
+    # building the same tag at different times produces byte-identical
+    # artifacts. Pairs with `-X main.date={{.CommitDate}}` below.
+    mod_timestamp: '{{ .CommitTimestamp }}'
     goos:
       - linux
       - darwin
@@ -25,7 +29,7 @@ builds:
       - -s -w
       - -X main.version={{.Version}}
       - -X main.commit={{.Commit}}
-      - -X main.date={{.Date}}
+      - -X main.date={{.CommitDate}}
     hooks:
       post:
         - cmd: upx --best --lzma "{{ .Path }}" || true
@@ -33,12 +37,17 @@ builds:
 
 archives:
   - id: default
-    format: tar.gz
+    # goreleaser v2 renamed `format` to `formats` (now a list).
+    formats: ['tar.gz']
     name_template: >-
       {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
     format_overrides:
       - goos: windows
-        format: zip
+        formats: ['zip']
+
+source:
+  enabled: true
+  name_template: '{{ .ProjectName }}_{{ .Version }}_source'
 
 checksum:
   name_template: checksums.txt
@@ -46,16 +55,46 @@ checksum:
 
 changelog:
   sort: asc
+  use: git
+  groups:
+    - title: New features
+      regexp: '^feat'
+      order: 0
+    - title: Performance
+      regexp: '^perf'
+      order: 1
+    - title: Bug fixes
+      regexp: '^fix'
+      order: 2
+    - title: Test rigor
+      regexp: '^test'
+      order: 3
+    - title: Refactors
+      regexp: '^refactor'
+      order: 4
+    - title: Other
+      order: 999
   filters:
     exclude:
-      - "^docs:"
-      - "^test:"
-      - "^ci:"
-      - "^chore:"
+      - '^docs:'
+      - '^ci:'
+      - '^chore:'
+      - '^build:'
+      - '^style:'
+      - 'Merge pull request'
+      - 'Merge branch'
 
 release:
   github:
-    owner: stealthscale
+    owner: thesmos-ai
     name: protoc-gen-codec
   draft: false
   prerelease: auto
+  header: |
+    Codec audit (REQ→test mapping, coverage / mutation / bench evidence):
+    [`docs/compliance/golang/codec.md`](https://github.com/thesmos-ai/protoc-gen-codec/blob/{{ .Tag }}/docs/compliance/golang/codec.md)
+  footer: |
+    **Full changelog:** https://github.com/thesmos-ai/protoc-gen-codec/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+# Show binary sizes in the release log (useful for tracking UPX ratios).
+report_sizes: true

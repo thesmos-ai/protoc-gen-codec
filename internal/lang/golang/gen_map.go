@@ -9,7 +9,7 @@ import (
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
-	"go.stealthscale.io/protoc-gen-codec/internal/core"
+	"go.thesmos.sh/protoc-gen-codec/internal/core"
 )
 
 // scalarSizeExpr returns a Go expression computing the wire size of a

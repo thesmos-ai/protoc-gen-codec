@@ -21,7 +21,7 @@
 // emit zero-allocation code paths when invoked directly.
 //
 // Testing helpers live in the sibling sub-package
-// go.stealthscale.io/protoc-gen-codec/lang/go/codec/codectest so that
+// go.thesmos.sh/protoc-gen-codec/lang/go/codec/codectest so that
 // the runtime itself stays stdlib-only (no transitive pgregory.net/rapid
 // for consumers that only need wire primitives).
 package codec

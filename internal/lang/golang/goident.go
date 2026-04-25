@@ -6,7 +6,7 @@ package golang
 import (
 	"google.golang.org/protobuf/compiler/protogen"
 
-	"go.stealthscale.io/protoc-gen-codec/internal/core"
+	"go.thesmos.sh/protoc-gen-codec/internal/core"
 )
 
 // goCastName returns the qualified Go name for the field's cast target,

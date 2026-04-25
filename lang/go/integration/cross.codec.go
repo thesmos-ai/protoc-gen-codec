@@ -5,8 +5,8 @@ package integration
 
 import (
 	fmt "fmt"
-	codec "go.stealthscale.io/protoc-gen-codec/lang/go/codec"
-	external "go.stealthscale.io/protoc-gen-codec/lang/go/integration/external"
+	codec "go.thesmos.sh/protoc-gen-codec/lang/go/codec"
+	external "go.thesmos.sh/protoc-gen-codec/lang/go/integration/external"
 )
 
 func (m *CrossContainer) SizeCodec() int {

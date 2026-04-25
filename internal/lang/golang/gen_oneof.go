@@ -7,7 +7,7 @@ import (
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
-	"go.stealthscale.io/protoc-gen-codec/internal/core"
+	"go.thesmos.sh/protoc-gen-codec/internal/core"
 )
 
 // findBranchField returns the FieldInfo for the branch with the given

@@ -3,6 +3,6 @@
 
 package main
 
-import "go.stealthscale.io/protoc-gen-codec/internal/lang/golang"
+import "go.thesmos.sh/protoc-gen-codec/internal/lang/golang"
 
 func main() { golang.Run() }

@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/thesmos-ai/protoc-gen-codec/actions/workflows/ci.yml/badge.svg)](https://github.com/thesmos-ai/protoc-gen-codec/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/thesmos-ai/protoc-gen-codec)](https://github.com/thesmos-ai/protoc-gen-codec/releases/latest)
-[![Go Reference](https://pkg.go.dev/badge/go.stealthscale.io/protoc-gen-codec.svg)](https://pkg.go.dev/go.stealthscale.io/protoc-gen-codec)
-[![Go Report Card](https://goreportcard.com/badge/go.stealthscale.io/protoc-gen-codec)](https://goreportcard.com/report/go.stealthscale.io/protoc-gen-codec)
+[![Go Reference](https://pkg.go.dev/badge/go.thesmos.sh/protoc-gen-codec.svg)](https://pkg.go.dev/go.thesmos.sh/protoc-gen-codec)
+[![Go Report Card](https://goreportcard.com/badge/go.thesmos.sh/protoc-gen-codec)](https://goreportcard.com/report/go.thesmos.sh/protoc-gen-codec)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/thesmos-ai/protoc-gen-codec)](go.mod)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
@@ -86,7 +86,7 @@ Each language ships a testing sub-package with a declarative `Spec[T]` you write
 ```go
 import (
     "time"
-    "go.stealthscale.io/protoc-gen-codec/lang/go/codec/codectest"
+    "go.thesmos.sh/protoc-gen-codec/lang/go/codec/codectest"
 )
 
 var specMyType = codectest.Spec[MyType]{

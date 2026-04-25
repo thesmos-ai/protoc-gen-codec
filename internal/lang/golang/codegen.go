@@ -10,7 +10,7 @@ import (
 
 	"google.golang.org/protobuf/compiler/protogen"
 
-	"go.stealthscale.io/protoc-gen-codec/internal/core"
+	"go.thesmos.sh/protoc-gen-codec/internal/core"
 )
 
 var (
@@ -18,64 +18,64 @@ var (
 	identFmtErrorf        = protogen.GoIdent{GoName: "Errorf", GoImportPath: "fmt"}
 	identErrInvalidLength = protogen.GoIdent{
 		GoName:       "ErrInvalidLength",
-		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
+		GoImportPath: "go.thesmos.sh/protoc-gen-codec/lang/go/codec",
 	}
 	identErrInvalidWireType = protogen.GoIdent{
 		GoName:       "ErrInvalidWireType",
-		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
+		GoImportPath: "go.thesmos.sh/protoc-gen-codec/lang/go/codec",
 	}
 	identSizeVarint = protogen.GoIdent{
 		GoName:       "SizeVarint",
-		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
+		GoImportPath: "go.thesmos.sh/protoc-gen-codec/lang/go/codec",
 	}
 	identEncodeVarint = protogen.GoIdent{
 		GoName:       "EncodeVarint",
-		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
+		GoImportPath: "go.thesmos.sh/protoc-gen-codec/lang/go/codec",
 	}
 	identDecodeVarint = protogen.GoIdent{
 		GoName:       "DecodeVarint",
-		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
+		GoImportPath: "go.thesmos.sh/protoc-gen-codec/lang/go/codec",
 	}
 	identSkipField = protogen.GoIdent{
 		GoName:       "SkipField",
-		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
+		GoImportPath: "go.thesmos.sh/protoc-gen-codec/lang/go/codec",
 	}
 	identErrInvalidTag = protogen.GoIdent{
 		GoName:       "ErrInvalidTag",
-		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
+		GoImportPath: "go.thesmos.sh/protoc-gen-codec/lang/go/codec",
 	}
 	identErrInvalidVarint = protogen.GoIdent{
 		GoName:       "ErrInvalidVarint",
-		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
+		GoImportPath: "go.thesmos.sh/protoc-gen-codec/lang/go/codec",
 	}
 	identErrBufferTooShort = protogen.GoIdent{
 		GoName:       "ErrBufferTooShort",
-		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
+		GoImportPath: "go.thesmos.sh/protoc-gen-codec/lang/go/codec",
 	}
 	identZigzagEncode32 = protogen.GoIdent{
 		GoName:       "ZigzagEncode32",
-		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
+		GoImportPath: "go.thesmos.sh/protoc-gen-codec/lang/go/codec",
 	}
 	identZigzagEncode64 = protogen.GoIdent{
 		GoName:       "ZigzagEncode64",
-		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
+		GoImportPath: "go.thesmos.sh/protoc-gen-codec/lang/go/codec",
 	}
 	identZigzagDecode32 = protogen.GoIdent{
 		GoName:       "ZigzagDecode32",
-		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
+		GoImportPath: "go.thesmos.sh/protoc-gen-codec/lang/go/codec",
 	}
 	identZigzagDecode64 = protogen.GoIdent{
 		GoName:       "ZigzagDecode64",
-		GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec",
+		GoImportPath: "go.thesmos.sh/protoc-gen-codec/lang/go/codec",
 	}
 	identTimeTime        = protogen.GoIdent{GoName: "Time", GoImportPath: "time"}
 	identSlicesSort      = protogen.GoIdent{GoName: "Sort", GoImportPath: "slices"}
-	identSizeTimestamp   = protogen.GoIdent{GoName: "SizeTimestamp", GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec"}
-	identSizeDuration    = protogen.GoIdent{GoName: "SizeDuration", GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec"}
-	identEncodeTimestamp = protogen.GoIdent{GoName: "EncodeTimestamp", GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec"}
-	identEncodeDuration  = protogen.GoIdent{GoName: "EncodeDuration", GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec"}
-	identDecodeTimestamp = protogen.GoIdent{GoName: "DecodeTimestamp", GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec"}
-	identDecodeDuration  = protogen.GoIdent{GoName: "DecodeDuration", GoImportPath: "go.stealthscale.io/protoc-gen-codec/lang/go/codec"}
+	identSizeTimestamp   = protogen.GoIdent{GoName: "SizeTimestamp", GoImportPath: "go.thesmos.sh/protoc-gen-codec/lang/go/codec"}
+	identSizeDuration    = protogen.GoIdent{GoName: "SizeDuration", GoImportPath: "go.thesmos.sh/protoc-gen-codec/lang/go/codec"}
+	identEncodeTimestamp = protogen.GoIdent{GoName: "EncodeTimestamp", GoImportPath: "go.thesmos.sh/protoc-gen-codec/lang/go/codec"}
+	identEncodeDuration  = protogen.GoIdent{GoName: "EncodeDuration", GoImportPath: "go.thesmos.sh/protoc-gen-codec/lang/go/codec"}
+	identDecodeTimestamp = protogen.GoIdent{GoName: "DecodeTimestamp", GoImportPath: "go.thesmos.sh/protoc-gen-codec/lang/go/codec"}
+	identDecodeDuration  = protogen.GoIdent{GoName: "DecodeDuration", GoImportPath: "go.thesmos.sh/protoc-gen-codec/lang/go/codec"}
 )
 
 func emitGoFile(

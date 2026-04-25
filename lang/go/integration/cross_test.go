@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"go.stealthscale.io/protoc-gen-codec/lang/go/codec/codectest"
-	"go.stealthscale.io/protoc-gen-codec/lang/go/integration"
-	"go.stealthscale.io/protoc-gen-codec/lang/go/integration/external"
+	"go.thesmos.sh/protoc-gen-codec/lang/go/codec/codectest"
+	"go.thesmos.sh/protoc-gen-codec/lang/go/integration"
+	"go.thesmos.sh/protoc-gen-codec/lang/go/integration/external"
 )
 
 // sampleCrossContainer populates all three cross-package field shapes

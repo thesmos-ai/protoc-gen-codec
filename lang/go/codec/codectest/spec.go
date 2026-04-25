@@ -36,7 +36,7 @@ import (
 
 	"pgregory.net/rapid"
 
-	"go.stealthscale.io/protoc-gen-codec/lang/go/codec"
+	"go.thesmos.sh/protoc-gen-codec/lang/go/codec"
 )
 
 // TB is the common interface between *testing.T, *testing.B, and *rapid.T.

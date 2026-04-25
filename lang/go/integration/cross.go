@@ -3,7 +3,7 @@
 
 package integration
 
-import "go.stealthscale.io/protoc-gen-codec/lang/go/integration/external"
+import "go.thesmos.sh/protoc-gen-codec/lang/go/integration/external"
 
 // CrossContainer is the cross-package nested-message fixture.
 type CrossContainer struct {

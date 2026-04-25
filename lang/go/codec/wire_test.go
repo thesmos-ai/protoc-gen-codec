@@ -10,7 +10,7 @@ import (
 
 	"pgregory.net/rapid"
 
-	"go.stealthscale.io/protoc-gen-codec/lang/go/codec"
+	"go.thesmos.sh/protoc-gen-codec/lang/go/codec"
 )
 
 // ---------------------------------------------------------------------------
