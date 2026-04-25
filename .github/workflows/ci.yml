@@ -88,8 +88,12 @@ jobs:
       - name: Per-file coverage gate (100% on generated *.codec.go)
         run: make coverage-gate
       - name: Generate combined coverage profile for Codecov
+        # -coverpkg=./... instruments every package, so integration
+        # tests exercising lang/go/codec/* get attributed to those
+        # files rather than only to the integration package. Without
+        # it Codecov reports artificially low coverage on the runtime.
         if: env.CODECOV_TOKEN != ''
-        run: go test -coverprofile=coverage.out -covermode=atomic ./...
+        run: go test -coverprofile=coverage.out -covermode=atomic -coverpkg=./... ./...
       - name: Upload coverage to Codecov
         if: env.CODECOV_TOKEN != ''
         uses: codecov/codecov-action@v6

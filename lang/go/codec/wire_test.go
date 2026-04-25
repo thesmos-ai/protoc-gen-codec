@@ -393,7 +393,6 @@ func FuzzSkipField_NoPanic(f *testing.F) {
 	f.Add([]byte{}, uint64(99))
 
 	f.Fuzz(func(_ *testing.T, data []byte, wireType uint64) {
-		//nolint:errcheck
 		codec.SkipField(data, wireType%8)
 	})
 }

@@ -1,0 +1,30 @@
+# Codecov config — see https://docs.codecov.com/docs/codecov-yaml
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        # Tolerate small fluctuations from per-PR test variability.
+        # Mutation testing + the per-file 100% gate on *.codec.go are
+        # the strict gates; Codecov is the broad-strokes signal.
+        threshold: 1%
+    patch:
+      default:
+        target: 80%
+
+  # Paths excluded from the coverage percentage. See
+  # docs/compliance/golang/codec.md for the full coverage / mutation /
+  # determinism evidence per layer.
+  ignore:
+    # Plugin entrypoint. main() is one line that delegates to
+    # golang.Run(); exercised end-to-end by `make generate` and every
+    # integration test. Excluding it avoids a 0% drag from a single
+    # untestable line.
+    - "cmd/**"
+
+comment:
+  # Only post the coverage diff comment when something actually changed,
+  # so docs/CI-only PRs don't get noise.
+  require_changes: true
+  layout: "diff, files"

@@ -13,25 +13,34 @@ import (
 )
 
 // Run executes the protoc-gen-codec-go plugin over the current protoc input
-// stream. It is intended to be invoked from main.
+// stream. It is intended to be invoked from main. The body is a single
+// protogen.Run call delegating to GenerateAll so the orchestration is
+// directly testable from in-process tests.
 func Run() {
-	protogen.Options{}.Run(func(plugin *protogen.Plugin) error {
-		plugin.SupportedFeatures = uint64(pluginpb.CodeGeneratorResponse_FEATURE_PROTO3_OPTIONAL)
-		fileMap := buildFileMap(plugin)
-		var firstErr error
-		for _, f := range plugin.Files {
-			if !f.Generate {
-				continue
-			}
-			if err := GenerateFile(plugin, f, fileMap); err != nil {
-				plugin.Error(fmt.Errorf("%s: %w", f.Desc.Path(), err))
-				if firstErr == nil {
-					firstErr = err
-				}
+	protogen.Options{}.Run(GenerateAll)
+}
+
+// GenerateAll is the per-plugin-invocation orchestration: enables proto3
+// optional support, builds the cross-file lookup, and dispatches to
+// GenerateFile for every file marked Generate. Exported so generator
+// tests can drive the full plugin lifecycle without piping bytes through
+// protoc's stdio plugin protocol.
+func GenerateAll(plugin *protogen.Plugin) error {
+	plugin.SupportedFeatures = uint64(pluginpb.CodeGeneratorResponse_FEATURE_PROTO3_OPTIONAL)
+	fileMap := buildFileMap(plugin)
+	var firstErr error
+	for _, f := range plugin.Files {
+		if !f.Generate {
+			continue
+		}
+		if err := GenerateFile(plugin, f, fileMap); err != nil {
+			plugin.Error(fmt.Errorf("%s: %w", f.Desc.Path(), err))
+			if firstErr == nil {
+				firstErr = err
 			}
 		}
-		return firstErr
-	})
+	}
+	return firstErr
 }
 
 func buildFileMap(plugin *protogen.Plugin) map[string]*protogen.File {

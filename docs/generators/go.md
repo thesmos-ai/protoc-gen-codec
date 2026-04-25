@@ -464,7 +464,7 @@ in `codectest/assertions.go`. Import them directly for bespoke tests:
 - `AssertCrossFormatConsistency`, `AssertWireSmallerThanJSON`
 - `AssertCorruption` (byte-flip + truncation)
 - `AssertCorruptTag`, `AssertMarshalToCodec`, `AssertMarshalToShortBuffer`
-- `AssertWarmPathGrowth`, `AssertUnpackedRepeatedVarint`
+- `AssertWarmPathGrowth`
 - `AssertCorruptPackedBody`, `AssertMarshalWithNilPointerElement`
 - `AssertAllFieldsWireTypeMismatch`, `AssertCorruptScalarVarint`
 - `AssertCorruptMapEntryValue`, `AssertCorruptRepeatedMessagePrescan`

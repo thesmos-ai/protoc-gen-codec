@@ -316,23 +316,6 @@ func AssertWarmPathGrowth[T any, PT interface {
 	}
 }
 
-// AssertUnpackedRepeatedVarint verifies the decoder accepts the unpacked
-// wire form of a repeated packed-eligible scalar field. Caller supplies
-// the hand-constructed unpacked wire. Low-level primitive; for the
-// field-number-driven version that auto-builds wire, use
-// AssertPackedAcceptsUnpacked.
-func AssertUnpackedRepeatedVarint[T any, PT interface {
-	*T
-	codec.Codec
-}](t TB, wire []byte) {
-	t.Helper()
-	var got T
-	if err := PT(&got).UnmarshalCodec(wire); err != nil {
-		t.Fatalf("UnmarshalCodec must accept the unpacked alternate of a packed-eligible repeated field — proto3 dual-encoding compatibility (got: %v)",
-			err)
-	}
-}
-
 // AssertPackedAcceptsUnpacked verifies a repeated packed-eligible field
 // accepts the unpacked wire form — a single element emitted as
 // tag(fieldNum, wireType) + elementSize bytes. proto3 allows both

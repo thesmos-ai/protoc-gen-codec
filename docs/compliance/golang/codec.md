@@ -178,7 +178,7 @@ unmarshal" sequences these aspects are sensitive to.
 | Generated code (`*.codec.go`)        | **100%** per-file, gated by `make coverage-gate`                                                                          |
 | Runtime (`lang/go/codec/`)           | 90%+ (bench-only paths excluded by `go test -cover`); mutation-tested at **57 KILLED + 5 documented equivalents = 100% effective** |
 | Analyzer (`internal/core/`)          | 85% direct + indirect via integration; mutation-tested at **76 KILLED + 19 documented equivalents = 100% effective**       |
-| Generator emission (`internal/lang/golang/`) | exercised only via integration roundtrip; not yet directly mutation-testable (gremlins can't re-invoke `make generate`) |
+| Generator emission (`internal/lang/golang/`) | **84.5% direct** via `internal/lang/golang/generator_test.go` (synthetic FileDescriptorProtos drive `GenerateAll` end-to-end); remaining 15.5% is cross-package goIdent paths needing a multi-file fixture, defensive map-key emit branches for proto-disallowed key types (truly unreachable; DCE candidate), and `Run()`'s one-line `protogen.Options{}.Run` delegation. Mutation-testable now that direct tests exist. |
 | Bench baseline                       | pinned at `.bench-baseline/main.txt`; `make bench-compare` fails on any alloc regression or >5% wall-time regression       |
 | Differential testing                 | none vs `google.golang.org/protobuf` (out of scope per project memo); `AssertCrossFormatConsistency` provides JSON parity   |
 | State-machine PBT                    | not applied (codec is mostly stateless; sequencing tested imperatively)                                                    |
@@ -276,11 +276,12 @@ multiple times, the most direct cite is given.
 These remain open beyond the per-REQ table — larger work items the
 audit surfaced rather than per-line gaps.
 
-1. **Generator emission mutation testing**: `internal/lang/golang/` is
-   currently invisible to gremlins because tests don't re-invoke
-   `make generate` per mutation. Adding golden-file emission tests in
-   `internal/lang/golang/` would unlock the foundation-tier mutation
-   gate for the generator code itself.
+1. **Generator emission mutation testing** (smaller scope now):
+   `internal/lang/golang/` has direct tests (84.5% coverage) so
+   gremlins can run on it. The remaining work is triaging the
+   surviving mutants and adding golden-file diffs so any byte-level
+   change to emitted Go is detected — turning the coverage gate
+   into a mutation gate at the foundation-tier 100% effective bar.
 
 ## Exceptions
 
