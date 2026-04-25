@@ -179,8 +179,9 @@ func TestGenerateFile_NoAnnotatedMessages(t *testing.T) {
 // repeated messages (pointer + value semantics), maps (string key,
 // bool key), singular nested message, fixed-len bytes, and a
 // non-synthetic oneof. The body of each case is checked for marker
-// substrings; full output stability is left to the planned golden-
-// file follow-up.
+// substrings; byte-level stability of emitter output is covered by
+// `make verify-deterministic-gen` against the committed *.codec.go
+// files in lang/go/integration/.
 func TestGenerateFile_AllPaths(t *testing.T) {
 	t.Parallel()
 	fd := buildAllPathsFD()

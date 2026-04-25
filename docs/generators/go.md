@@ -309,6 +309,36 @@ The `(codec.keep_capacity)` annotation on slice / bytes / map fields is
 accepted for source compatibility with older `.proto` files but is now a
 no-op: backing storage is always preserved.
 
+## Unsupported Features
+
+protoc-gen-codec-go targets a deliberate proto3 subset. The following
+constructs are **not** supported and will produce an analysis error
+(or, where the analyzer does not yet flag them, a generation skip):
+
+- **proto2 syntax** — only `syntax = "proto3"` is supported. proto2
+  required/optional/groups/extensions are out of scope and will not be
+  added.
+- **Groups** (`group` keyword) — deprecated by upstream protobuf;
+  considered legacy.
+- **Extensions** (proto2 `extensions` blocks and `extend` declarations).
+- **`google.protobuf.Any`** — opaque type-erased payloads conflict
+  with the "no reflection, no type registry" design principle.
+- **`google.protobuf.FieldMask`** — schema-update sugar; out of scope.
+- **`google.protobuf.Struct`, `Value`, `ListValue`** — JSON-shaped
+  dynamic typing; conflicts with the static-Go-type model.
+- **`google.protobuf.Empty`** — use a message with no fields instead.
+- **Services / RPC definitions** — protoc-gen-codec-go is a
+  serialization plugin only; it does not emit gRPC or Connect-RPC
+  stubs.
+
+Supported well-known types: `google.protobuf.Timestamp` and
+`google.protobuf.Duration`. Both encode/decode via dedicated runtime
+helpers (`codec.EncodeTimestamp` / `codec.DecodeTimestamp` /
+`codec.EncodeDuration` / `codec.DecodeDuration`).
+
+If you need a feature listed above, file an issue describing the
+use case — the list is intentional but not necessarily permanent.
+
 ## Running the Generator
 
 Build the plugin binary:

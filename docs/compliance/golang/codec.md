@@ -2,35 +2,36 @@
 package: protoc-gen-codec (Go target)
 audited: 2026-04-25
 auditor: roy.klopper@stealthscale.io
-status: elite
 ---
 
-# Go Codec — Package Audit
+# Go Codec — Test Plan and Coverage
 
-This audit covers the three Go-target surfaces of `protoc-gen-codec`:
+This document is a self-contained record of the behavioural promises
+the Go target makes, the tests that prove each one, and the coverage /
+mutation / bench evidence behind those tests. It exists so that future
+changes can be reviewed against a fixed list of guarantees rather than
+by re-reading test source.
+
+It covers the three Go-target surfaces of `protoc-gen-codec`:
 
 - `lang/go/codec/` — runtime (wire primitives, sentinels, interfaces)
 - `internal/core/` — language-neutral schema analyzer
 - `internal/lang/golang/` — Go code emission (output: `*.codec.go`)
 
-The contract source-of-truth is [`docs/architecture.md`](../../architecture.md)
-and [`docs/generators/go.md`](../../generators/go.md). Every assertable
-promise from those documents is registered below as a `REQ-PKG-CODEC-NNN`
-entry with its covering test(s) so future audits can re-verify by table
-lookup rather than by re-reading test source.
+Promises are sourced from [`docs/architecture.md`](../../architecture.md)
+and [`docs/generators/go.md`](../../generators/go.md) and registered
+below as `REQ-PKG-CODEC-NNN` entries.
 
 ## Scope
 
-| Question                                              | Answer                                                                                       |
-|-------------------------------------------------------|----------------------------------------------------------------------------------------------|
-| Public interface                                      | `codec.Sizer` / `Marshaler` / `Unmarshaler` / `Resetter` / `Codec` (composed)                |
-| `[]byte` boundary                                     | yes — `UnmarshalCodec(data []byte) error` and `MarshalToCodec(buf []byte) (int, error)`      |
-| Stateful                                              | partial — receivers are mutable; pointer-pooling and slab reuse persist across calls         |
-| Allocation contracts                                  | `MarshalToCodec` is zero-alloc except where map sort requires it (`Spec.MarshalToAllocsMax`) |
-| Latency contracts                                     | not declared per-method; bench regressions gated via `make bench-compare`                    |
-| Authoritative reference                               | none — wire-compat tests vs `google.golang.org/protobuf` explicitly out of scope             |
-| MC/DC                                                 | not applicable (no safety-critical avionics designation)                                     |
-| Distributed invariants                                | none — codec is a leaf, no cross-service or cross-region state                               |
+| Question                | Answer                                                                                       |
+|-------------------------|----------------------------------------------------------------------------------------------|
+| Public interface        | `codec.Sizer` / `Marshaler` / `Unmarshaler` / `Resetter` / `Codec` (composed)                |
+| `[]byte` boundary       | yes — `UnmarshalCodec(data []byte) error` and `MarshalToCodec(buf []byte) (int, error)`      |
+| Stateful                | partial — receivers are mutable; pointer-pooling and slab reuse persist across calls         |
+| Allocation contracts    | `MarshalToCodec` is zero-alloc except where map sort requires it (`Spec.MarshalToAllocsMax`) |
+| Latency contracts       | not declared per-method; bench regressions gated via `make bench-compare`                    |
+| Wire compatibility      | not differentially tested against `google.golang.org/protobuf`; see *Exceptions* below        |
 
 ## REQ inventory
 
@@ -111,7 +112,7 @@ lookup rather than by re-reading test source.
 | 093 | invariant | **Forward compatibility**: unknown fields with valid wire types are skipped without error                           |
 | 094 | invariant | **`MarshalToCodec` is zero-alloc** in steady state for non-map types; map-bearing types declare a per-consumer ceiling via `Spec.MarshalToAllocsMax` |
 
-## Design notes (Phase 2)
+## Design notes
 
 ### Spec design
 
@@ -135,12 +136,13 @@ per field number:
 branch ensures `AllFieldsWireTypeMismatch` observes every declared field
 on the wire across the sample plus variants.
 
-### Test-double taxonomy
+### Test doubles
 
-Codec is a pure leaf. There are no ports to fake, so the
-simulator/stub/chaos taxonomy from the testing standard does not apply.
-The closest analogue is `codectest.StartContract` which is an alloc/
-latency-gating *helper*, not a double.
+Codec is a pure leaf — no I/O, no clocks, no external services — so no
+fakes, stubs, or chaos doubles are needed. The closest thing to a
+double in the test stack is `codectest.StartContract`, which is an
+alloc / latency-gating *helper* invoked from benchmarks, not a stand-in
+for any production dependency.
 
 ### Fixture design
 
@@ -163,28 +165,27 @@ proto messages exercising every codegen path:
 - `External` / `CrossContainer` (in `lang/go/integration/external/`) —
   cross-package nested message resolution
 
-### State-machine PBT
+### Why no state-machine property-based testing
 
-Not applied. Codec stateful aspects (pointer pooling, capacity
-preservation across resets) are tested imperatively in
-`TestX_PointerPooling_AcrossResets` / `TestX_KeepCapacity_*` —
-state-machine PBT would be over-engineered for the linear "marshal → reset →
-unmarshal" sequences these aspects are sensitive to.
+The codec's stateful aspects (pointer pooling, capacity preservation
+across resets) follow a small linear sequence: marshal → reset →
+unmarshal. Imperative tests like `TestX_PointerPooling_AcrossResets`
+and `TestX_KeepCapacity_*` cover those transitions directly. A
+state-machine PBT harness would add machinery without surfacing
+behaviours the imperative tests miss.
 
-## Evidence (Phase 3)
+## Evidence
 
-| Layer                                | Coverage                                                                                                                  |
-|--------------------------------------|---------------------------------------------------------------------------------------------------------------------------|
-| Generated code (`*.codec.go`)        | **100%** per-file, gated by `make coverage-gate`                                                                          |
-| Runtime (`lang/go/codec/`)           | 90%+ (bench-only paths excluded by `go test -cover`); mutation-tested at **57 KILLED + 5 documented equivalents = 100% effective** |
-| Analyzer (`internal/core/`)          | 85% direct + indirect via integration; mutation-tested at **76 KILLED + 19 documented equivalents = 100% effective**       |
-| Generator emission (`internal/lang/golang/`) | **84.5% direct** via `internal/lang/golang/generator_test.go` (synthetic FileDescriptorProtos drive `GenerateAll` end-to-end); remaining 15.5% is cross-package goIdent paths needing a multi-file fixture, defensive map-key emit branches for proto-disallowed key types (truly unreachable; DCE candidate), and `Run()`'s one-line `protogen.Options{}.Run` delegation. Mutation-testable now that direct tests exist. |
-| Bench baseline                       | pinned at `.bench-baseline/main.txt`; `make bench-compare` fails on any alloc regression or >5% wall-time regression       |
-| Differential testing                 | none vs `google.golang.org/protobuf` (out of scope per project memo); `AssertCrossFormatConsistency` provides JSON parity   |
-| State-machine PBT                    | not applied (codec is mostly stateless; sequencing tested imperatively)                                                    |
-| Deterministic simulation             | not applicable (no distributed state)                                                                                      |
+| Layer                                        | Coverage                                                                                                                  |
+|----------------------------------------------|---------------------------------------------------------------------------------------------------------------------------|
+| Generated code (`*.codec.go`)                | **100%** per-file, gated by `make coverage-gate`                                                                          |
+| Runtime (`lang/go/codec/`)                   | 90%+ (bench-only paths excluded by `go test -cover`); mutation-tested at **57 KILLED + 5 documented equivalents = 100% effective** |
+| Analyzer (`internal/core/`)                  | 85% direct + indirect via integration; mutation-tested at **76 KILLED + 19 documented equivalents = 100% effective**       |
+| Generator emission (`internal/lang/golang/`) | **84.5% direct** via `internal/lang/golang/generator_test.go` (synthetic `FileDescriptorProto`s drive `GenerateAll` end-to-end). Byte-level emitter stability is covered separately by `make verify-deterministic-gen` against the committed `*.codec.go` files in `lang/go/integration/`. Remaining 15.5% is cross-package goIdent paths needing a multi-file fixture, defensive map-key emit branches for proto-disallowed key types (truly unreachable; DCE candidate), and `Run()`'s one-line `protogen.Options{}.Run` delegation. |
+| Bench baseline                               | pinned at `.bench-baseline/main.txt`; `make bench-compare` fails on any alloc regression or >5% wall-time regression       |
+| Cross-format consistency                     | `AssertCrossFormatConsistency` checks decode parity vs `encoding/json` for every fixture                                   |
 
-## REQ coverage (Phase 4)
+## REQ coverage
 
 Format: `REQ-PKG-CODEC-NNN` → covering test(s). When a test name appears
 multiple times, the most direct cite is given.
@@ -273,26 +274,28 @@ multiple times, the most direct cite is given.
 
 ## Follow-ups
 
-These remain open beyond the per-REQ table — larger work items the
-audit surfaced rather than per-line gaps.
+Open work items beyond the per-REQ table:
 
-1. **Generator emission mutation testing** (smaller scope now):
-   `internal/lang/golang/` has direct tests (84.5% coverage) so
-   gremlins can run on it. The remaining work is triaging the
-   surviving mutants and adding golden-file diffs so any byte-level
-   change to emitted Go is detected — turning the coverage gate
-   into a mutation gate at the foundation-tier 100% effective bar.
+1. **Generator emission mutation testing.** `internal/lang/golang/`
+   has direct tests (84.5% coverage) so `gremlins` can run on it.
+   Remaining work is triaging the surviving mutants — pulling the
+   generator up to the same 100% effective kill rate already in
+   place for the runtime and analyzer.
 
 ## Exceptions
 
+These are deliberate gaps in the test surface, kept explicit so that a
+future change can either accept the rationale or argue it down.
+
 - **No wire-compat differential testing vs `google.golang.org/protobuf`.**
-  Project decision (memory pinned 2026-04-19): JSON cross-format +
-  property-based fuzz + roundtrip are deemed sufficient for v1. Revisit
-  if a real consumer surfaces a wire-compat regression.
-- **No state-machine PBT.** Codec is mostly stateless; the few stateful
-  aspects (pointer pooling, capacity preservation) are tested
-  imperatively. Re-evaluate if a future feature introduces multi-step
-  invariants that linear tests can't reasonably express.
+  JSON cross-format parity (`AssertCrossFormatConsistency`),
+  property-based fuzz (`RunFuzzSuite`), and roundtrip on every fixture
+  are deemed sufficient. Revisit if a real consumer surfaces a
+  wire-compat regression that the in-tree tests miss.
+- **No state-machine property-based testing.** The codec's stateful
+  surface is small and linear (see *Why no state-machine PBT* above).
+  Re-evaluate if a future feature introduces multi-step invariants
+  that imperative tests can't reasonably express.
 
 ## References
 
@@ -301,5 +304,3 @@ audit surfaced rather than per-line gaps.
 - [`Makefile`](../../../Makefile) — `make test`, `make test-mutation`, `make coverage-gate`,
   `make bench-compare`, `make verify-deterministic-gen`
 - [`.bench-baseline/main.txt`](../../../.bench-baseline/main.txt) — pinned bench reference
-- Project memory: `Wire-compat tests scoped out`, `v1 allocation model is the terminus`,
-  `Mutation kill-rate bar is 100%`

@@ -412,7 +412,11 @@ func analyzeField(
 			)
 		}
 		if field.Desc.Kind() == protoreflect.MessageKind {
-			return fi, errors.New("(codec.cast) is not valid on message-type fields")
+			return fi, errors.New(
+				"(codec.cast) is only valid on scalar / enum / bytes fields; " +
+					"for nested messages use (codec.use_pointer) to choose pointer vs. value semantics, " +
+					"and put the Go type on the message itself via (codec.type)",
+			)
 		}
 		ref, err := resolveCast(fileMap, file, cast, aliasOf)
 		if err != nil {

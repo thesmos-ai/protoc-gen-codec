@@ -119,7 +119,7 @@ func TestAnalyzeField_ErrorMessages_NotDoublePrefixed(t *testing.T) {
 		{
 			name:        "CastOnMessage",
 			fixture:     castOnMessageFixture,
-			contains:    "field m: (codec.cast) is not valid on message-type fields",
+			contains:    "field m: (codec.cast) is only valid on scalar / enum / bytes fields",
 			notContains: "field m: field m:",
 		},
 		{
