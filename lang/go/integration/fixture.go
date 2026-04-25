@@ -181,6 +181,13 @@ type MapHolder struct {
 	Counts map[string]int64  `json:"counts,omitempty"`
 }
 
+// BoolMapHolder exercises the bool-keyed map encode path. Bool keys
+// have a fixed two-element domain, so the generator emits an explicit
+// `false → true` sequence rather than allocating a sorted-keys slice.
+type BoolMapHolder struct {
+	Flags map[bool]string `json:"flags,omitempty"`
+}
+
 // TimeHolder exercises the google.protobuf.Timestamp and Duration WKT paths,
 // which map to Go value types (time.Time and time.Duration) and must encode
 // and decode without any heap allocations.

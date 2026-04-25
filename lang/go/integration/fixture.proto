@@ -116,6 +116,17 @@ message MapHolder {
   map<string, int64> counts = 2 [(codec.field) = "Counts", (codec.keep_capacity) = true];
 }
 
+// BoolMapHolder exercises the bool-keyed map encode path: the generator
+// emits an explicit `false → true` sequence (no slices.Sort needed since
+// the keyspace is fixed at two elements). The wire output is required to
+// place the false-key entry before the true-key entry for deterministic
+// encoding.
+message BoolMapHolder {
+  option (codec.type) = "BoolMapHolder";
+
+  map<bool, string> flags = 1 [(codec.field) = "Flags"];
+}
+
 message TimeHolder {
   option (codec.type) = "TimeHolder";
 

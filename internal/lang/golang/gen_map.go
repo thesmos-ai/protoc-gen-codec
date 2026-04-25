@@ -51,7 +51,18 @@ func emitScalarWrite(g *protogen.GeneratedFile, f *core.FieldInfo, v string) {
 		g.P("n += 4")
 	default:
 		if f.ProtoKind == protoreflect.BoolKind {
-			g.P("if ", v, " { buf[n] = 1 } else { buf[n] = 0 }")
+			// When v is a Go boolean literal (the bool-keyed map case
+			// emits `false` and `true` directly), inline the byte so
+			// coverage doesn't see an always-false branch on the
+			// always-true side and vice versa.
+			switch v {
+			case "true":
+				g.P("buf[n] = 1")
+			case "false":
+				g.P("buf[n] = 0")
+			default:
+				g.P("if ", v, " { buf[n] = 1 } else { buf[n] = 0 }")
+			}
 			g.P("n++")
 		} else {
 			g.P("n += ", identEncodeVarint, "(buf[n:],uint64(", v, "))")

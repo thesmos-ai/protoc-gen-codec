@@ -2508,6 +2508,166 @@ func (m *MapHolder) ResetCodec() {
 	clear(m.Counts)
 }
 
+func (m *BoolMapHolder) SizeCodec() int {
+	if m == nil {
+		return 0
+	}
+	var n int
+	for _, v := range m.Flags {
+		entrySz := 1 + 1 + 1 + codec.SizeVarint(uint64(len(v))) + len(v)
+		n += 1 + codec.SizeVarint(uint64(entrySz)) + entrySz
+	}
+	return n
+}
+
+func (m *BoolMapHolder) MarshalCodec() ([]byte, error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeCodec()
+	if size == 0 {
+		return nil, nil
+	}
+	buf := make([]byte, size)
+	n := m.MarshalCodecInternal(buf)
+	return buf[:n], nil
+}
+
+func (m *BoolMapHolder) MarshalToCodec(buf []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	if len(buf) < m.SizeCodec() {
+		return 0, codec.ErrBufferTooShort
+	}
+	return m.MarshalCodecInternal(buf), nil
+}
+
+func (m *BoolMapHolder) MarshalCodecInternal(buf []byte) int {
+	n := 0
+	if _, ok := m.Flags[false]; ok {
+		v := m.Flags[false]
+		buf[n+0] = 0x0a
+		n += 1
+		entrySz := 1 + 1 + 1 + codec.SizeVarint(uint64(len(v))) + len(v)
+		n += codec.EncodeVarint(buf[n:], uint64(entrySz))
+		buf[n+0] = 0x08
+		n += 1
+		buf[n] = 0
+		n++
+		buf[n+0] = 0x12
+		n += 1
+		n += codec.EncodeVarint(buf[n:], uint64(len(v)))
+		n += copy(buf[n:], v)
+	}
+	if _, ok := m.Flags[true]; ok {
+		v := m.Flags[true]
+		buf[n+0] = 0x0a
+		n += 1
+		entrySz := 1 + 1 + 1 + codec.SizeVarint(uint64(len(v))) + len(v)
+		n += codec.EncodeVarint(buf[n:], uint64(entrySz))
+		buf[n+0] = 0x08
+		n += 1
+		buf[n] = 1
+		n++
+		buf[n+0] = 0x12
+		n += 1
+		n += codec.EncodeVarint(buf[n:], uint64(len(v)))
+		n += copy(buf[n:], v)
+	}
+	return n
+}
+
+func (m *BoolMapHolder) UnmarshalCodec(data []byte) error {
+	return m.UnmarshalCodecInternal(data, string(data), 0)
+}
+
+func (m *BoolMapHolder) UnmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+	_ = slab
+	_ = slabOff
+	l := len(data)
+	i := 0
+	clear(m.Flags)
+	for i < l {
+		tag, n := codec.DecodeVarint(data[i:])
+		if n < 0 {
+			return fmt.Errorf("offset %d: %w", i, codec.ErrInvalidTag)
+		}
+		i += n
+		fieldNum := tag >> 3
+		wireType := tag & 0x7
+
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("field Flags (%d): %w", 1, codec.ErrInvalidWireType)
+			}
+			vLen, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field Flags (%d): %w", 1, codec.ErrInvalidVarint)
+			}
+			i += n
+			if uint64(l-i) < vLen {
+				return fmt.Errorf("field Flags (%d): %w", 1, codec.ErrBufferTooShort)
+			}
+			if m.Flags == nil {
+				m.Flags = make(map[bool]string)
+			}
+			entryEnd := i + int(vLen)
+			var mk bool
+			var mv string
+			for i < entryEnd {
+				etag, en := codec.DecodeVarint(data[i:entryEnd])
+				if en < 0 {
+					return fmt.Errorf("field Flags (%d): %w", 1, codec.ErrInvalidVarint)
+				}
+				i += en
+				switch etag >> 3 {
+				case 1:
+					sV, sN := codec.DecodeVarint(data[i:entryEnd])
+					if sN < 0 {
+						return codec.ErrInvalidVarint
+					}
+					i += sN
+					mk = sV != 0
+				case 2:
+					sVLen, sN := codec.DecodeVarint(data[i:entryEnd])
+					if sN < 0 {
+						return codec.ErrInvalidVarint
+					}
+					i += sN
+					if sVLen > uint64(entryEnd-i) {
+						return codec.ErrBufferTooShort
+					}
+					mv = slab[slabOff+i : slabOff+i+int(sVLen)]
+					i += int(sVLen)
+				default:
+					sn, err := codec.SkipField(data[i:entryEnd], etag&0x7)
+					if err != nil {
+						return err
+					}
+					i += sn
+				}
+			}
+			m.Flags[mk] = mv
+		default:
+			n, err := codec.SkipField(data[i:], wireType)
+			if err != nil {
+				return err
+			}
+			i += n
+		}
+	}
+	return nil
+}
+
+func (m *BoolMapHolder) ResetCodec() {
+	if m == nil {
+		return
+	}
+	clear(m.Flags)
+}
+
 func (m *TimeHolder) SizeCodec() int {
 	if m == nil {
 		return 0

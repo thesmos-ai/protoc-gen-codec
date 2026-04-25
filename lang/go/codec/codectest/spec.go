@@ -149,6 +149,14 @@ type Spec[T any] struct {
 	// a non-zero ceiling to cover the slices.Sorted(maps.Keys(...))
 	// allocation that deterministic key ordering requires.
 	MarshalToAllocsMax uint64
+
+	// SkipJSONComparisons disables the CrossFormat and WireSize
+	// subtests for types that aren't JSON-roundtrippable (e.g.
+	// `map<bool, V>` — encoding/json rejects non-string map keys).
+	// Defaults to false; set to true only when the type genuinely
+	// cannot serialize through encoding/json so the JSON-baseline
+	// subtests don't false-fail.
+	SkipJSONComparisons bool
 }
 
 // FixedLenField identifies a bytes field declared with codec.fixed_len.
@@ -193,14 +201,16 @@ func RunSuite[T any, PT interface {
 		t.Parallel()
 		AssertNilSafe[T, PT](t)
 	})
-	t.Run("CrossFormat", func(t *testing.T) {
-		t.Parallel()
-		AssertCrossFormatConsistency[T, PT](t, spec.Sample)
-	})
-	t.Run("WireSize", func(t *testing.T) {
-		t.Parallel()
-		AssertWireSmallerThanJSON[T, PT](t, spec.Sample)
-	})
+	if !spec.SkipJSONComparisons {
+		t.Run("CrossFormat", func(t *testing.T) {
+			t.Parallel()
+			AssertCrossFormatConsistency[T, PT](t, spec.Sample)
+		})
+		t.Run("WireSize", func(t *testing.T) {
+			t.Parallel()
+			AssertWireSmallerThanJSON[T, PT](t, spec.Sample)
+		})
+	}
 	t.Run("Corruption", func(t *testing.T) {
 		t.Parallel()
 		for _, s := range append([]T{spec.Sample}, spec.Variants...) {

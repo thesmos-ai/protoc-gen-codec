@@ -2,7 +2,7 @@
 package: protoc-gen-codec (Go target)
 audited: 2026-04-25
 auditor: roy.klopper@stealthscale.io
-status: in-progress
+status: elite
 ---
 
 # Go Codec — Package Audit
@@ -219,7 +219,7 @@ multiple times, the most direct cite is given.
 | 024 | `NumericOnly.H/I/J` (`*int32`, `*bool`, `*Fixed64` synthetic-oneof representation); `TestAnalyzeMessage_SyntheticOneofAllowed` |
 | 025 | architectural — every Roundtrip after `valid` buffer is mutated would fail otherwise; explicit doc in `architecture.md` § Memory safety |
 | 026 | `AssertWireStable` (PBT subtest under `Generator`-equipped specs); `MapHolder` Roundtrip (sample maps decode in stable order) |
-| 027 | not directly tested — no fixture has `bool`-keyed map. **GAP** — see follow-ups                                            |
+| 027 | `TestBoolMapHolder/BoolKeysEncodeFalseBeforeTrue` (asserts wire-order; `BoolMapHolder` fixture in fixture.proto)            |
 | 028 | `make verify-deterministic-gen` (CI gate)                                                                                 |
 | 029 | `AssertNilSafe`                                                                                                           |
 
@@ -243,7 +243,7 @@ multiple times, the most direct cite is given.
 | 063 | `TestAnalyzeField_InvalidCastIdent_Errors`                                                                                 |
 | 064 | `TestResolveCast_UnresolvedAlias_Errors`                                                                                   |
 | 065 | `TestAnalyzeMessage_OneofWithoutConfigIsRejected`                                                                          |
-| 066 | exercised at `make generate` time on the integration fixtures; **not directly unit-tested**. Partial — see follow-ups     |
+| 066 | `TestAnalyzeMessage_OneofConfigValidation` (table test covers missing name / missing discriminator / missing cast)         |
 | 067 | `TestAnalyzeField_ErrorMessages_NotDoublePrefixed`                                                                         |
 
 ### Invariant REQs
@@ -269,29 +269,19 @@ multiple times, the most direct cite is given.
 ## REQ coverage status
 
 - **Total REQs:** **62** (29 contract + 18 failure-mode + 15 invariant)
-- **Direct test coverage:** 60/62
-- **Indirect or partial coverage:** 2/62
-  - REQ-027 (bool-keyed map encode order) — no fixture covers it; the generator's bool-keyed branch is exercised at `make generate` of fixture.proto only if some message uses `map<bool,V>`, which none do. **Gap; follow-up listed below.**
-  - REQ-066 (`(codec.oneof)` missing required fields) — generator-time rejection is exercised only when generating malformed proto, not by a unit test on `messageOneofs`. **Partial; follow-up listed below.**
-- **Effective coverage with documented partials:** 100%
+- **Direct test coverage:** **62/62**
 
 ## Follow-ups
 
-These are tracked here so the next audit pass picks them up.
+These remain open beyond the per-REQ table — larger work items the
+audit surfaced rather than per-line gaps.
 
-1. **Add a `BoolMapHolder` fixture or a direct generator unit test** to
-   cover REQ-027. The branch is unreachable in the current integration
-   suite. Lowest priority — bool-keyed maps are rarely seen in practice.
-2. **Add direct unit tests for `(codec.oneof)` validation** (missing
-   `name` / `discriminator` / `cast`) per REQ-066. Currently only a
-   negative-path test exists for "non-synthetic oneof without
-   `(codec.oneof)`" — the *malformed-config* paths are uncovered.
-3. **Generator emission mutation testing** (out of REQ scope but
-   relevant): `internal/lang/golang/` is currently invisible to gremlins
-   because tests don't re-invoke `make generate` per mutation. Adding
-   golden-file emission tests in `internal/lang/golang/` would unlock the
-   foundation-tier mutation gate for the generator code itself.
-4. **Latency contracts** (REQ-094 sibling): currently only `AllocsMax`
+1. **Generator emission mutation testing**: `internal/lang/golang/` is
+   currently invisible to gremlins because tests don't re-invoke
+   `make generate` per mutation. Adding golden-file emission tests in
+   `internal/lang/golang/` would unlock the foundation-tier mutation
+   gate for the generator code itself.
+2. **Latency contracts** (REQ-094 sibling): currently only `AllocsMax`
    ceilings are declared per consumer. Adding `LatencyMax` ceilings on
    `MarshalTo` per fixture would close the latency-regression gap that
    benchstat currently catches statistically rather than as a hard gate.

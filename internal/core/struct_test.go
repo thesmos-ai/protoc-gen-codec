@@ -10,6 +10,7 @@
 package core
 
 import (
+	"strings"
 	"testing"
 
 	"google.golang.org/protobuf/types/descriptorpb"
@@ -180,7 +181,9 @@ func TestAnalyzeField_CodecFieldOverride_TargetName(t *testing.T) {
 // happy path through messageOneofs and the decoded OneofInfo entry.
 func TestAnalyzeMessage_WithOneofConfig_PopulatesOneofs(t *testing.T) {
 	t.Parallel()
-	info, err := runAnalyzeMessageWithOneofConfig(t)
+	info, err := runAnalyzeMessageWithOneofConfig(t, OneofConfig{
+		Name: "value", Discriminator: "Kind", Cast: "ValueKind",
+	})
 	if err != nil {
 		t.Fatalf("AnalyzeMessage with codec.oneof: %v", err)
 	}
@@ -190,5 +193,47 @@ func TestAnalyzeMessage_WithOneofConfig_PopulatesOneofs(t *testing.T) {
 	got := info.Oneofs[0]
 	if got.Name != "value" || got.DiscriminatorField != "Kind" || got.DiscriminatorCast != "ValueKind" {
 		t.Errorf("OneofInfo: got %+v, want {Name:value, DiscriminatorField:Kind, DiscriminatorCast:ValueKind}", got)
+	}
+}
+
+// codec.oneof validation: AnalyzeMessage must reject (codec.oneof)
+// entries that are missing any of the three required fields. Each
+// missing field has a distinct error path so the table covers all
+// three rejection branches in one shot.
+func TestAnalyzeMessage_OneofConfigValidation(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name       string
+		cfg        OneofConfig
+		wantSubstr string
+	}{
+		{
+			name:       "missing name",
+			cfg:        OneofConfig{Discriminator: "Kind", Cast: "ValueKind"},
+			wantSubstr: "missing `name`",
+		},
+		{
+			name:       "missing discriminator",
+			cfg:        OneofConfig{Name: "value", Cast: "ValueKind"},
+			wantSubstr: "requires both `discriminator` and `cast`",
+		},
+		{
+			name:       "missing cast",
+			cfg:        OneofConfig{Name: "value", Discriminator: "Kind"},
+			wantSubstr: "requires both `discriminator` and `cast`",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := runAnalyzeMessageWithOneofConfig(t, c.cfg)
+			if err == nil {
+				t.Fatalf("AnalyzeMessage must reject (codec.oneof) with %s", c.name)
+			}
+			if !strings.Contains(err.Error(), c.wantSubstr) {
+				t.Errorf("error %q must mention %q to identify the missing field for the user",
+					err.Error(), c.wantSubstr)
+			}
+		})
 	}
 }

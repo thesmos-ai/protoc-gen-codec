@@ -375,12 +375,13 @@ func runAnalyzeSelfRefMessage(t *testing.T) (*MessageInfo, error) {
 
 // runAnalyzeMessageWithOneofConfig is runAnalyzeMessageWithOneof plus an
 // inline (codec.oneof) annotation on M. Lets us exercise the codec.oneof
-// → OneofConfig pipeline end-to-end.
-func runAnalyzeMessageWithOneofConfig(t *testing.T) (*MessageInfo, error) {
+// → OneofConfig pipeline end-to-end. cfg controls the codec.oneof entry
+// emitted on M; pass partial configs to drive the validation-rejection
+// paths (missing name / discriminator / cast).
+func runAnalyzeMessageWithOneofConfig(t *testing.T, cfg OneofConfig) (*MessageInfo, error) {
 	t.Helper()
 	oneofName := "value"
 	oneofIdx := int32(0)
-	cfg := OneofConfig{Name: oneofName, Discriminator: "Kind", Cast: "ValueKind"}
 	fd := &descriptorpb.FileDescriptorProto{
 		Name:    new("t.proto"),
 		Syntax:  new("proto3"),

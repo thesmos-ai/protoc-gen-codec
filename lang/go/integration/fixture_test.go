@@ -876,3 +876,76 @@ func BenchmarkBytesPool(b *testing.B) {
 func FuzzBytesPool_Codec(f *testing.F) {
 	codectest.RunFuzzSuite[integration.BytesPool](f, specBytesPool)
 }
+
+// === BoolMapHolder ===========================================================
+
+func sampleBoolMapHolder() integration.BoolMapHolder {
+	return integration.BoolMapHolder{
+		Flags: map[bool]string{false: "off", true: "on"},
+	}
+}
+
+var specBoolMapHolder = codectest.Spec[integration.BoolMapHolder]{
+	Sample:    sampleBoolMapHolder(),
+	MapFields: []int32{1},
+	// Bool-keyed maps emit the explicit `false → true` sequence with
+	// no sorted-keys slice allocation; MarshalTo budget stays at 0.
+	// encoding/json rejects map[bool]V keys, so the JSON-baseline
+	// subtests (CrossFormat, WireSize) are skipped.
+	SkipJSONComparisons: true,
+}
+
+func TestBoolMapHolder(t *testing.T) {
+	t.Run("Codec", func(t *testing.T) {
+		codectest.RunSuite[integration.BoolMapHolder](t, specBoolMapHolder)
+	})
+	t.Run("BoolKeysEncodeFalseBeforeTrue", func(t *testing.T) {
+		t.Parallel()
+		// Bool-keyed maps must emit the false-key entry before the
+		// true-key entry on the wire so output is byte-stable across
+		// calls. Without this guarantee the implicit map iteration
+		// order would leak into wire output.
+		s := sampleBoolMapHolder()
+		buf, err := s.MarshalCodec()
+		if err != nil {
+			t.Fatalf("MarshalCodec must succeed on a valid sample (got: %v)", err)
+		}
+		// Decode entry-by-entry and capture the boolean keys in order.
+		// Outer field tag 0x0a (field 1 wire type 2) is followed by an
+		// entry length, then the entry body containing key tag (0x08)
+		// + bool byte, then value tag (0x12) + length-prefixed string.
+		var keysSeen []bool
+		i := 0
+		for i < len(buf) {
+			if buf[i] != 0x0a {
+				t.Fatalf("BoolMapHolder.Flags must serialize all entries on field 1 (wire type 2): unexpected byte %#x at offset %d",
+					buf[i], i)
+			}
+			i++
+			entryLen := int(buf[i])
+			i++
+			entry := buf[i : i+entryLen]
+			i += entryLen
+			// Key is the second byte of the entry (after key tag 0x08).
+			if entry[0] != 0x08 {
+				t.Fatalf("map entry must lead with key tag 0x08, got %#x", entry[0])
+			}
+			keysSeen = append(keysSeen, entry[1] != 0)
+		}
+		if len(keysSeen) != 2 {
+			t.Fatalf("expected 2 entries on the wire, got %d (keys=%v)", len(keysSeen), keysSeen)
+		}
+		if keysSeen[0] != false || keysSeen[1] != true {
+			t.Errorf("bool keys must encode in false→true order — required for byte-stable map output (got: %v)",
+				keysSeen)
+		}
+	})
+}
+
+func BenchmarkBoolMapHolder(b *testing.B) {
+	codectest.RunBenchSuite[integration.BoolMapHolder](b, specBoolMapHolder)
+}
+
+func FuzzBoolMapHolder_Codec(f *testing.F) {
+	codectest.RunFuzzSuite[integration.BoolMapHolder](f, specBoolMapHolder)
+}

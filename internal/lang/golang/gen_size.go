@@ -161,7 +161,14 @@ func generateMapFieldSize(g *protogen.GeneratedFile, f *core.FieldInfo, accessor
 	valSize := scalarSizeExpr(g, f.MapValue, "v")
 	keyTagSize := core.TagSize(f.MapKey.ProtoNum)
 	valTagSize := core.TagSize(f.MapValue.ProtoNum)
-	g.P("for k, v := range ", accessor, " {")
+	// Bool keys produce a constant size expression that doesn't reference k,
+	// which would leave the loop variable unused. Drop the key binding in
+	// that case so the generated Go file compiles.
+	if f.MapKey.ProtoKind == protoreflect.BoolKind {
+		g.P("for _, v := range ", accessor, " {")
+	} else {
+		g.P("for k, v := range ", accessor, " {")
+	}
 	g.P("entrySz := ", keyTagSize, " + ", keySize, " + ", valTagSize, " + ", valSize)
 	g.P("n += ", ts, " + ", identSizeVarint, "(uint64(entrySz)) + entrySz")
 	g.P("}")

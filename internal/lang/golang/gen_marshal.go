@@ -261,10 +261,19 @@ func generateMapFieldMarshal(g *protogen.GeneratedFile, f *core.FieldInfo, acces
 
 	if f.MapKey.ProtoKind == protoreflect.BoolKind {
 		// Two possible keys; emit in canonical false→true order.
+		// Pass the boolean literal directly to emitScalarWrite so the
+		// emitted code writes the key byte unconditionally rather than
+		// via an always-true / always-false `if k { ... } else { ... }`
+		// (which leaves one branch uncovered per call). scalarSizeExpr
+		// for bool returns the constant "1" so it never references k.
 		for _, kv := range []string{"false", "true"} {
 			g.P("if _, ok := ", accessor, "[", kv, "]; ok {")
-			g.P("k := ", kv)
-			emitBody()
+			g.P("v := ", accessor, "[", kv, "]")
+			emitTag(g, f.ProtoNum, core.WireLenDel)
+			g.P("entrySz := ", keyTagSize, " + ", keySize, " + ", valTagSize, " + ", valSize)
+			g.P("n += ", identEncodeVarint, "(buf[n:],uint64(entrySz))")
+			emitScalarWrite(g, f.MapKey, kv)
+			emitScalarWrite(g, f.MapValue, "v")
 			g.P("}")
 		}
 		return
