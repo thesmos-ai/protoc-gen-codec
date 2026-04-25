@@ -1,4 +1,4 @@
-.PHONY: build test test-race test-fuzz test-bench lint fmt generate clean bench-baseline bench-compare verify-deterministic-gen coverage-gate
+.PHONY: build test test-race test-fuzz test-bench lint fmt generate clean bench-baseline bench-compare verify-deterministic-gen coverage-gate test-mutation test-mutation-codec test-mutation-core
 
 GO := go
 FUZZTIME ?= 30s
@@ -63,5 +63,37 @@ verify-deterministic-gen:
 
 coverage-gate:
 	./scripts/coverage-gate.sh
+
+# ---- Mutation testing (gremlins) ------------------------------------------
+# Mutation testing complements coverage: 100% line coverage proves a line
+# ran; mutation testing proves the line's behavior was asserted. We treat
+# protoc-gen-codec as foundation-tier (100% effective kill rate). True
+# equivalents that cannot be killed without architectural refactor are
+# annotated inline with `// mutation:equivalent <reason>` and reported in
+# this file's threshold (gremlins itself does not parse the comments).
+#
+# Coverage qualifier: gremlins only mutates statements that the test suite
+# covers. Generator emission code in internal/lang/golang/ has no direct
+# tests (only integration tests after `make generate`), so it is not
+# mutation-testable today. Adding golden-file emission tests would unlock it.
+#
+# Timeout note: the high coefficient compensates for the runtime package's
+# fast baseline (~ms); mutations that introduce infinite loops still time
+# out and gremlins counts them as detected (not LIVED).
+GREMLINS = gremlins unleash --timeout-coefficient=200
+
+# Runtime: 5 documented equivalents (DecodeVarint contract: n >= 1 or
+# n == -1; n == 0 unreachable, so `<` and `<=` are semantically identical).
+# 57 KILLED + 5 equivalents = 100% effective; gremlins reports ~91.94%.
+test-mutation-codec:
+	$(GREMLINS) -E 'codectest/' --threshold-efficacy=91 ./lang/go/codec/
+
+# Analyzer: gated low pending direct unit-test coverage of parseOneofConfig,
+# TagValue/Size/Bytes/SovLocal, and consumeFieldValue (all 0-50% direct
+# coverage today; exercised only via integration tests post-generate).
+test-mutation-core:
+	$(GREMLINS) --threshold-efficacy=35 ./internal/core/
+
+test-mutation: test-mutation-codec test-mutation-core
 
 .DEFAULT_GOAL := build

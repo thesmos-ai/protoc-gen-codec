@@ -272,6 +272,23 @@ func TestSkipField_LenDelimited_TruncatedPayload(t *testing.T) {
 	}
 }
 
+// TestSkipField_LenDelimited_OffByOnePayload pins the boundary of the
+// `uint64(len(data)-n) < l` short-buffer guard in wire.go:101. Sign-flip
+// or +/- mutations of the `len(data)-n` term would be invisible to the
+// generic truncated-payload test (which uses l=100 vs len=2), but with
+// l == len(data) the mutated form `len(data)+n` exceeds l and silently
+// returns success on a buffer that is genuinely one byte short.
+func TestSkipField_LenDelimited_OffByOnePayload(t *testing.T) {
+	t.Parallel()
+
+	// data = [varint=4, ?, ?, ?]  — claim 4 follow-bytes, supply 3.
+	data := []byte{0x04, 0xAA, 0xBB, 0xCC}
+	_, err := codec.SkipField(data, 2)
+	if !stderrors.Is(err, codec.ErrBufferTooShort) {
+		t.Fatalf("expected codec.ErrBufferTooShort, got %v", err)
+	}
+}
+
 func TestSkipField_Fixed32(t *testing.T) {
 	t.Parallel()
 

@@ -98,6 +98,9 @@ func decodeTSBody(data []byte) (int64, int32, error) {
 	l := len(data)
 	for i < l {
 		tag, tn := DecodeVarint(data[i:])
+		// mutation:equivalent CONDITIONALS_BOUNDARY (tn < 0 vs tn <= 0):
+		// DecodeVarint returns tn >= 1 (success) or tn == -1 (malformed);
+		// tn == 0 is unreachable, so `<` and `<=` are semantically identical.
 		if tn < 0 {
 			return 0, 0, ErrInvalidVarint
 		}
@@ -105,6 +108,7 @@ func decodeTSBody(data []byte) (int64, int32, error) {
 		switch tag >> 3 {
 		case 1:
 			v, vn := DecodeVarint(data[i:])
+			// mutation:equivalent CONDITIONALS_BOUNDARY — see tag check above.
 			if vn < 0 {
 				return 0, 0, ErrInvalidVarint
 			}
@@ -112,6 +116,7 @@ func decodeTSBody(data []byte) (int64, int32, error) {
 			secs = int64(v)
 		case 2:
 			v, vn := DecodeVarint(data[i:])
+			// mutation:equivalent CONDITIONALS_BOUNDARY — see tag check above.
 			if vn < 0 {
 				return 0, 0, ErrInvalidVarint
 			}

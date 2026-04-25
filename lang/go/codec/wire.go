@@ -84,6 +84,9 @@ func SkipField(data []byte, wireType uint64) (int, error) {
 	switch wireType {
 	case 0:
 		_, n := DecodeVarint(data)
+		// mutation:equivalent CONDITIONALS_BOUNDARY (n < 0 vs n <= 0):
+		// DecodeVarint returns n >= 1 (success) or n == -1 (malformed);
+		// n == 0 is unreachable, so `<` and `<=` are semantically identical.
 		if n < 0 {
 			return 0, ErrInvalidVarint
 		}
@@ -95,6 +98,7 @@ func SkipField(data []byte, wireType uint64) (int, error) {
 		return 8, nil
 	case 2:
 		l, n := DecodeVarint(data)
+		// mutation:equivalent CONDITIONALS_BOUNDARY — see case 0.
 		if n < 0 {
 			return 0, ErrInvalidVarint
 		}
