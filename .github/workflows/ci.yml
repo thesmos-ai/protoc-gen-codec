@@ -9,36 +9,47 @@ on:
 permissions:
   contents: read
 
+# bufbuild/buf-setup-action@v1.50.0 still ships Node 20; the env var
+# forces it (and any other lingering Node 20 action) onto Node 24
+# ahead of the June 2026 default flip. actions/checkout@v6 and
+# actions/setup-go@v6 are already Node 24 native and don't need this.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
-          go-version: '1.23'
+          go-version: '1.26'
       - run: go test -count=1 ./...
       - run: go test -count=1 -race ./...
 
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
-          go-version: '1.23'
+          go-version: '1.26'
       - uses: bufbuild/buf-setup-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
       - run: go vet ./...
       - run: buf lint
 
   determinism:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
-          go-version: '1.23'
+          go-version: '1.26'
       - uses: bufbuild/buf-setup-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
       - run: make verify-deterministic-gen
 
   bench:
@@ -49,18 +60,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main for baseline
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: main
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
-          go-version: '1.23'
+          go-version: '1.26'
       - name: Generate baseline from main
         run: |
           GOMAXPROCS=8 go test -run='^$' -bench=. -benchmem -benchtime=3s -count=10 \
             ./lang/go/codec/ ./lang/go/integration/ > /tmp/baseline.txt
       - name: Checkout PR head
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           clean: false
       - name: Compare PR head vs baseline
@@ -71,8 +82,17 @@ jobs:
   coverage:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
-          go-version: '1.23'
-      - run: make coverage-gate
+          go-version: '1.26'
+      - name: Per-file coverage gate (100% on generated *.codec.go)
+        run: make coverage-gate
+      - name: Generate combined coverage profile for Codecov
+        run: go test -coverprofile=coverage.out -covermode=atomic ./...
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v6
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.out
+          fail_ci_if_error: false
