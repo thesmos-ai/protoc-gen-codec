@@ -12,6 +12,11 @@ import (
 	"go.stealthscale.io/protoc-gen-codec/lang/go/codec"
 )
 
+// Assertion-message convention (per testing-runbook Phase 4.3):
+// every Fatalf cites the contract it defends, not the value that failed.
+// "what guarantee was violated", not "which line fired". The dynamic
+// value is included in parentheses so triage still has the data.
+
 // AssertRoundtrip verifies MarshalCodec → UnmarshalCodec identity and
 // SizeCodec accuracy against the given sample. The sample must be a
 // shape that reflect.DeepEqual can compare round-trip-cleanly; for
@@ -25,20 +30,22 @@ func AssertRoundtrip[T any, PT interface {
 	size := ptr.SizeCodec()
 	buf, err := ptr.MarshalCodec()
 	if err != nil {
-		t.Fatalf("MarshalCodec: %v", err)
+		t.Fatalf("MarshalCodec must succeed on a valid sample (got: %v)", err)
 	}
 	if buf == nil && size == 0 {
 		return
 	}
 	if len(buf) != size {
-		t.Fatalf("SizeCodec()=%d len(MarshalCodec())=%d", size, len(buf))
+		t.Fatalf("SizeCodec must equal len(MarshalCodec) — callers pre-allocate from SizeCodec, so any divergence overflows the marshal buffer (size=%d, len=%d)",
+			size, len(buf))
 	}
 	var got T
 	if uerr := PT(&got).UnmarshalCodec(buf); uerr != nil {
-		t.Fatalf("UnmarshalCodec: %v", uerr)
+		t.Fatalf("UnmarshalCodec must succeed on bytes produced by MarshalCodec (got: %v)", uerr)
 	}
 	if !reflect.DeepEqual(original, got) {
-		t.Fatalf("roundtrip mismatch:\n  want: %+v\n  got:  %+v", original, got)
+		t.Fatalf("Marshal then Unmarshal must reproduce the original — proto3 wire is total for declared fields\n  want: %+v\n  got:  %+v",
+			original, got)
 	}
 }
 
@@ -53,18 +60,19 @@ func AssertWireStable[T any, PT interface {
 	t.Helper()
 	re1, err := PT(&original).MarshalCodec()
 	if err != nil {
-		t.Fatalf("MarshalCodec: %v", err)
+		t.Fatalf("MarshalCodec must succeed on a valid sample (got: %v)", err)
 	}
 	var decoded T
 	if uerr := PT(&decoded).UnmarshalCodec(re1); uerr != nil {
-		t.Fatalf("UnmarshalCodec: %v", uerr)
+		t.Fatalf("UnmarshalCodec must succeed on bytes produced by MarshalCodec (got: %v)", uerr)
 	}
 	re2, merr := PT(&decoded).MarshalCodec()
 	if merr != nil {
-		t.Fatalf("re-MarshalCodec: %v", merr)
+		t.Fatalf("re-MarshalCodec must succeed on a fresh decode of valid bytes (got: %v)", merr)
 	}
 	if !bytes.Equal(re1, re2) {
-		t.Fatalf("wire not stable:\n  re1=%x\n  re2=%x", re1, re2)
+		t.Fatalf("wire must be byte-identical across one Marshal/Unmarshal/Marshal cycle — deterministic encoding contract\n  re1=%x\n  re2=%x",
+			re1, re2)
 	}
 }
 
@@ -82,25 +90,27 @@ func AssertReset[T any, PT interface {
 	t.Helper()
 	buf, err := PT(&populated).MarshalCodec()
 	if err != nil {
-		t.Fatalf("MarshalCodec: %v", err)
+		t.Fatalf("MarshalCodec must succeed on the input sample (got: %v)", err)
 	}
 	var owned T
 	if buf != nil {
 		if uerr := PT(&owned).UnmarshalCodec(buf); uerr != nil {
-			t.Fatalf("UnmarshalCodec: %v", uerr)
+			t.Fatalf("UnmarshalCodec must succeed on bytes produced by MarshalCodec (got: %v)", uerr)
 		}
 	}
 	ptr := PT(&owned)
 	ptr.ResetCodec()
 	if sz := ptr.SizeCodec(); sz != 0 {
-		t.Fatalf("ResetCodec did not produce empty wire: SizeCodec()=%d", sz)
+		t.Fatalf("ResetCodec must zero every serialized field — non-zero SizeCodec=%d after reset means a field's reset is missing or incomplete (post-reset object must be indistinguishable from zero value on the wire)",
+			sz)
 	}
 	reBuf, err := ptr.MarshalCodec()
 	if err != nil {
-		t.Fatalf("MarshalCodec after ResetCodec: %v", err)
+		t.Fatalf("MarshalCodec must succeed on a reset (zero-equivalent) receiver (got: %v)", err)
 	}
 	if len(reBuf) != 0 {
-		t.Fatalf("ResetCodec did not produce empty wire: MarshalCodec len=%d", len(reBuf))
+		t.Fatalf("ResetCodec must zero every serialized field — non-zero MarshalCodec output after reset (len=%d) means a field's reset is incomplete",
+			len(reBuf))
 	}
 }
 
@@ -112,15 +122,17 @@ func AssertNilSafe[T any, PT interface {
 	t.Helper()
 	var nilPtr PT
 	if nilPtr.SizeCodec() != 0 {
-		t.Fatalf("nil SizeCodec should be 0")
+		t.Fatalf("SizeCodec on a nil receiver must return 0 — nil-pointer safety required for pool-friendly receiver patterns")
 	}
 	buf, err := nilPtr.MarshalCodec()
 	if err != nil || buf != nil {
-		t.Fatalf("nil MarshalCodec: buf=%v err=%v", buf, err)
+		t.Fatalf("MarshalCodec on a nil receiver must return (nil, nil) — nil-pointer safety required (got buf=%v err=%v)",
+			buf, err)
 	}
 	n, err := nilPtr.MarshalToCodec(nil)
 	if err != nil || n != 0 {
-		t.Fatalf("nil MarshalToCodec: n=%d err=%v", n, err)
+		t.Fatalf("MarshalToCodec on a nil receiver must return (0, nil) — nil-pointer safety required (got n=%d err=%v)",
+			n, err)
 	}
 	nilPtr.ResetCodec()
 }
@@ -136,14 +148,15 @@ func AssertWireSmallerThanJSON[T any, PT interface {
 	ptr := PT(&sample)
 	vtBuf, err := ptr.MarshalCodec()
 	if err != nil {
-		t.Fatalf("MarshalCodec: %v", err)
+		t.Fatalf("MarshalCodec must succeed on a valid sample (got: %v)", err)
 	}
 	jsonBuf, err := json.Marshal(sample)
 	if err != nil {
-		t.Fatalf("json.Marshal: %v", err)
+		t.Fatalf("json.Marshal must succeed on the same sample (sanity check the fixture is JSON-serializable; got: %v)", err)
 	}
 	if len(vtBuf) >= len(jsonBuf) {
-		t.Fatalf("codec %d bytes >= JSON %d bytes", len(vtBuf), len(jsonBuf))
+		t.Fatalf("codec wire must be strictly smaller than JSON for any non-trivial sample — binary format value proposition (codec=%d, JSON=%d bytes)",
+			len(vtBuf), len(jsonBuf))
 	}
 }
 
@@ -157,24 +170,25 @@ func AssertCrossFormatConsistency[T any, PT interface {
 	t.Helper()
 	codecBytes, err := PT(&original).MarshalCodec()
 	if err != nil {
-		t.Fatalf("MarshalCodec: %v", err)
+		t.Fatalf("MarshalCodec must succeed on a valid sample (got: %v)", err)
 	}
 	jsonBytes, err := json.Marshal(original)
 	if err != nil {
-		t.Fatalf("json.Marshal: %v", err)
+		t.Fatalf("json.Marshal must succeed on the same sample (sanity check the fixture is JSON-serializable; got: %v)", err)
 	}
 	var fromCodec T
 	if codecBytes != nil {
 		if uerr := PT(&fromCodec).UnmarshalCodec(codecBytes); uerr != nil {
-			t.Fatalf("UnmarshalCodec: %v", uerr)
+			t.Fatalf("UnmarshalCodec must succeed on bytes produced by MarshalCodec (got: %v)", uerr)
 		}
 	}
 	var fromJSON T
 	if uerr := json.Unmarshal(jsonBytes, &fromJSON); uerr != nil {
-		t.Fatalf("json.Unmarshal: %v", uerr)
+		t.Fatalf("json.Unmarshal must succeed on bytes produced by json.Marshal (got: %v)", uerr)
 	}
 	if !reflect.DeepEqual(fromCodec, fromJSON) {
-		t.Fatalf("cross-format mismatch:\n  codec: %+v\n  json:  %+v", fromCodec, fromJSON)
+		t.Fatalf("codec roundtrip and JSON roundtrip must produce structurally-equal results from the same source — catches field-mapping bugs (wrong tag, wrong type) that pure self-roundtrip misses\n  codec: %+v\n  json:  %+v",
+			fromCodec, fromJSON)
 	}
 }
 
@@ -190,7 +204,7 @@ func AssertCorruption[T any, PT interface {
 	ptr := PT(&sample)
 	valid, err := ptr.MarshalCodec()
 	if err != nil {
-		t.Fatalf("MarshalCodec: %v", err)
+		t.Fatalf("MarshalCodec must succeed on a valid sample (got: %v)", err)
 	}
 	if valid == nil {
 		return
@@ -219,10 +233,10 @@ func AssertCorruptTag[T any, PT interface {
 	bad := []byte{0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
 	err := PT(&got).UnmarshalCodec(bad)
 	if err == nil {
-		t.Fatalf("UnmarshalCodec(unterminated-varint): want error, got nil")
+		t.Fatalf("UnmarshalCodec must reject a 10-byte unterminated tag varint — DoS resistance requires bounded tag-decode (got nil error)")
 	}
 	if !errors.Is(err, codec.ErrInvalidTag) {
-		t.Fatalf("UnmarshalCodec(unterminated-varint): want ErrInvalidTag, got %v", err)
+		t.Fatalf("UnmarshalCodec on a malformed tag varint must wrap ErrInvalidTag for programmatic matching (got: %v)", err)
 	}
 }
 
@@ -240,10 +254,11 @@ func AssertMarshalToCodec[T any, PT interface {
 	buf := make([]byte, size)
 	n, err := ptr.MarshalToCodec(buf)
 	if err != nil {
-		t.Fatalf("MarshalToCodec: %v", err)
+		t.Fatalf("MarshalToCodec must succeed when the caller buffer matches SizeCodec (got: %v)", err)
 	}
 	if n != size {
-		t.Fatalf("MarshalToCodec: wrote %d bytes, want %d", n, size)
+		t.Fatalf("MarshalToCodec must return n == SizeCodec — callers rely on n to track buffer offsets in batched marshals (got n=%d, want %d)",
+			n, size)
 	}
 }
 
@@ -263,13 +278,15 @@ func AssertMarshalToShortBuffer[T any, PT interface {
 	buf := make([]byte, size-1)
 	n, err := ptr.MarshalToCodec(buf)
 	if err == nil {
-		t.Fatalf("MarshalToCodec(len=%d, size=%d): want ErrBufferTooShort, got nil", len(buf), size)
+		t.Fatalf("MarshalToCodec must reject a buffer smaller than SizeCodec — silent partial writes would corrupt downstream readers (size=%d, buf=%d, got nil error)",
+			size, len(buf))
 	}
 	if !errors.Is(err, codec.ErrBufferTooShort) {
-		t.Fatalf("MarshalToCodec(short): want ErrBufferTooShort, got %v", err)
+		t.Fatalf("MarshalToCodec on a short buffer must wrap ErrBufferTooShort for programmatic matching (got: %v)", err)
 	}
 	if n != 0 {
-		t.Fatalf("MarshalToCodec(short): want n=0, got %d", n)
+		t.Fatalf("MarshalToCodec must return n=0 when rejecting a short buffer — non-zero would imply a partial write was committed (got n=%d)",
+			n)
 	}
 }
 
@@ -283,18 +300,19 @@ func AssertWarmPathGrowth[T any, PT interface {
 	t.Helper()
 	primerBuf, err := PT(&primer).MarshalCodec()
 	if err != nil {
-		t.Fatalf("MarshalCodec(primer): %v", err)
+		t.Fatalf("MarshalCodec must succeed on the primer sample (got: %v)", err)
 	}
 	growerBuf, err := PT(&grower).MarshalCodec()
 	if err != nil {
-		t.Fatalf("MarshalCodec(grower): %v", err)
+		t.Fatalf("MarshalCodec must succeed on the grower sample (got: %v)", err)
 	}
 	var recv T
 	if uerr := PT(&recv).UnmarshalCodec(primerBuf); uerr != nil {
-		t.Fatalf("UnmarshalCodec(primer): %v", uerr)
+		t.Fatalf("UnmarshalCodec must succeed on the primer wire — establishes warm-path state (got: %v)", uerr)
 	}
 	if uerr := PT(&recv).UnmarshalCodec(growerBuf); uerr != nil {
-		t.Fatalf("UnmarshalCodec(grower) into primed receiver: %v", uerr)
+		t.Fatalf("UnmarshalCodec must grow a primed receiver's slice when the new payload has more elements — warm-path slice-growth contract (got: %v)",
+			uerr)
 	}
 }
 
@@ -310,7 +328,8 @@ func AssertUnpackedRepeatedVarint[T any, PT interface {
 	t.Helper()
 	var got T
 	if err := PT(&got).UnmarshalCodec(wire); err != nil {
-		t.Fatalf("UnmarshalCodec(unpacked-repeated): %v", err)
+		t.Fatalf("UnmarshalCodec must accept the unpacked alternate of a packed-eligible repeated field — proto3 dual-encoding compatibility (got: %v)",
+			err)
 	}
 }
 
@@ -338,7 +357,7 @@ func AssertPackedAcceptsUnpacked[T any, PT interface {
 	buf = append(buf, make([]byte, elementSize)...)
 	var got T
 	if err := PT(&got).UnmarshalCodec(buf); err != nil {
-		t.Fatalf("field %d (wireType %d, elemSize %d): unpacked alternate rejected: %v",
+		t.Fatalf("field %d (wireType %d, elemSize %d): repeated packed field must accept its element's unpacked wire form — proto3 dual-encoding compatibility (got: %v)",
 			fieldNum, wireType, elementSize, err)
 	}
 }
@@ -371,15 +390,18 @@ func AssertPackedAcceptsUnpackedCorrupt[T any, PT interface {
 		buf = append(buf, make([]byte, elementSize-1)...)
 		wantErr = codec.ErrBufferTooShort
 	default:
-		t.Fatalf("AssertPackedAcceptsUnpackedCorrupt: unsupported wireType %d", wireType)
+		// Programmer error in the helper itself, not a contract violation.
+		t.Fatalf("AssertPackedAcceptsUnpackedCorrupt: unsupported wireType %d (test bug, not an SUT contract)", wireType)
 	}
 	var got T
 	err := PT(&got).UnmarshalCodec(buf)
 	if err == nil {
-		t.Fatalf("field %d (wireType %d): corrupt unpacked alternate accepted, want error", fieldNum, wireType)
+		t.Fatalf("field %d (wireType %d): UnmarshalCodec must reject a corrupt unpacked-alternate body — DoS / corruption resistance (got nil error)",
+			fieldNum, wireType)
 	}
 	if !errors.Is(err, wantErr) {
-		t.Fatalf("field %d (wireType %d): want %v, got %v", fieldNum, wireType, wantErr, err)
+		t.Fatalf("field %d (wireType %d): corrupt unpacked-alternate error must wrap %v for programmatic matching (got: %v)",
+			fieldNum, wireType, wantErr, err)
 	}
 }
 
@@ -398,10 +420,10 @@ func AssertCorruptPackedBody[T any, PT interface {
 	buf = append(buf, 0x80, 0x80, 0x80, 0x80, 0x80)
 	err := PT(&got).UnmarshalCodec(buf)
 	if err == nil {
-		t.Fatalf("UnmarshalCodec(corrupt packed body): want error, got nil")
+		t.Fatalf("UnmarshalCodec must reject a packed-field body containing a malformed inner varint — DoS resistance (got nil error)")
 	}
 	if !errors.Is(err, codec.ErrInvalidVarint) {
-		t.Fatalf("UnmarshalCodec(corrupt packed body): want ErrInvalidVarint, got %v", err)
+		t.Fatalf("UnmarshalCodec on a malformed packed-body varint must wrap ErrInvalidVarint for programmatic matching (got: %v)", err)
 	}
 }
 
@@ -416,18 +438,19 @@ func AssertMarshalWithNilPointerElement[T any, PT interface {
 	ptr := PT(&sample)
 	buf, err := ptr.MarshalCodec()
 	if err != nil {
-		t.Fatalf("MarshalCodec(with nil element): %v", err)
+		t.Fatalf("MarshalCodec must skip nil elements in repeated []*T fields — defensive against zero-value slot insertion (got: %v)", err)
 	}
 	var got T
 	if uerr := PT(&got).UnmarshalCodec(buf); uerr != nil {
-		t.Fatalf("UnmarshalCodec(with nil element): %v", uerr)
+		t.Fatalf("UnmarshalCodec must succeed on wire produced by a nil-element-skipping Marshal (got: %v)", uerr)
 	}
 	rebuf, merr := PT(&got).MarshalCodec()
 	if merr != nil {
-		t.Fatalf("re-MarshalCodec: %v", merr)
+		t.Fatalf("re-MarshalCodec on the decoded receiver must succeed (got: %v)", merr)
 	}
 	if len(rebuf) != len(buf) {
-		t.Fatalf("wire size changed: before=%d after=%d", len(buf), len(rebuf))
+		t.Fatalf("re-MarshalCodec must produce wire of identical length — nil-skip Marshal output should already be canonical so a roundtrip cannot grow or shrink it (before=%d, after=%d)",
+			len(buf), len(rebuf))
 	}
 }
 
@@ -446,13 +469,13 @@ func AssertAllFieldsWireTypeMismatch[T any, PT interface {
 		sample := s
 		buf, err := PT(&sample).MarshalCodec()
 		if err != nil {
-			t.Fatalf("MarshalCodec: %v", err)
+			t.Fatalf("MarshalCodec must succeed on a valid sample (got: %v)", err)
 		}
 		i := 0
 		for i < len(buf) {
 			tag, n := codec.DecodeVarint(buf[i:])
 			if n < 0 {
-				t.Fatalf("tag decode failed at offset %d", i)
+				t.Fatalf("DecodeVarint must succeed on every tag in a valid Marshal output — internal helper invariant (offset %d)", i)
 			}
 			fieldNum := int32(tag >> 3)
 			wireType := byte(tag & 7)
@@ -460,7 +483,8 @@ func AssertAllFieldsWireTypeMismatch[T any, PT interface {
 			i += n
 			skip, skipErr := codec.SkipField(buf[i:], uint64(wireType))
 			if skipErr != nil {
-				t.Fatalf("skip at offset %d: %v", i, skipErr)
+				t.Fatalf("SkipField must succeed on every field in a valid Marshal output — internal helper invariant (offset %d, err: %v)",
+					i, skipErr)
 			}
 			i += skip
 		}
@@ -504,7 +528,8 @@ func assertFieldWireTypeOrAcceptedAlternate[T any, PT interface {
 		return
 	}
 	if !errors.Is(err, codec.ErrInvalidWireType) {
-		t.Fatalf("field %d wireType %d: want nil or ErrInvalidWireType, got %v", fieldNum, wrongWireType, err)
+		t.Fatalf("field %d on wrong wireType %d: UnmarshalCodec must either accept (proto3 dual-encoding) or wrap ErrInvalidWireType — every other error class indicates a generated-code bug (got: %v)",
+			fieldNum, wrongWireType, err)
 	}
 }
 
@@ -523,10 +548,10 @@ func AssertCorruptScalarVarint[T any, PT interface {
 	var got T
 	err := PT(&got).UnmarshalCodec(buf)
 	if err == nil {
-		t.Fatalf("field %d: want ErrInvalidVarint, got nil", fieldNum)
+		t.Fatalf("field %d: UnmarshalCodec must reject a malformed scalar-varint body — DoS resistance (got nil error)", fieldNum)
 	}
 	if !errors.Is(err, codec.ErrInvalidVarint) {
-		t.Fatalf("field %d: want ErrInvalidVarint, got %v", fieldNum, err)
+		t.Fatalf("field %d: malformed-varint error must wrap ErrInvalidVarint for programmatic matching (got: %v)", fieldNum, err)
 	}
 }
 
@@ -548,7 +573,7 @@ func AssertCorruptMapEntryValue[T any, PT interface {
 	outerA = append(outerA, 0x0a, 0x00, 0x12, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80)
 	var gotA T
 	if err := PT(&gotA).UnmarshalCodec(outerA); err == nil {
-		t.Fatalf("case A (corrupt value varint): want error, got nil")
+		t.Fatalf("map-entry decode (case A): UnmarshalCodec must reject a corrupt value varint inside a map entry body — DoS resistance (got nil error)")
 	}
 
 	// Case B: trailing junk in entry body.
@@ -633,7 +658,7 @@ func AssertPrescanSkipsAllWireTypes[T any, PT interface {
 	ptr := PT(&sample)
 	valid, err := ptr.MarshalCodec()
 	if err != nil {
-		t.Fatalf("MarshalCodec: %v", err)
+		t.Fatalf("MarshalCodec must succeed on a valid sample (got: %v)", err)
 	}
 	for _, wireType := range [...]uint64{0, 1, 2, 5} {
 		tag := uint64(unknownFieldNum)<<3 | wireType
@@ -653,14 +678,17 @@ func AssertPrescanSkipsAllWireTypes[T any, PT interface {
 		combined = append(combined, valid...)
 		var got T
 		if uerr := PT(&got).UnmarshalCodec(combined); uerr != nil {
-			t.Fatalf("wire type %d prefix: decode failed: %v", wireType, uerr)
+			t.Fatalf("prescan must skip an unknown field of wire type %d before reaching the main decode loop — covers all four valid proto3 wire types (got: %v)",
+				wireType, uerr)
 		}
 		remarshal, merr := PT(&got).MarshalCodec()
 		if merr != nil {
-			t.Fatalf("wire type %d prefix: re-marshal failed: %v", wireType, merr)
+			t.Fatalf("re-MarshalCodec must succeed after consuming a prefixed unknown field of wire type %d (got: %v)",
+				wireType, merr)
 		}
 		if !bytes.Equal(remarshal, valid) {
-			t.Fatalf("wire type %d prefix: re-marshal lost data\n want=%x\n got=%x", wireType, valid, remarshal)
+			t.Fatalf("re-MarshalCodec must produce wire identical to the original valid Marshal — unknown fields are dropped per our codec semantics (wire type %d)\n  want=%x\n  got=%x",
+				wireType, valid, remarshal)
 		}
 	}
 }
@@ -680,7 +708,8 @@ func AssertCorruptFixedLenBytes[T any, PT interface {
 	bad1 = append(bad1, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80)
 	var got1 T
 	if err := PT(&got1).UnmarshalCodec(bad1); err == nil {
-		t.Fatalf("FixedLenBytes field %d: want error on corrupt length varint, got nil", fieldNum)
+		t.Fatalf("fixed_len bytes field %d: UnmarshalCodec must reject a malformed length varint — DoS resistance (got nil error)",
+			fieldNum)
 	}
 	// Case B: length varint decodes to a value != declaredLen → ErrInvalidLength.
 	bad2 := appendVarint(nil, tag)
@@ -688,7 +717,8 @@ func AssertCorruptFixedLenBytes[T any, PT interface {
 	var got2 T
 	err := PT(&got2).UnmarshalCodec(bad2)
 	if err == nil || !errors.Is(err, codec.ErrInvalidLength) {
-		t.Fatalf("FixedLenBytes field %d: want ErrInvalidLength, got %v", fieldNum, err)
+		t.Fatalf("fixed_len bytes field %d: a length mismatch must wrap ErrInvalidLength — closes silent truncation/zero-padding on cryptographic types (got: %v)",
+			fieldNum, err)
 	}
 	// Case C: length matches declaredLen but body is too short.
 	bad3 := appendVarint(nil, tag)
@@ -697,7 +727,8 @@ func AssertCorruptFixedLenBytes[T any, PT interface {
 	var got3 T
 	err = PT(&got3).UnmarshalCodec(bad3)
 	if err == nil || !errors.Is(err, codec.ErrBufferTooShort) {
-		t.Fatalf("FixedLenBytes field %d: want ErrBufferTooShort, got %v", fieldNum, err)
+		t.Fatalf("fixed_len bytes field %d: a body shorter than the declared length must wrap ErrBufferTooShort — DoS resistance (got: %v)",
+			fieldNum, err)
 	}
 }
 
@@ -717,7 +748,8 @@ func AssertCorruptFixedWidth[T any, PT interface {
 	case 4:
 		wireType = 5
 	default:
-		t.Fatalf("AssertCorruptFixedWidth: width must be 4 or 8, got %d", width)
+		// Programmer error in the helper itself, not a contract violation.
+		t.Fatalf("AssertCorruptFixedWidth: width must be 4 or 8 (test bug, not an SUT contract; got: %d)", width)
 	}
 	tag := uint64(fieldNum)<<3 | wireType
 	buf := appendVarint(nil, tag)
@@ -726,7 +758,8 @@ func AssertCorruptFixedWidth[T any, PT interface {
 	var got T
 	err := PT(&got).UnmarshalCodec(buf)
 	if err == nil || !errors.Is(err, codec.ErrBufferTooShort) {
-		t.Fatalf("FixedWidth field %d (width=%d): want ErrBufferTooShort, got %v", fieldNum, width, err)
+		t.Fatalf("fixed-width scalar field %d (width=%d): UnmarshalCodec must reject a body shorter than the declared width — DoS resistance (got: %v)",
+			fieldNum, width, err)
 	}
 }
 
@@ -742,7 +775,7 @@ func AssertUnknownFieldSkipped[T any, PT interface {
 	ptr := PT(&sample)
 	valid, err := ptr.MarshalCodec()
 	if err != nil {
-		t.Fatalf("MarshalCodec: %v", err)
+		t.Fatalf("MarshalCodec must succeed on a valid sample (got: %v)", err)
 	}
 	// Unknown varint field: tag(num, 0) + one-byte varint value 0.
 	tag := uint64(unknownFieldNum) << 3
@@ -751,7 +784,7 @@ func AssertUnknownFieldSkipped[T any, PT interface {
 	buf = append(buf, 0x00)
 	var got T
 	if uerr := PT(&got).UnmarshalCodec(buf); uerr != nil {
-		t.Fatalf("UnmarshalCodec(valid + unknown field): want nil, got %v", uerr)
+		t.Fatalf("UnmarshalCodec must skip unknown fields without error — proto3 forward compatibility (got: %v)", uerr)
 	}
 }
 
@@ -782,14 +815,14 @@ func AssertUnknownFieldInvalidWireType[T any, PT interface {
 	ptr := PT(&sample)
 	valid, err := ptr.MarshalCodec()
 	if err != nil {
-		t.Fatalf("MarshalCodec: %v", err)
+		t.Fatalf("MarshalCodec must succeed on a valid sample (got: %v)", err)
 	}
 	tag := uint64(unknownFieldNum)<<3 | 3
 	buf := append([]byte{}, valid...)
 	buf = appendVarint(buf, tag)
 	var got T
 	if err := PT(&got).UnmarshalCodec(buf); err == nil {
-		t.Fatalf("want ErrInvalidWireType, got nil")
+		t.Fatalf("UnmarshalCodec must reject an unknown field with reserved/undefined wire type 3 — wire-type 3 is not a valid proto3 wire type (got nil error)")
 	}
 }
 
