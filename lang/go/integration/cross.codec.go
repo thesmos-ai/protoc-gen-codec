@@ -119,7 +119,7 @@ func (m *CrossContainer) UnmarshalCodecInternal(data []byte, slab string, slabOf
 		}
 	}
 	m.PtrItems = m.PtrItems[:0]
-	{
+	if m.Items == nil || m.PtrItems == nil {
 		var preCount_3 int
 		var preCount_4 int
 		pi := 0

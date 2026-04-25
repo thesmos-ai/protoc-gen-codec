@@ -5,6 +5,7 @@ package golang
 
 import (
 	"fmt"
+	"strings"
 
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -228,8 +229,11 @@ func generateUnmarshalCodec(g *protogen.GeneratedFile, fileMap map[string]*proto
 // skip the pre-allocation because cursor-reuse (keep_capacity) or the normal
 // append path already has backing storage.
 //
-// Doubling the wire-walk adds a constant overhead per unmarshal, paid for by
-// eliminating append-growth reallocs whenever the typical repeat count is >=2.
+// The entire pre-scan is guarded on "at least one target slice is nil" so
+// warm-path callers (where every target survived the previous unmarshal +
+// reset with non-nil capacity) skip the wire-walk entirely. Cold-path
+// callers pay the wire-walk overhead in exchange for eliminating
+// append-growth reallocs whenever the typical repeat count is >= 2.
 func generateRepeatedMessagePrescan(g *protogen.GeneratedFile, fileMap map[string]*protogen.File, info *core.MessageInfo) {
 	var fields []*core.FieldInfo
 	for i := range info.Fields {
@@ -241,7 +245,19 @@ func generateRepeatedMessagePrescan(g *protogen.GeneratedFile, fileMap map[strin
 	if len(fields) == 0 {
 		return
 	}
-	g.P("{")
+	// Outer guard: skip pre-scan when every target slice is already
+	// non-nil (warm path). Multi-field case OR-joins the per-field
+	// nil checks so a single nil target re-enables the scan.
+	var guard strings.Builder
+	guard.WriteString("m.")
+	guard.WriteString(fields[0].TargetName)
+	guard.WriteString(" == nil")
+	for _, f := range fields[1:] {
+		guard.WriteString(" || m.")
+		guard.WriteString(f.TargetName)
+		guard.WriteString(" == nil")
+	}
+	g.P("if ", guard.String(), " {")
 	for _, f := range fields {
 		g.P("var preCount_", f.ProtoNum, " int")
 	}

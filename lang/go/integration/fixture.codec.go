@@ -1705,7 +1705,7 @@ func (m *Container) UnmarshalCodecInternal(data []byte, slab string, slabOff int
 		}
 	}
 	m.Children = m.Children[:0]
-	{
+	if m.Children == nil {
 		var preCount_3 int
 		pi := 0
 		for pi < l {
@@ -1938,7 +1938,7 @@ func (m *ValueContainer) UnmarshalCodecInternal(data []byte, slab string, slabOf
 		(&m.Items[idx]).ResetCodec()
 	}
 	m.Items = m.Items[:0]
-	{
+	if m.Items == nil {
 		var preCount_3 int
 		pi := 0
 		for pi < l {
@@ -2149,7 +2149,7 @@ func (m *Tree) UnmarshalCodecInternal(data []byte, slab string, slabOff int) err
 		}
 	}
 	m.Children = m.Children[:0]
-	{
+	if m.Children == nil {
 		var preCount_2 int
 		pi := 0
 		for pi < l {
