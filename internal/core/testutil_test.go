@@ -28,6 +28,8 @@ type uninterpretedOptions struct {
 	hasFixedLen   bool
 	codecKeepCap  bool
 	hasKeepCap    bool
+	codecUsePtr   bool
+	hasUsePtr     bool
 }
 
 func buildField(f fieldFixture) *descriptorpb.FieldDescriptorProto {
@@ -65,15 +67,58 @@ func encodeFieldOptions(o *uninterpretedOptions) *descriptorpb.FieldOptions {
 		}
 		raw = appendVarint(raw, int32(optKeepCap), v)
 	}
+	if o.hasUsePtr {
+		v := uint64(0)
+		if o.codecUsePtr {
+			v = 1
+		}
+		raw = appendVarint(raw, int32(optUsePointer), v)
+	}
 	opts.ProtoReflect().SetUnknown(raw)
 	return opts
 }
 
 func encodeMessageOptions(goType string) *descriptorpb.MessageOptions {
+	return encodeMessageOptionsWithOneofs(goType)
+}
+
+// encodeMessageOptionsWithOneofs builds *MessageOptions with (codec.type)
+// = goType and zero-or-more (codec.oneof) entries. Each OneofConfig is
+// emitted as a length-delimited submessage on field optOneof.
+func encodeMessageOptionsWithOneofs(goType string, oneofs ...OneofConfig) *descriptorpb.MessageOptions {
 	opts := &descriptorpb.MessageOptions{}
 	raw := appendString(nil, int32(optGoType), goType)
+	for _, c := range oneofs {
+		body := encodeOneofConfigBody(c)
+		raw = appendBytesField(raw, int32(optOneof), body)
+	}
 	opts.ProtoReflect().SetUnknown(raw)
 	return opts
+}
+
+// encodeOneofConfigBody emits the wire bytes for an OneofConfig submessage.
+// Mirrors the production OneofConfig schema: field 1 = name, 2 =
+// discriminator, 3 = cast (all string).
+func encodeOneofConfigBody(c OneofConfig) []byte {
+	var body []byte
+	if c.Name != "" {
+		body = appendString(body, 1, c.Name)
+	}
+	if c.Discriminator != "" {
+		body = appendString(body, 2, c.Discriminator)
+	}
+	if c.Cast != "" {
+		body = appendString(body, 3, c.Cast)
+	}
+	return body
+}
+
+// appendBytesField emits a length-delimited bytes field on `raw`.
+func appendBytesField(raw []byte, fieldNum int32, body []byte) []byte {
+	tag := uint64(fieldNum)<<3 | 2 // wire type 2 = length-delimited
+	raw = appendUvarint(raw, tag)
+	raw = appendUvarint(raw, uint64(len(body)))
+	return append(raw, body...)
 }
 
 func appendString(raw []byte, fieldNum int32, val string) []byte {
@@ -285,4 +330,96 @@ func invalidCastIdentFixture(cast string) fieldFixture {
 		label:   descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL,
 		options: &uninterpretedOptions{codecCast: cast},
 	}
+}
+
+// runAnalyzeSelfRefMessage builds message M with one field of type .t.M
+// (self-reference). The single-field shape forces the analyzer through the
+// self-ref detection branch (analysis.go:378-389), where MessageRef.FullName
+// must equal msg.Desc.FullName().
+func runAnalyzeSelfRefMessage(t *testing.T) (*MessageInfo, error) {
+	t.Helper()
+	fd := &descriptorpb.FileDescriptorProto{
+		Name:    new("t.proto"),
+		Syntax:  new("proto3"),
+		Package: new("t"),
+		Options: &descriptorpb.FileOptions{GoPackage: new("example.com/t")},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{
+				Name:    new("M"),
+				Options: encodeMessageOptions("M"),
+				Field: []*descriptorpb.FieldDescriptorProto{
+					{
+						Name:     new("self"),
+						Number:   proto.Int32(1),
+						Type:     descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum(),
+						Label:    descriptorpb.FieldDescriptorProto_LABEL_REPEATED.Enum(),
+						TypeName: new(".t.M"),
+					},
+				},
+			},
+		},
+	}
+	req := &pluginpb.CodeGeneratorRequest{
+		FileToGenerate: []string{"t.proto"},
+		ProtoFile:      []*descriptorpb.FileDescriptorProto{fd},
+	}
+	plugin, err := protogen.Options{}.New(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := plugin.Files[0]
+	fileMap := map[string]*protogen.File{file.Proto.GetName(): file}
+	aliasOf := func(dep *protogen.File) string { return string(dep.GoPackageName) }
+	return AnalyzeMessage(file.Messages[0], fileMap, file, aliasOf)
+}
+
+// runAnalyzeMessageWithOneofConfig is runAnalyzeMessageWithOneof plus an
+// inline (codec.oneof) annotation on M. Lets us exercise the codec.oneof
+// → OneofConfig pipeline end-to-end.
+func runAnalyzeMessageWithOneofConfig(t *testing.T) (*MessageInfo, error) {
+	t.Helper()
+	oneofName := "value"
+	oneofIdx := int32(0)
+	cfg := OneofConfig{Name: oneofName, Discriminator: "Kind", Cast: "ValueKind"}
+	fd := &descriptorpb.FileDescriptorProto{
+		Name:    new("t.proto"),
+		Syntax:  new("proto3"),
+		Package: new("t"),
+		Options: &descriptorpb.FileOptions{GoPackage: new("example.com/t")},
+		MessageType: []*descriptorpb.DescriptorProto{
+			{
+				Name:    new("M"),
+				Options: encodeMessageOptionsWithOneofs("M", cfg),
+				OneofDecl: []*descriptorpb.OneofDescriptorProto{
+					{Name: &oneofName},
+				},
+				Field: []*descriptorpb.FieldDescriptorProto{
+					{
+						Name: new("text_val"), Number: proto.Int32(1),
+						Type:       descriptorpb.FieldDescriptorProto_TYPE_STRING.Enum(),
+						Label:      descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL.Enum(),
+						OneofIndex: &oneofIdx,
+					},
+					{
+						Name: new("int_val"), Number: proto.Int32(2),
+						Type:       descriptorpb.FieldDescriptorProto_TYPE_INT64.Enum(),
+						Label:      descriptorpb.FieldDescriptorProto_LABEL_OPTIONAL.Enum(),
+						OneofIndex: &oneofIdx,
+					},
+				},
+			},
+		},
+	}
+	req := &pluginpb.CodeGeneratorRequest{
+		FileToGenerate: []string{"t.proto"},
+		ProtoFile:      []*descriptorpb.FileDescriptorProto{fd},
+	}
+	plugin, err := protogen.Options{}.New(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := plugin.Files[0]
+	fileMap := map[string]*protogen.File{file.Proto.GetName(): file}
+	aliasOf := func(dep *protogen.File) string { return string(dep.GoPackageName) }
+	return AnalyzeMessage(file.Messages[0], fileMap, file, aliasOf)
 }

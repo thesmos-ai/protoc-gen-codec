@@ -88,15 +88,15 @@ GREMLINS = gremlins unleash --timeout-coefficient=200
 test-mutation-codec:
 	$(GREMLINS) -E 'codectest/' --threshold-efficacy=91 ./lang/go/codec/
 
-# Analyzer: 65 KILLED + 19 documented equivalents (file-level note in
-# options.go covers the protowire `for len > 0` and `if n < 0` patterns
-# where the wire-decoder contractually returns n>=1 or -1, never 0).
-# Effective efficacy ~91%; gremlins reports 70.65%. Remaining 8 LIVED
-# need direct unit tests of analyzer struct output (FieldInfo.IsBytes,
-# IsString, MessageRef.FullName comparisons) — requires heavier
-# protogen.Message construction, queued as a follow-up.
+# Analyzer: 76 KILLED + 19 documented equivalents = 100% effective kill
+# rate. The 19 LIVED gremlins reports are all CONDITIONALS_BOUNDARY on
+# the protowire `for len > 0` and `if n < 0` patterns where the wire
+# decoder contractually returns n>=1 or -1, never 0 (file-level note in
+# options.go). Numerical efficacy from gremlins is 80.00%; the audit
+# treats the documented equivalents as KILLED, bringing effective rate
+# to 100% per the foundation-tier bar.
 test-mutation-core:
-	$(GREMLINS) --threshold-efficacy=70 ./internal/core/
+	$(GREMLINS) --threshold-efficacy=80 ./internal/core/
 
 test-mutation: test-mutation-codec test-mutation-core
 
