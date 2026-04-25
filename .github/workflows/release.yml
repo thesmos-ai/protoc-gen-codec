@@ -21,6 +21,12 @@ jobs:
           fetch-depth: 0
       - name: Set up Go
         uses: actions/setup-go@v6
+        with:
+          # Pin to the version declared in go.mod so the runner's
+          # preinstalled Go (currently 1.24.x on ubuntu-latest) doesn't
+          # trip goreleaser's `before` hooks. GOTOOLCHAIN=local (set by
+          # goreleaser-action) blocks auto-upgrade.
+          go-version-file: go.mod
       - name: Install UPX
         run: sudo apt-get update && sudo apt-get install -y upx
       - name: Install Cosign
