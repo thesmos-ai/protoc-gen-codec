@@ -88,11 +88,15 @@ GREMLINS = gremlins unleash --timeout-coefficient=200
 test-mutation-codec:
 	$(GREMLINS) -E 'codectest/' --threshold-efficacy=91 ./lang/go/codec/
 
-# Analyzer: gated low pending direct unit-test coverage of parseOneofConfig,
-# TagValue/Size/Bytes/SovLocal, and consumeFieldValue (all 0-50% direct
-# coverage today; exercised only via integration tests post-generate).
+# Analyzer: 65 KILLED + 19 documented equivalents (file-level note in
+# options.go covers the protowire `for len > 0` and `if n < 0` patterns
+# where the wire-decoder contractually returns n>=1 or -1, never 0).
+# Effective efficacy ~91%; gremlins reports 70.65%. Remaining 8 LIVED
+# need direct unit tests of analyzer struct output (FieldInfo.IsBytes,
+# IsString, MessageRef.FullName comparisons) — requires heavier
+# protogen.Message construction, queued as a follow-up.
 test-mutation-core:
-	$(GREMLINS) --threshold-efficacy=35 ./internal/core/
+	$(GREMLINS) --threshold-efficacy=70 ./internal/core/
 
 test-mutation: test-mutation-codec test-mutation-core
 

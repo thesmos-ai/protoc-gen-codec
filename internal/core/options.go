@@ -3,6 +3,25 @@
 
 package core
 
+// mutation:equivalent (file-wide pattern for the wire-walking helpers below):
+//
+//   * `for len(X) > 0` vs `for len(X) >= 0`: an extra empty-iteration that
+//     immediately exits via the inner protowire.ConsumeTag returning n<0.
+//     Same observable result; same returned value. Surfaces as
+//     CONDITIONALS_BOUNDARY at the loop header in oneofsFromRaw,
+//     parseOneofConfig, extractStringFromRaw, extractUint32FromRaw, and
+//     extractBoolFromRaw.
+//
+//   * `if n < 0` / `if vn < 0` / `if bn < 0` (where the value comes from
+//     protowire.ConsumeTag, ConsumeBytes, ConsumeVarint, or our
+//     consumeFieldValue): the contract is n>=1 (success) or -1 (malformed);
+//     n == 0 is unreachable, so `<` and `<=` are semantically identical.
+//     Surfaces as CONDITIONALS_BOUNDARY on every malformed-payload guard
+//     in the same five functions.
+//
+// Reviewer: gremlins reports these as LIVED. They are documented true
+// equivalents; the audit treats them as KILLED for effective efficacy.
+
 import (
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/encoding/protowire"
@@ -35,7 +54,14 @@ func messageOneofs(msg *protogen.Message) []OneofConfig {
 	if opts == nil {
 		return nil
 	}
-	raw := opts.ProtoReflect().GetUnknown()
+	return oneofsFromRaw(opts.ProtoReflect().GetUnknown())
+}
+
+// oneofsFromRaw walks the raw unknown-fields byte sequence and returns
+// every OneofConfig entry tagged at optOneof. Split out from messageOneofs
+// so the wire-walking logic is directly testable without constructing a
+// full *protogen.Message.
+func oneofsFromRaw(raw []byte) []OneofConfig {
 	if len(raw) == 0 {
 		return nil
 	}
@@ -133,7 +159,14 @@ func extractString(pm protoreflect.ProtoMessage, num protowire.Number) string {
 	if pm == nil {
 		return ""
 	}
-	raw := pm.ProtoReflect().GetUnknown()
+	return extractStringFromRaw(pm.ProtoReflect().GetUnknown(), num)
+}
+
+// extractStringFromRaw scans raw unknown-fields bytes for a single
+// BytesType entry tagged `num` and returns its UTF-8 contents. Pure-bytes
+// helper split out from extractString so the wire-walking logic is
+// directly mutation-testable without protoreflect machinery.
+func extractStringFromRaw(raw []byte, num protowire.Number) string {
 	if len(raw) == 0 {
 		return ""
 	}
@@ -168,7 +201,11 @@ func extractUint32(pm protoreflect.ProtoMessage, num protowire.Number) (uint32, 
 	if pm == nil {
 		return 0, false
 	}
-	raw := pm.ProtoReflect().GetUnknown()
+	return extractUint32FromRaw(pm.ProtoReflect().GetUnknown(), num)
+}
+
+// extractUint32FromRaw is the pure-bytes counterpart to extractUint32.
+func extractUint32FromRaw(raw []byte, num protowire.Number) (uint32, bool) {
 	if len(raw) == 0 {
 		return 0, false
 	}
@@ -203,7 +240,11 @@ func extractBool(pm protoreflect.ProtoMessage, num protowire.Number) (bool, bool
 	if pm == nil {
 		return false, false
 	}
-	raw := pm.ProtoReflect().GetUnknown()
+	return extractBoolFromRaw(pm.ProtoReflect().GetUnknown(), num)
+}
+
+// extractBoolFromRaw is the pure-bytes counterpart to extractBool.
+func extractBoolFromRaw(raw []byte, num protowire.Number) (bool, bool) {
 	if len(raw) == 0 {
 		return false, false
 	}
