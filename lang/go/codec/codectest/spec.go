@@ -141,6 +141,14 @@ type Spec[T any] struct {
 	// AssertCorruptFixedLenBytes exercise covering the three error
 	// branches (bad length varint, wrong length, short body).
 	FixedLenBytesFields []FixedLenField
+
+	// MarshalToAllocsMax is the per-iteration allocation ceiling
+	// applied to the Codec/MarshalTo benchmark via StartContract.
+	// Defaults to 0 — the canonical "pre-allocated buffer marshal
+	// must not allocate" contract. Map-containing types must declare
+	// a non-zero ceiling to cover the slices.Sorted(maps.Keys(...))
+	// allocation that deterministic key ordering requires.
+	MarshalToAllocsMax uint64
 }
 
 // FixedLenField identifies a bytes field declared with codec.fixed_len.
@@ -258,6 +266,12 @@ func RunSuite[T any, PT interface {
 // using spec.Sample as the fixture. Consumers typically pair this with
 // type-specific PooledUnmarshal benchmarks (warm-path, reused receiver)
 // since those are shape-specific and not captured by the spec.
+//
+// The Codec/MarshalTo subtest is wrapped in a StartContract scope with
+// AllocsMax(0): every consumer's pre-allocated marshal path is asserted
+// alloc-free in-bench, not just by post-hoc benchstat. A regression
+// fails the bench at the first occurrence rather than waiting for a
+// baseline diff.
 func RunBenchSuite[T any, PT interface {
 	*T
 	codec.Codec
@@ -268,10 +282,11 @@ func RunBenchSuite[T any, PT interface {
 		s := spec.Sample
 		ptr := PT(&s)
 		buf := make([]byte, ptr.SizeCodec())
-		b.ResetTimer()
-		for b.Loop() {
+		c := StartContract(b).AllocsMax(spec.MarshalToAllocsMax)
+		for c.Loop() {
 			_, _ = ptr.MarshalToCodec(buf)
 		}
+		c.End()
 	})
 
 	b.Run("Codec/Unmarshal", func(b *testing.B) {

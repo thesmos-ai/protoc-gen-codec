@@ -28,25 +28,6 @@ func sampleCrossContainer() integration.CrossContainer {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// External — cross-package leaf message
-// ---------------------------------------------------------------------------
-
-var specExternal = codectest.Spec[external.External]{
-	Sample:             external.External{Tag: "x", Seq: 7},
-	ScalarVarintFields: []int32{2}, // Seq (int64)
-}
-
-func TestExternal_Codec(t *testing.T) { codectest.RunSuite[external.External](t, specExternal) }
-func BenchmarkExternal_Codec(b *testing.B) {
-	codectest.RunBenchSuite[external.External](b, specExternal)
-}
-func FuzzExternal_Codec(f *testing.F) { codectest.RunFuzzSuite[external.External](f, specExternal) }
-
-// ---------------------------------------------------------------------------
-// CrossContainer — references external.External across 3 codegen shapes
-// ---------------------------------------------------------------------------
-
 func ptrCrossContainerGrower() *integration.CrossContainer {
 	g := sampleCrossContainer()
 	g.Items = append(g.Items, external.External{Tag: "v3", Seq: 30})
@@ -66,6 +47,29 @@ func ptrCrossContainerNilElement() *integration.CrossContainer {
 	return &s
 }
 
+// === External ================================================================
+
+var specExternal = codectest.Spec[external.External]{
+	Sample:             external.External{Tag: "x", Seq: 7},
+	ScalarVarintFields: []int32{2}, // Seq (int64)
+}
+
+func TestExternal(t *testing.T) {
+	t.Run("Codec", func(t *testing.T) {
+		codectest.RunSuite[external.External](t, specExternal)
+	})
+}
+
+func BenchmarkExternal(b *testing.B) {
+	codectest.RunBenchSuite[external.External](b, specExternal)
+}
+
+func FuzzExternal_Codec(f *testing.F) {
+	codectest.RunFuzzSuite[external.External](f, specExternal)
+}
+
+// === CrossContainer ==========================================================
+
 var specCrossContainer = codectest.Spec[integration.CrossContainer]{
 	Sample:                sampleCrossContainer(),
 	Grower:                ptrCrossContainerGrower(),
@@ -73,25 +77,24 @@ var specCrossContainer = codectest.Spec[integration.CrossContainer]{
 	RepeatedMessageFields: []int32{3, 4}, // Items (value), PtrItems (pointer)
 }
 
-func TestCrossContainer_Codec(t *testing.T) {
-	codectest.RunSuite[integration.CrossContainer](t, specCrossContainer)
+func TestCrossContainer(t *testing.T) {
+	t.Run("Codec", func(t *testing.T) {
+		codectest.RunSuite[integration.CrossContainer](t, specCrossContainer)
+	})
+	t.Run("PrescanFixed32Short skips short unknown wireType-5 field", func(t *testing.T) {
+		t.Parallel()
+		// Exercises the prescan's `if pi+4 > l` branch via an unknown-
+		// field wireType-5 tag with a short body.
+		data := []byte{0x9d, 0x06, 0x00, 0x00}
+		var got integration.CrossContainer
+		_ = got.UnmarshalCodec(data)
+	})
 }
-func BenchmarkCrossContainer_Codec(b *testing.B) {
+
+func BenchmarkCrossContainer(b *testing.B) {
 	codectest.RunBenchSuite[integration.CrossContainer](b, specCrossContainer)
 }
+
 func FuzzCrossContainer_Codec(f *testing.F) {
 	codectest.RunFuzzSuite[integration.CrossContainer](f, specCrossContainer)
-}
-
-// ---------------------------------------------------------------------------
-// Type-specific extras the Spec can't express
-// ---------------------------------------------------------------------------
-
-// TestCrossContainer_PrescanFixed32Short exercises the prescan's
-// `if pi+4 > l` branch via an unknown-field wireType-5 tag with short body.
-func TestCrossContainer_PrescanFixed32Short(t *testing.T) {
-	t.Parallel()
-	data := []byte{0x9d, 0x06, 0x00, 0x00}
-	var got integration.CrossContainer
-	_ = got.UnmarshalCodec(data)
 }

@@ -242,8 +242,8 @@ func generateFieldMarshal(g *protogen.GeneratedFile, fileMap map[string]*protoge
 // in sorted order so the wire output is byte-stable across calls — important
 // for content-addressable hashing, signing, and reproducible builds. Cost:
 // one slice allocation per map per Marshal call for ordered key kinds (the
-// sorted key slice). Bool keys use an explicit false-then-true sequence and
-// stay zero-alloc.
+// sorted key slice, pre-sized to len(map) so the loop append never regrows).
+// Bool keys use an explicit false-then-true sequence and stay zero-alloc.
 func generateMapFieldMarshal(g *protogen.GeneratedFile, f *core.FieldInfo, accessor string) {
 	keySize := scalarSizeExpr(g, f.MapKey, "k")
 	valSize := scalarSizeExpr(g, f.MapValue, "v")
@@ -270,8 +270,20 @@ func generateMapFieldMarshal(g *protogen.GeneratedFile, f *core.FieldInfo, acces
 		return
 	}
 
-	g.P("for _, k := range ", identSlicesSorted, "(", identMapsKeys, "(", accessor, ")) {")
+	// Block-scope `keys` so multiple map fields in the same method don't
+	// collide. Pre-sizing the slice to len(map) keeps the collection step
+	// to a single allocation regardless of map size — the previous
+	// slices.Sorted(maps.Keys(...)) pattern paid the iter.Seq closure
+	// machinery + repeated append regrowth (10 allocs/op for a 2-field
+	// MapHolder; one alloc per map field with the explicit form).
+	keyType := mapKeyGoType(f)
+	g.P("{")
+	g.P("keys := make([]", keyType, ", 0, len(", accessor, "))")
+	g.P("for k := range ", accessor, " { keys = append(keys, k) }")
+	g.P(identSlicesSort, "(keys)")
+	g.P("for _, k := range keys {")
 	emitBody()
+	g.P("}")
 	g.P("}")
 }
 

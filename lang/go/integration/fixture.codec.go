@@ -7,7 +7,6 @@ import (
 	binary "encoding/binary"
 	fmt "fmt"
 	codec "go.stealthscale.io/protoc-gen-codec/lang/go/codec"
-	maps "maps"
 	slices "slices"
 	time "time"
 )
@@ -2315,34 +2314,48 @@ func (m *MapHolder) MarshalToCodec(buf []byte) (int, error) {
 
 func (m *MapHolder) MarshalCodecInternal(buf []byte) int {
 	n := 0
-	for _, k := range slices.Sorted(maps.Keys(m.Attrs)) {
-		v := m.Attrs[k]
-		buf[n+0] = 0x0a
-		n += 1
-		entrySz := 1 + codec.SizeVarint(uint64(len(k))) + len(k) + 1 + codec.SizeVarint(uint64(len(v))) + len(v)
-		n += codec.EncodeVarint(buf[n:], uint64(entrySz))
-		buf[n+0] = 0x0a
-		n += 1
-		n += codec.EncodeVarint(buf[n:], uint64(len(k)))
-		n += copy(buf[n:], k)
-		buf[n+0] = 0x12
-		n += 1
-		n += codec.EncodeVarint(buf[n:], uint64(len(v)))
-		n += copy(buf[n:], v)
+	{
+		keys := make([]string, 0, len(m.Attrs))
+		for k := range m.Attrs {
+			keys = append(keys, k)
+		}
+		slices.Sort(keys)
+		for _, k := range keys {
+			v := m.Attrs[k]
+			buf[n+0] = 0x0a
+			n += 1
+			entrySz := 1 + codec.SizeVarint(uint64(len(k))) + len(k) + 1 + codec.SizeVarint(uint64(len(v))) + len(v)
+			n += codec.EncodeVarint(buf[n:], uint64(entrySz))
+			buf[n+0] = 0x0a
+			n += 1
+			n += codec.EncodeVarint(buf[n:], uint64(len(k)))
+			n += copy(buf[n:], k)
+			buf[n+0] = 0x12
+			n += 1
+			n += codec.EncodeVarint(buf[n:], uint64(len(v)))
+			n += copy(buf[n:], v)
+		}
 	}
-	for _, k := range slices.Sorted(maps.Keys(m.Counts)) {
-		v := m.Counts[k]
-		buf[n+0] = 0x12
-		n += 1
-		entrySz := 1 + codec.SizeVarint(uint64(len(k))) + len(k) + 1 + codec.SizeVarint(uint64(v))
-		n += codec.EncodeVarint(buf[n:], uint64(entrySz))
-		buf[n+0] = 0x0a
-		n += 1
-		n += codec.EncodeVarint(buf[n:], uint64(len(k)))
-		n += copy(buf[n:], k)
-		buf[n+0] = 0x10
-		n += 1
-		n += codec.EncodeVarint(buf[n:], uint64(v))
+	{
+		keys := make([]string, 0, len(m.Counts))
+		for k := range m.Counts {
+			keys = append(keys, k)
+		}
+		slices.Sort(keys)
+		for _, k := range keys {
+			v := m.Counts[k]
+			buf[n+0] = 0x12
+			n += 1
+			entrySz := 1 + codec.SizeVarint(uint64(len(k))) + len(k) + 1 + codec.SizeVarint(uint64(v))
+			n += codec.EncodeVarint(buf[n:], uint64(entrySz))
+			buf[n+0] = 0x0a
+			n += 1
+			n += codec.EncodeVarint(buf[n:], uint64(len(k)))
+			n += copy(buf[n:], k)
+			buf[n+0] = 0x10
+			n += 1
+			n += codec.EncodeVarint(buf[n:], uint64(v))
+		}
 	}
 	return n
 }
