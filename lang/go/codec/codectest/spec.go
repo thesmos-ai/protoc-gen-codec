@@ -32,6 +32,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"pgregory.net/rapid"
 
@@ -149,6 +150,15 @@ type Spec[T any] struct {
 	// a non-zero ceiling to cover the slices.Sorted(maps.Keys(...))
 	// allocation that deterministic key ordering requires.
 	MarshalToAllocsMax uint64
+
+	// MarshalToLatencyMax is the per-iteration mean-latency ceiling
+	// applied to the Codec/MarshalTo benchmark via StartContract.
+	// Defaults to zero (no latency gate). Set to ~5x the measured
+	// dev-box latency so the gate catches order-of-magnitude
+	// regressions while accommodating CI-machine variance; the
+	// benchstat-vs-baseline diff (make bench-compare) catches the
+	// finer 5%-p99 drift class.
+	MarshalToLatencyMax time.Duration
 
 	// SkipJSONComparisons disables the CrossFormat and WireSize
 	// subtests for types that aren't JSON-roundtrippable (e.g.
@@ -278,10 +288,10 @@ func RunSuite[T any, PT interface {
 // since those are shape-specific and not captured by the spec.
 //
 // The Codec/MarshalTo subtest is wrapped in a StartContract scope with
-// AllocsMax(0): every consumer's pre-allocated marshal path is asserted
-// alloc-free in-bench, not just by post-hoc benchstat. A regression
-// fails the bench at the first occurrence rather than waiting for a
-// baseline diff.
+// AllocsMax(spec.MarshalToAllocsMax) and, when spec.MarshalToLatencyMax
+// is non-zero, LatencyMax(spec.MarshalToLatencyMax). Allocation and
+// order-of-magnitude latency regressions fail the bench at the first
+// occurrence rather than waiting for a baseline diff.
 func RunBenchSuite[T any, PT interface {
 	*T
 	codec.Codec
@@ -293,6 +303,9 @@ func RunBenchSuite[T any, PT interface {
 		ptr := PT(&s)
 		buf := make([]byte, ptr.SizeCodec())
 		c := StartContract(b).AllocsMax(spec.MarshalToAllocsMax)
+		if spec.MarshalToLatencyMax > 0 {
+			c = c.LatencyMax(spec.MarshalToLatencyMax)
+		}
 		for c.Loop() {
 			_, _ = ptr.MarshalToCodec(buf)
 		}
@@ -392,6 +405,10 @@ func runFieldCategoryTests[T any, PT interface {
 		t.Run(fmt.Sprintf("CorruptMapEntry/Field%d", fn), func(t *testing.T) {
 			t.Parallel()
 			AssertCorruptMapEntryValue[T, PT](t, fn)
+		})
+		t.Run(fmt.Sprintf("MapEntryUnknownSubFieldSkipped/Field%d", fn), func(t *testing.T) {
+			t.Parallel()
+			AssertMapEntryUnknownSubFieldSkipped[T, PT](t, fn)
 		})
 	}
 	for _, fn := range spec.RepeatedMessageFields {

@@ -5,6 +5,7 @@ package integration_test
 
 import (
 	"testing"
+	"time"
 
 	"go.stealthscale.io/protoc-gen-codec/lang/go/codec/codectest"
 	"go.stealthscale.io/protoc-gen-codec/lang/go/integration"
@@ -50,8 +51,9 @@ func ptrCrossContainerNilElement() *integration.CrossContainer {
 // === External ================================================================
 
 var specExternal = codectest.Spec[external.External]{
-	Sample:             external.External{Tag: "x", Seq: 7},
-	ScalarVarintFields: []int32{2}, // Seq (int64)
+	Sample:              external.External{Tag: "x", Seq: 7},
+	ScalarVarintFields:  []int32{2}, // Seq (int64)
+	MarshalToLatencyMax: 50 * time.Nanosecond,
 }
 
 func TestExternal(t *testing.T) {
@@ -75,6 +77,7 @@ var specCrossContainer = codectest.Spec[integration.CrossContainer]{
 	Grower:                ptrCrossContainerGrower(),
 	NilPointerSample:      ptrCrossContainerNilElement(),
 	RepeatedMessageFields: []int32{3, 4}, // Items (value), PtrItems (pointer)
+	MarshalToLatencyMax:   200 * time.Nanosecond,
 }
 
 func TestCrossContainer(t *testing.T) {

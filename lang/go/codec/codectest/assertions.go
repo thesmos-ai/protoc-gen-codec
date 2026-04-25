@@ -598,6 +598,40 @@ func AssertCorruptMapEntryValue[T any, PT interface {
 	_ = PT(&gotD).UnmarshalCodec(outerD)
 }
 
+// AssertMapEntryUnknownSubFieldSkipped verifies the per-map default
+// branch in the inner entry-decode switch — the path that consumes
+// (via SkipField) any sub-field whose number is neither 1 (key) nor
+// 2 (value). Forward compatibility with future schema additions
+// requires this default to be reachable; without a covering test it
+// only fires on lucky fuzz inputs and depends on whether a corpus has
+// been seeded.
+//
+// The wire is: outer map field tag + entry length + entry body
+// containing key sub-field 1 (varint=0), value sub-field 2 (zero-
+// length bytes), and an unknown sub-field 3 (varint=0). The decoder
+// must consume all three and continue.
+func AssertMapEntryUnknownSubFieldSkipped[T any, PT interface {
+	*T
+	codec.Codec
+}](t TB, mapFieldNum int32) {
+	t.Helper()
+	tag := uint64(mapFieldNum)<<3 | 2
+
+	// Entry body: key (field 1, varint=0) + value (field 2, bytes len 0) +
+	// unknown (field 3, varint=0). Six bytes total.
+	body := []byte{0x08, 0x00, 0x12, 0x00, 0x18, 0x00}
+
+	buf := appendVarint(nil, tag)
+	buf = appendVarint(buf, uint64(len(body)))
+	buf = append(buf, body...)
+
+	var got T
+	if err := PT(&got).UnmarshalCodec(buf); err != nil {
+		t.Fatalf("map field %d: UnmarshalCodec must skip unknown sub-fields inside a map entry — proto3 forward compatibility (got: %v)",
+			mapFieldNum, err)
+	}
+}
+
 // AssertCorruptRepeatedMessagePrescan exercises every break branch in
 // the repeated-message prescan walk across the four valid proto3 wire
 // types. The prescan `break`s out on malformed input; the main decode

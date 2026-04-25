@@ -330,6 +330,7 @@ var specFixture = codectest.Spec[integration.Fixture]{
 	Grower:              ptrFixtureGrower(),
 	ScalarVarintFields:  []int32{2, 3, 4, 5, 6, 7},                       // Kind, Status, Score, Sequence, Enabled, Timestamp
 	FixedLenBytesFields: []codectest.FixedLenField{{Num: 8, Length: 32}}, // Ref (Digest, fixed_len=32)
+	MarshalToLatencyMax: 150 * time.Nanosecond,
 }
 
 func TestFixture(t *testing.T) {
@@ -362,6 +363,7 @@ var specPatch = codectest.Spec[integration.Patch]{
 	ScalarVarintFields:  []int32{1, 2, 3, 4, 6},                          // Kind, VertexID, Sequence, Source, IntVal
 	Fixed64Fields:       []int32{7},                                      // Fixed64Val (sfixed64)
 	FixedLenBytesFields: []codectest.FixedLenField{{Num: 8, Length: 32}}, // BlobRef (Digest, fixed_len=32)
+	MarshalToLatencyMax: 75 * time.Nanosecond,
 }
 
 func TestPatch(t *testing.T) {
@@ -385,6 +387,7 @@ var specEvidence = codectest.Spec[integration.Evidence]{
 	Grower:              ptrEvidenceGrower(),
 	ScalarVarintFields:  []int32{1, 2, 3, 9},                              // Kind, Durability, Access, TimestampMs
 	FixedLenBytesFields: []codectest.FixedLenField{{Num: 10, Length: 32}}, // PayloadRef
+	MarshalToLatencyMax: 200 * time.Nanosecond,
 }
 
 func TestEvidence(t *testing.T) {
@@ -403,7 +406,10 @@ func FuzzEvidence_Codec(f *testing.F) {
 
 // === Minimal =================================================================
 
-var specMinimal = codectest.Spec[integration.Minimal]{Sample: sampleMinimal()}
+var specMinimal = codectest.Spec[integration.Minimal]{
+	Sample:              sampleMinimal(),
+	MarshalToLatencyMax: 50 * time.Nanosecond,
+}
 
 func TestMinimal(t *testing.T) {
 	t.Run("Codec", func(t *testing.T) {
@@ -430,11 +436,12 @@ func FuzzMinimal_Codec(f *testing.F) {
 // === NumericOnly =============================================================
 
 var specNumericOnly = codectest.Spec[integration.NumericOnly]{
-	Sample:             sampleNumericOnly(),
-	Variants:           []integration.NumericOnly{numericWithFalseBool()},
-	Generator:          genNumericOnly,
-	ScalarVarintFields: []int32{1, 2, 3, 5, 6, 7, 8, 9}, // A,B,C,E,F,G,H,I (all varint-wire)
-	Fixed64Fields:      []int32{4, 10},                  // D (sfixed64), J (optional sfixed64)
+	Sample:              sampleNumericOnly(),
+	Variants:            []integration.NumericOnly{numericWithFalseBool()},
+	Generator:           genNumericOnly,
+	ScalarVarintFields:  []int32{1, 2, 3, 5, 6, 7, 8, 9}, // A,B,C,E,F,G,H,I (all varint-wire)
+	Fixed64Fields:       []int32{4, 10},                  // D (sfixed64), J (optional sfixed64)
+	MarshalToLatencyMax: 100 * time.Nanosecond,
 }
 
 func TestNumericOnly(t *testing.T) {
@@ -497,9 +504,10 @@ func FuzzNumericOnly_Codec(f *testing.F) {
 // === PackedZigzag ============================================================
 
 var specPackedZigzag = codectest.Spec[integration.PackedZigzag]{
-	Sample:             samplePackedZigzag(),
-	Grower:             ptrPackedZigzagGrower(),
-	PackedVarintFields: []int32{1, 2}, // sint32 + sint64 → varint elements
+	Sample:              samplePackedZigzag(),
+	Grower:              ptrPackedZigzagGrower(),
+	PackedVarintFields:  []int32{1, 2}, // sint32 + sint64 → varint elements
+	MarshalToLatencyMax: 150 * time.Nanosecond,
 }
 
 func TestPackedZigzag(t *testing.T) {
@@ -532,8 +540,9 @@ func FuzzPackedZigzag_Codec(f *testing.F) {
 // === Inner ===================================================================
 
 var specInner = codectest.Spec[integration.Inner]{
-	Sample:             sampleInner(),
-	ScalarVarintFields: []int32{2}, // Count
+	Sample:              sampleInner(),
+	ScalarVarintFields:  []int32{2}, // Count
+	MarshalToLatencyMax: 50 * time.Nanosecond,
 }
 
 func TestInner(t *testing.T) {
@@ -557,6 +566,7 @@ var specContainer = codectest.Spec[integration.Container]{
 	Grower:                ptrContainerGrower(),
 	NilPointerSample:      ptrContainerNilElement(),
 	RepeatedMessageFields: []int32{3},
+	MarshalToLatencyMax:   200 * time.Nanosecond,
 }
 
 func TestContainer(t *testing.T) {
@@ -662,6 +672,7 @@ var specValueContainer = codectest.Spec[integration.ValueContainer]{
 	Sample:                sampleValueContainer(),
 	Grower:                ptrValueContainerGrower(),
 	RepeatedMessageFields: []int32{3},
+	MarshalToLatencyMax:   200 * time.Nanosecond,
 }
 
 func TestValueContainer(t *testing.T) {
@@ -698,6 +709,7 @@ var specTree = codectest.Spec[integration.Tree]{
 	Grower:                ptrTreeGrower(),
 	NilPointerSample:      ptrTreeNilElement(),
 	RepeatedMessageFields: []int32{2},
+	MarshalToLatencyMax:   150 * time.Nanosecond,
 }
 
 func TestTree(t *testing.T) {
@@ -738,7 +750,8 @@ var specMapHolder = codectest.Spec[integration.MapHolder]{
 	// allocates it when the map is tiny (Sample observes 0 allocs/op).
 	// Budget = 2 (one alloc per map field) covers heap fallback for
 	// larger samples without re-tripping on compiler-internals drift.
-	MarshalToAllocsMax: 2,
+	MarshalToAllocsMax:  2,
+	MarshalToLatencyMax: 750 * time.Nanosecond,
 }
 
 func TestMapHolder(t *testing.T) {
@@ -793,8 +806,9 @@ func FuzzMapHolder_Codec(f *testing.F) {
 // === TimeHolder ==============================================================
 
 var specTimeHolder = codectest.Spec[integration.TimeHolder]{
-	Sample:    sampleTimeHolder(),
-	WKTFields: []int32{1, 2},
+	Sample:              sampleTimeHolder(),
+	WKTFields:           []int32{1, 2},
+	MarshalToLatencyMax: 100 * time.Nanosecond,
 }
 
 func TestTimeHolder(t *testing.T) {
@@ -821,8 +835,9 @@ var specOneofPayload = codectest.Spec[integration.OneofPayload]{
 		sampleOneofPayloadBlob(),
 		sampleOneofPayloadAmount(),
 	},
-	ScalarVarintFields: []int32{11}, // Number (int64)
-	Fixed64Fields:      []int32{14}, // Amount (sfixed64)
+	ScalarVarintFields:  []int32{11}, // Number (int64)
+	Fixed64Fields:       []int32{14}, // Amount (sfixed64)
+	MarshalToLatencyMax: 50 * time.Nanosecond,
 }
 
 func TestOneofPayload(t *testing.T) {
@@ -841,7 +856,10 @@ func FuzzOneofPayload_Codec(f *testing.F) {
 
 // === BytesPool ===============================================================
 
-var specBytesPool = codectest.Spec[integration.BytesPool]{Sample: sampleBytesPool()}
+var specBytesPool = codectest.Spec[integration.BytesPool]{
+	Sample:              sampleBytesPool(),
+	MarshalToLatencyMax: 50 * time.Nanosecond,
+}
 
 func TestBytesPool(t *testing.T) {
 	t.Run("Codec", func(t *testing.T) {
@@ -893,6 +911,7 @@ var specBoolMapHolder = codectest.Spec[integration.BoolMapHolder]{
 	// encoding/json rejects map[bool]V keys, so the JSON-baseline
 	// subtests (CrossFormat, WireSize) are skipped.
 	SkipJSONComparisons: true,
+	MarshalToLatencyMax: 300 * time.Nanosecond,
 }
 
 func TestBoolMapHolder(t *testing.T) {

@@ -21,11 +21,6 @@ const (
 // Digest is a fixed-length byte array target for codec.fixed_len.
 type Digest [32]byte
 
-// IsZero reports whether the digest is the zero value.
-func (d Digest) IsZero() bool {
-	return d == Digest{}
-}
-
 // Fixed64 is a named int64 used to exercise codec.cast on sfixed64 fields.
 type Fixed64 int64
 

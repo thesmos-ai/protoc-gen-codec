@@ -264,7 +264,7 @@ multiple times, the most direct cite is given.
 | 091 | `AssertWarmPathGrowth` (per `Spec.Grower`)                                                                                |
 | 092 | `AssertCorruption` (every prefix + every single-byte-flip)                                                                |
 | 093 | `AssertUnknownFieldSkipped`, `AssertPrescanSkipsAllWireTypes` (all four valid wire types)                                 |
-| 094 | `RunBenchSuite` Codec/MarshalTo wrapped in `StartContract(b).AllocsMax(spec.MarshalToAllocsMax)`                          |
+| 094 | `RunBenchSuite` Codec/MarshalTo wrapped in `StartContract(b).AllocsMax(spec.MarshalToAllocsMax).LatencyMax(spec.MarshalToLatencyMax)`. Every fixture declares a per-type latency ceiling (~5x measured) so order-of-magnitude regressions fail in-bench. |
 
 ## REQ coverage status
 
@@ -281,10 +281,6 @@ audit surfaced rather than per-line gaps.
    `make generate` per mutation. Adding golden-file emission tests in
    `internal/lang/golang/` would unlock the foundation-tier mutation
    gate for the generator code itself.
-2. **Latency contracts** (REQ-094 sibling): currently only `AllocsMax`
-   ceilings are declared per consumer. Adding `LatencyMax` ceilings on
-   `MarshalTo` per fixture would close the latency-regression gap that
-   benchstat currently catches statistically rather than as a hard gate.
 
 ## Exceptions
 
