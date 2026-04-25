@@ -31,8 +31,11 @@ builds:
       - -X main.commit={{.Commit}}
       - -X main.date={{.CommitDate}}
     hooks:
+      # UPX-compress where supported. goreleaser runs `cmd` via argv (not a
+      # shell), so we wrap in `sh -c` to filter by target — UPX rejects
+      # darwin/* outright and doesn't yet support windows/arm64.
       post:
-        - cmd: upx --best --lzma "{{ .Path }}" || true
+        - cmd: sh -c 'case "{{ .Target }}" in linux_*|windows_amd64_*) exec upx --best --lzma "{{ .Path }}" ;; esac'
           output: true
 
 archives:
@@ -52,6 +55,28 @@ source:
 checksum:
   name_template: checksums.txt
   algorithm: sha256
+
+# Keyless cosign signing via Sigstore. The CI job's OIDC token is exchanged
+# for a short-lived Fulcio cert; the signature + cert are logged in Rekor and
+# uploaded alongside the release. Verify with:
+#   cosign verify-blob \
+#     --certificate-identity-regexp 'https://github.com/thesmos-ai/protoc-gen-codec' \
+#     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+#     --signature checksums.txt.sig --certificate checksums.txt.pem \
+#     checksums.txt
+# Then sha256sum each binary against the verified checksums.txt.
+signs:
+  - cmd: cosign
+    signature: '${artifact}.sig'
+    certificate: '${artifact}.pem'
+    args:
+      - sign-blob
+      - '--output-signature=${signature}'
+      - '--output-certificate=${certificate}'
+      - '${artifact}'
+      - '--yes'
+    artifacts: checksum
+    output: true
 
 changelog:
   sort: asc
