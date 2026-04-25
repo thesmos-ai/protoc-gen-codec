@@ -1,4 +1,4 @@
-.PHONY: build test test-race test-fuzz test-bench lint fmt generate clean bench-baseline bench-compare verify-deterministic-gen coverage-gate test-mutation test-mutation-codec test-mutation-core
+.PHONY: build test test-race test-fuzz test-bench lint fmt generate clean bench-baseline bench-compare verify-deterministic-gen coverage-gate test-mutation test-mutation-codec test-mutation-core check
 
 GO := go
 FUZZTIME ?= 30s
@@ -99,5 +99,13 @@ test-mutation-core:
 	$(GREMLINS) --threshold-efficacy=80 ./internal/core/
 
 test-mutation: test-mutation-codec test-mutation-core
+
+# ---- Per-PR umbrella ------------------------------------------------------
+# Single command for contributors. Mutation testing is intentionally NOT in
+# `make check`: gremlins runs take ~30s each and the project's mutation
+# discipline is nightly-cadence per the testing standard, not per-PR.
+check: lint test-race coverage-gate verify-deterministic-gen bench-compare
+	@echo ""
+	@echo "All gates passed."
 
 .DEFAULT_GOAL := build

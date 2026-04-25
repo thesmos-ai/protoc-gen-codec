@@ -267,17 +267,24 @@ into the same receiver:
 
 ## Deterministic Encoding
 
-Map fields are serialized in sorted-key order. `MarshalCodec` and
-`MarshalToCodec` walk `map<K, V>` via `slices.Sorted(maps.Keys(m))`
-(or an explicit `false → true` sequence for `bool` keys), producing
-byte-stable output across calls with the same input.
+Map fields are serialized in sorted-key order. The generator emits
+a pre-sized `make([]K, 0, len(m))` followed by `slices.Sort(keys)`
+(no `iter.Seq` machinery), producing byte-stable output across
+calls with the same input. For `bool` keys the generator emits an
+explicit `false → true` sequence with no slice allocation at all.
 
 This is stricter than proto3 requires — the spec allows
 non-deterministic map ordering, and the canonical `proto.Marshal`
 is non-deterministic by default. Banks, signing pipelines, and
-content-addressable storage benefit from the stronger guarantee;
-the cost is one slice allocation per map field on the Marshal path
-(none for `bool`-keyed maps).
+content-addressable storage benefit from the stronger guarantee.
+
+Allocation cost on the Marshal path:
+
+- `bool`-keyed maps: 0 allocs (two-element domain, fixed unroll).
+- Other key kinds: 0 allocs for tiny maps (escape analysis stack-
+  allocates the keys slice when its size is small enough), 1 alloc
+  per map field for larger maps (the heap-allocated keys slice).
+  No iterator closures, no append regrowth.
 
 ## Reset Semantics
 
@@ -414,17 +421,38 @@ Opt-in subtests (run when the corresponding spec field is set):
 When filling in a `Spec`, walk the `.proto` once and classify each
 field:
 
-| Proto declaration                                                      | Spec bucket            |
-|------------------------------------------------------------------------|------------------------|
-| `int32` / `int64` / `uint32` / `uint64` / `sint32` / `sint64` / `bool` / `enum` | `ScalarVarintFields`   |
-| `repeated` packed scalars                                              | `PackedFields`         |
-| `map<K, V>`                                                            | `MapFields`            |
-| `repeated MsgType`                                                     | `RepeatedMessageFields` |
-| `google.protobuf.Timestamp` / `Duration`                               | `WKTFields`            |
-| `fixed64` / `sfixed64` / `double`                                      | `Fixed64Fields`        |
-| `fixed32` / `sfixed32` / `float`                                       | `Fixed32Fields`        |
-| `bytes` with `(codec.fixed_len)`                                       | `FixedLenBytesFields` (pass `{Num, Length}`) |
-| `string`, `bytes` (variable), singular `MsgType`                       | *none — covered automatically* |
+| Proto declaration                                                                | Spec bucket             |
+|----------------------------------------------------------------------------------|-------------------------|
+| `int32` / `int64` / `uint32` / `uint64` / `sint32` / `sint64` / `bool` / `enum`  | `ScalarVarintFields`    |
+| `repeated` packed varint scalars (`int*`/`uint*`/`sint*`/`bool`/enum)            | `PackedVarintFields`    |
+| `repeated` packed `fixed64` / `sfixed64` / `double`                              | `PackedFixed64Fields`   |
+| `repeated` packed `fixed32` / `sfixed32` / `float`                               | `PackedFixed32Fields`   |
+| `map<K, V>`                                                                      | `MapFields`             |
+| `repeated MsgType`                                                               | `RepeatedMessageFields` |
+| `google.protobuf.Timestamp` / `Duration`                                         | `WKTFields`             |
+| `fixed64` / `sfixed64` / `double`                                                | `Fixed64Fields`         |
+| `fixed32` / `sfixed32` / `float`                                                 | `Fixed32Fields`         |
+| `bytes` with `(codec.fixed_len)`                                                 | `FixedLenBytesFields` (pass `{Num, Length}`) |
+| `string`, `bytes` (variable), singular `MsgType`                                 | *none — covered automatically* |
+
+The legacy `PackedFields` bucket is accepted as an alias for
+`PackedVarintFields` so older Spec definitions keep working, but new
+code should use the element-wire-type-specific bucket so the runner
+can synthesize a wire-correct unpacked-alternate body for the
+dual-encoding test.
+
+Spec fields not tied to a field-category bucket:
+
+| Field                  | Purpose                                                                                                        |
+|------------------------|----------------------------------------------------------------------------------------------------------------|
+| `Sample`               | Required. Baseline fully-populated instance for every behavioural and coverage subtest.                        |
+| `Variants`             | Extra samples merged into `AllFieldsWireTypeMismatch`. Required for discriminated-shape types (oneofs).        |
+| `Grower`               | Strictly-larger sample (more elements in a repeated field) — drives `WarmPathGrowth` warm-path slice growth.   |
+| `NilPointerSample`     | Sample with a `nil` entry in a `[]*T` field — exercises the nil-skip branch in `MarshalCodecInternal`.         |
+| `Generator`            | rapid-driven `func(*rapid.T) T`. Enables `PBT/WireStability`, `PBT/Reset`, `PBT/SizeAccuracy` subtests.        |
+| `UnknownFieldNum`      | A field number not declared in the schema (default 9999). Drives unknown-field skip / wrong-wire-type tests.   |
+| `MarshalToAllocsMax`   | Per-iteration allocation ceiling for `Codec/MarshalTo` benchmark. Default 0 (strict). Map types declare a non-zero ceiling. |
+| `SkipJSONComparisons`  | Disables `CrossFormat` and `WireSize` subtests. Set to `true` only when the type isn't JSON-roundtrippable (e.g. `map<bool, V>` — `encoding/json` rejects non-string map keys). |
 
 ### Individual assertions
 
@@ -442,6 +470,39 @@ in `codectest/assertions.go`. Import them directly for bespoke tests:
 - `AssertCorruptWKTPayload`, `AssertUnknownFieldInvalidWireType`
 - `AssertUnknownFieldSkipped`, `AssertCorruptFixedLenBytes`
 - `AssertCorruptFixedWidth`
+
+### Bench gating with `StartContract`
+
+`RunBenchSuite` wraps the `Codec/MarshalTo` subtest in a
+`codectest.StartContract` scope so any allocation regression fails
+the bench in-process — not just on a post-hoc `benchstat` diff. The
+ceiling is taken from `Spec.MarshalToAllocsMax` (default 0).
+
+You can use the same primitive in your own benches:
+
+```go
+func BenchmarkMyType_HotPath(b *testing.B) {
+    s := sampleMyType()
+    ptr := &s
+    buf := make([]byte, ptr.SizeCodec())
+
+    c := codectest.StartContract(b).
+        AllocsMax(0).
+        LatencyMax(50 * time.Nanosecond)
+
+    for c.Loop() {
+        _, _ = ptr.MarshalToCodec(buf)
+    }
+    c.End()
+}
+```
+
+`AllocsMax(n)` enforces a per-iteration allocation ceiling; `LatencyMax(d)`
+enforces a mean-latency ceiling. Either or both can be omitted — a
+no-ceiling Contract is a no-op (no measurement, no reporting). Mean is
+reported instead of p99 because computing a percentile requires either
+a per-iteration sample slice (which would itself allocate, breaking
+`AllocsMax(0)` honesty) or a streaming estimator.
 
 ### Type-specific additions consumers should still write
 
@@ -594,13 +655,20 @@ func BenchmarkTransaction_PooledUnmarshal(b *testing.B) {
 
 | Target                             | What it enforces                                                               |
 |------------------------------------|--------------------------------------------------------------------------------|
+| `make check`                       | Umbrella target: lint + race + coverage + bench-compare + deterministic gen.   |
 | `make verify-deterministic-gen`    | Running the generator twice produces byte-identical output.                    |
 | `make bench-compare`               | `benchstat` vs. a baseline generated from `main` on the same CI runner; fails on any alloc increase or >5% ns increase. |
-| `make coverage-gate`               | Per-file coverage on `*.codec.go` stays at **100%** (floor raised from 95% once the framework supported it). |
+| `make coverage-gate`               | Per-file coverage on `*.codec.go` stays at **100%**.                           |
 | `make test-race`                   | All tests pass under `-race`.                                                  |
 | `make test-fuzz`                   | Every fuzz target runs for `FUZZTIME` (default 30s) without finding a failure. |
+| `make test-mutation`               | gremlins-driven mutation testing on `lang/go/codec/` and `internal/core/`. **Effective kill rate 100%** (numerical efficacy + documented `// mutation:equivalent` annotations). Runs nightly; not part of `make check`. |
 
 The reference fixture lives at `lang/go/integration/` and exercises
 enum casts, fixed-length byte arrays, repeated strings, packed zigzag,
 map fields, well-known Timestamp/Duration, self-referential nested
-messages, and cross-package nested messages (`lang/go/integration/external/`).
+messages, cross-package nested messages
+(`lang/go/integration/external/`), bool-keyed maps, and a non-synthetic
+oneof.
+
+The Go-target REQ inventory and per-test mapping live at
+[`docs/compliance/golang/codec.md`](../compliance/golang/codec.md).

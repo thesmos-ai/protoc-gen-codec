@@ -182,6 +182,10 @@ sub-package at `lang/<language>/codec/<lang>test/`. It carries:
   for `Benchmark*`, `RunFuzzSuite` for `Fuzz*`) that all consume the
   same spec
 - individual `Assert*` helpers composed by those runners
+- a `StartContract(b).AllocsMax(n).LatencyMax(d)` scope that gates
+  benchmarks against per-iteration allocation and latency ceilings,
+  failing the bench in-process rather than only on a post-hoc
+  baseline diff
 
 The testing package is kept separate so the runtime stays stdlib-only:
 consumers who import the runtime for wire primitives or error sentinels
@@ -208,7 +212,10 @@ Each generator is expected to verify, at minimum:
   unknown fields produce typed errors or are skipped per proto3 rules.
 
 Generators also benchmark marshal/unmarshal paths with an explicit
-zero-allocation target for the pre-allocated marshal path.
+zero-allocation target for the pre-allocated marshal path. Per-bench
+ceilings are enforced via the testing sub-package's `StartContract`
+scope so a regression fails the bench at the first occurrence, not
+only on a benchstat baseline diff.
 
 CI enforces the suite through standing regression gates:
 
@@ -221,6 +228,18 @@ CI enforces the suite through standing regression gates:
   testing sub-package provides enough `Assert*` helpers and generator
   refactors removed enough defensive branches to make 100% achievable
   without contrived tests).
+- **Mutation testing** — gremlins-driven mutation testing runs nightly
+  on every package with direct unit tests. The bar is **100% effective
+  kill rate** — true equivalents that cannot be killed without
+  architectural refactor (e.g. boundary checks against contract values
+  that are unreachable in practice) are declared via inline
+  `// mutation:equivalent` comments + audit sign-off and counted as
+  killed. The numerical gremlins threshold is set to match.
+- **Per-package audit document** — every audited target language
+  ships a `docs/compliance/<language>/<package>.md` audit per the
+  testing-runbook Phase 1+5 evidence template: Spec design, REQ
+  inventory (`REQ-PKG-CODEC-NNN`), REQ→test mapping table, evidence
+  (coverage / mutation / bench / determinism), and exceptions.
 - **Deterministic generation** — running the generator twice produces
   byte-identical output.
 - **Deterministic encoding** — for languages where it matters,
