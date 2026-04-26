@@ -309,6 +309,42 @@ The `(codec.keep_capacity)` annotation on slice / bytes / map fields is
 accepted for source compatibility with older `.proto` files but is now a
 no-op: backing storage is always preserved.
 
+## Concurrency
+
+The runtime package (`lang/go/codec/`) has no mutable state — every
+exported wire primitive (`EncodeVarint`, `DecodeVarint`, `SizeVarint`,
+`SkipField`, the zigzag helpers, the `Timestamp` / `Duration`
+encode/decode pairs) operates purely on caller-provided buffers and
+is safe for arbitrary concurrent use. The only package-level state is
+the immutable sentinel-error variables.
+
+Generated methods on consumer types follow a shape-driven contract:
+
+| Method                                                | Receiver access | Concurrency |
+|-------------------------------------------------------|-----------------|-------------|
+| `SizeCodec`, `MarshalCodec`, `MarshalToCodec`, `MarshalCodecInternal` | reads only      | safe to call concurrently against the same receiver, **provided** no goroutine is concurrently mutating it via `UnmarshalCodec` / `ResetCodec` or direct field writes |
+| `UnmarshalCodec`, `UnmarshalCodecInternal`, `ResetCodec` | writes every serialized field | each receiver may be in flight in at most one such call at a time; concurrent calls on the **same** receiver are a data race; concurrent calls on **distinct** receivers are safe |
+
+Two patterns covered by this contract:
+
+1. **Marshal fan-out**: one struct populated once, marshalled
+   concurrently from many goroutines (e.g. a request payload fanning
+   out to subscribers). No synchronisation required.
+2. **Pooled unmarshal**: each goroutine drains a fresh receiver from
+   a `sync.Pool`, decodes into it, returns it. The pool guarantees
+   exclusive ownership; no synchronisation required.
+
+Calling an `Unmarshaler` or `Resetter` from multiple goroutines
+without per-goroutine ownership of the receiver requires explicit
+caller-side synchronisation (e.g. wrapping the call site in a
+`sync.Mutex`). The runtime does not synchronise on the caller's
+behalf — the receiver is the caller's data.
+
+`testdata/wire/<TypeName>.bin` snapshots are written from a single
+goroutine under the `-update-wire-snapshots` flag and read in
+parallel during `WireSnapshot` subtests; the read path goes through
+`os.ReadFile` so it is also goroutine-safe.
+
 ## Unsupported Features
 
 protoc-gen-codec-go targets a deliberate proto3 subset. The following
