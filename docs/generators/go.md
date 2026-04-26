@@ -562,7 +562,7 @@ Spec fields not tied to a field-category bucket:
 | `UnknownFieldNum`      | A field number not declared in the schema (default 9999). Drives unknown-field skip / wrong-wire-type tests.   |
 | `MarshalToAllocsMax`   | Per-iteration allocation ceiling for `Codec/MarshalTo` benchmark. Default 0 (strict). Map types declare a non-zero ceiling. |
 | `MarshalToLatencyMax`  | Per-iteration mean-latency ceiling. Default 0 (no gate). Set to ~5x the dev-box measured value so the gate catches order-of-magnitude regressions while accommodating CI-machine variance; benchstat catches finer 5%-p99 drift. |
-| `SkipJSONComparisons`  | Disables `CrossFormat` and `WireSize` subtests. Set to `true` only when the type isn't JSON-roundtrippable (e.g. `map<bool, V>` — `encoding/json` rejects non-string map keys). |
+| `SkipJSONComparisons`  | Disables `CrossFormat` and `WireSize` subtests in `RunSuite` and the `JSON/Marshal`/`JSON/Unmarshal` subtests in `RunBenchSuite`. Set to `true` only when the type isn't JSON-roundtrippable (e.g. `map<bool, V>` — `encoding/json` rejects non-string map keys; without this flag, the JSON benches would time `encoding/json`'s error path and produce misleading numbers). |
 
 ### Individual assertions
 
@@ -587,6 +587,14 @@ in `codectest/assertions.go`. Import them directly for bespoke tests:
 `codectest.StartContract` scope so any allocation regression fails
 the bench in-process — not just on a post-hoc `benchstat` diff. The
 ceiling is taken from `Spec.MarshalToAllocsMax` (default 0).
+
+For a snapshot of the actual measured numbers (Codec vs JSON, cold
+vs warm-path, wire-primitive timings, allocation budgets per
+fixture), see [`docs/performance/go.md`](../performance/go.md). That
+document is the canonical published perf record — the underlying
+`.bench-baseline/main.txt` is `.gitignore`d (hardware-specific) and
+regenerated locally via `make bench-baseline` or in CI from `main`
+on the runner before comparing against PR head.
 
 You can use the same primitive in your own benches:
 

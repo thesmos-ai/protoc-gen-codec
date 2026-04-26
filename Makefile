@@ -133,7 +133,10 @@ fmt: ## Apply gofmt to all Go sources
 bench-baseline: ## Refresh .bench-baseline/main.txt from the current tree
 	@mkdir -p .bench-baseline
 	GOMAXPROCS=8 $(GO) test -run='^$$' -bench=. -benchmem -benchtime=3s -count=10 \
-		./lang/go/codec/ ./lang/go/integration/ > .bench-baseline/main.txt
+		./lang/go/codec/ \
+		./lang/go/integration/ \
+		./lang/go/integration/external/ \
+		> .bench-baseline/main.txt
 	@echo "Baseline refreshed: .bench-baseline/main.txt"
 
 bench-compare: ## Compare current bench results against the pinned baseline

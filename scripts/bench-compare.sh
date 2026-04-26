@@ -21,7 +21,10 @@ fi
 
 echo "Running benchmarks (this takes ~5 minutes)..."
 go test -run='^$' -bench=. -benchmem -benchtime=3s -count=10 \
-    ./lang/go/codec/ ./lang/go/integration/ > "$CURRENT"
+    ./lang/go/codec/ \
+    ./lang/go/integration/ \
+    ./lang/go/integration/external/ \
+    > "$CURRENT"
 
 # benchstat exits 0 regardless of deltas; parse its output ourselves.
 # -row .name strips the -GOMAXPROCS suffix so baselines and CI runs compare

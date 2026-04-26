@@ -161,11 +161,18 @@ type Spec[T any] struct {
 	MarshalToLatencyMax time.Duration
 
 	// SkipJSONComparisons disables the CrossFormat and WireSize
-	// subtests for types that aren't JSON-roundtrippable (e.g.
-	// `map<bool, V>` — encoding/json rejects non-string map keys).
-	// Defaults to false; set to true only when the type genuinely
-	// cannot serialize through encoding/json so the JSON-baseline
-	// subtests don't false-fail.
+	// subtests in RunSuite, and the JSON/Marshal and JSON/Unmarshal
+	// subtests in RunBenchSuite, for types that aren't JSON-
+	// roundtrippable (e.g. `map<bool, V>` — encoding/json rejects
+	// non-string map keys). Defaults to false; set to true only when
+	// the type genuinely cannot serialize through encoding/json.
+	//
+	// Without this flag, the JSON benches for such types would still
+	// run and time the error path (json.Marshal returns empty + error;
+	// json.Unmarshal of the empty result returns "unexpected end of
+	// JSON" instantly). Those numbers are actively misleading —
+	// readers might compare them to Codec/* and conclude the codec is
+	// slower than JSON when in fact JSON is failing to do any work.
 	SkipJSONComparisons bool
 }
 
@@ -332,22 +339,24 @@ func RunBenchSuite[T any, PT interface {
 		}
 	})
 
-	b.Run("JSON/Marshal", func(b *testing.B) {
-		s := spec.Sample
-		for b.Loop() {
-			_, _ = json.Marshal(s)
-		}
-	})
+	if !spec.SkipJSONComparisons {
+		b.Run("JSON/Marshal", func(b *testing.B) {
+			s := spec.Sample
+			for b.Loop() {
+				_, _ = json.Marshal(s)
+			}
+		})
 
-	b.Run("JSON/Unmarshal", func(b *testing.B) {
-		s := spec.Sample
-		data, _ := json.Marshal(s)
-		b.ResetTimer()
-		for b.Loop() {
-			var got T
-			_ = json.Unmarshal(data, &got)
-		}
-	})
+		b.Run("JSON/Unmarshal", func(b *testing.B) {
+			s := spec.Sample
+			data, _ := json.Marshal(s)
+			b.ResetTimer()
+			for b.Loop() {
+				var got T
+				_ = json.Unmarshal(data, &got)
+			}
+		})
+	}
 }
 
 // RunFuzzSuite registers spec.Sample + spec.Variants as corpus seeds and

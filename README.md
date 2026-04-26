@@ -172,6 +172,7 @@ The `RunSuite` call expands into 30+ sub-tests (roundtrip, reset, nil-safety, cr
 - [`docs/architecture.md`](docs/architecture.md) — language-neutral architecture, design principles, and project layout
 - [`docs/generators/go.md`](docs/generators/go.md) — how `protoc-gen-codec-go` emits code (generated methods, field mapping, slab strategies, reset semantics, testing framework, `StartContract` bench gating)
 - [`docs/compliance/golang/codec.md`](docs/compliance/golang/codec.md) — Go-target test plan: behavioural promises (REQ inventory), REQ→test mapping, and coverage / mutation / bench evidence
+- [`docs/performance/go.md`](docs/performance/go.md) — Go-target performance profile: per-fixture marshal/unmarshal/size benchmarks, Codec-vs-JSON ratios, cold-vs-warm-path speedup, wire-primitive timings (refreshed alongside `make bench-baseline`)
 
 ## License
 
