@@ -2668,6 +2668,130 @@ func (m *BoolMapHolder) ResetCodec() {
 	clear(m.Flags)
 }
 
+func (m *TypedStrings) SizeCodec() int {
+	if m == nil {
+		return 0
+	}
+	var n int
+	if len(m.ID) > 0 {
+		l := len(m.ID)
+		n += 1 + codec.SizeVarint(uint64(l)) + l
+	}
+	for _, s := range m.Tags {
+		l := len(s)
+		n += 1 + codec.SizeVarint(uint64(l)) + l
+	}
+	return n
+}
+
+func (m *TypedStrings) MarshalCodec() ([]byte, error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeCodec()
+	if size == 0 {
+		return nil, nil
+	}
+	buf := make([]byte, size)
+	n := m.MarshalCodecInternal(buf)
+	return buf[:n], nil
+}
+
+func (m *TypedStrings) MarshalToCodec(buf []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	if len(buf) < m.SizeCodec() {
+		return 0, codec.ErrBufferTooShort
+	}
+	return m.MarshalCodecInternal(buf), nil
+}
+
+func (m *TypedStrings) MarshalCodecInternal(buf []byte) int {
+	n := 0
+	if len(m.ID) > 0 {
+		buf[n+0] = 0x0a
+		n += 1
+		n += codec.EncodeVarint(buf[n:], uint64(len(m.ID)))
+		n += copy(buf[n:], m.ID)
+	}
+	for _, s := range m.Tags {
+		buf[n+0] = 0x12
+		n += 1
+		n += codec.EncodeVarint(buf[n:], uint64(len(s)))
+		n += copy(buf[n:], s)
+	}
+	return n
+}
+
+func (m *TypedStrings) UnmarshalCodec(data []byte) error {
+	return m.UnmarshalCodecInternal(data, string(data), 0)
+}
+
+func (m *TypedStrings) UnmarshalCodecInternal(data []byte, slab string, slabOff int) error {
+	_ = slab
+	_ = slabOff
+	l := len(data)
+	i := 0
+	m.ID = ""
+	m.Tags = m.Tags[:0]
+	for i < l {
+		tag, n := codec.DecodeVarint(data[i:])
+		if n < 0 {
+			return fmt.Errorf("offset %d: %w", i, codec.ErrInvalidTag)
+		}
+		i += n
+		fieldNum := tag >> 3
+		wireType := tag & 0x7
+
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("field ID (%d): %w", 1, codec.ErrInvalidWireType)
+			}
+			vLen, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field ID (%d): %w", 1, codec.ErrInvalidVarint)
+			}
+			i += n
+			if uint64(l-i) < vLen {
+				return fmt.Errorf("field ID (%d): %w", 1, codec.ErrBufferTooShort)
+			}
+			m.ID = TypedID(slab[slabOff+i : slabOff+i+int(vLen)])
+			i += int(vLen)
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("field Tags (%d): %w", 2, codec.ErrInvalidWireType)
+			}
+			vLen, n := codec.DecodeVarint(data[i:])
+			if n < 0 {
+				return fmt.Errorf("field Tags (%d): %w", 2, codec.ErrInvalidVarint)
+			}
+			i += n
+			if uint64(l-i) < vLen {
+				return fmt.Errorf("field Tags (%d): %w", 2, codec.ErrBufferTooShort)
+			}
+			m.Tags = append(m.Tags, TypedTag(slab[slabOff+i:slabOff+i+int(vLen)]))
+			i += int(vLen)
+		default:
+			n, err := codec.SkipField(data[i:], wireType)
+			if err != nil {
+				return err
+			}
+			i += n
+		}
+	}
+	return nil
+}
+
+func (m *TypedStrings) ResetCodec() {
+	if m == nil {
+		return
+	}
+	m.ID = ""
+	m.Tags = m.Tags[:0]
+}
+
 func (m *TimeHolder) SizeCodec() int {
 	if m == nil {
 		return 0

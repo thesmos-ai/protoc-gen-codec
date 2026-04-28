@@ -231,3 +231,19 @@ type OneofPayload struct {
 	Blob   []byte `json:"blob,omitempty"`
 	Amount int64  `json:"amount,omitempty"`
 }
+
+// TypedID and TypedTag are named-string types used by TypedStrings.
+// They exercise the (codec.cast) wrapping on the unmarshal slab-slice
+// path: without the cast wrap, Go rejects assigning a plain string to
+// a typed-string field. The generator must emit
+// `m.ID = TypedID(slab[...])` rather than `m.ID = slab[...]`.
+type TypedID string
+type TypedTag string
+
+// TypedStrings is the regression fixture for the typed-string
+// (codec.cast) path. ID covers the singular string case; Tags covers
+// the repeated case.
+type TypedStrings struct {
+	ID   TypedID    `json:"id,omitempty"`
+	Tags []TypedTag `json:"tags,omitempty"`
+}

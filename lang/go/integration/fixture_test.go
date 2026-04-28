@@ -968,3 +968,31 @@ func BenchmarkBoolMapHolder(b *testing.B) {
 func FuzzBoolMapHolder_Codec(f *testing.F) {
 	codectest.RunFuzzSuite[integration.BoolMapHolder](f, specBoolMapHolder)
 }
+
+// === TypedStrings ===========================================================
+
+func sampleTypedStrings() integration.TypedStrings {
+	return integration.TypedStrings{
+		ID:   integration.TypedID("typed-id-001"),
+		Tags: []integration.TypedTag{"alpha", "beta", "gamma"},
+	}
+}
+
+var specTypedStrings = codectest.Spec[integration.TypedStrings]{
+	Sample:              sampleTypedStrings(),
+	MarshalToLatencyMax: 100 * time.Nanosecond,
+}
+
+func TestTypedStrings(t *testing.T) {
+	t.Run("Codec", func(t *testing.T) {
+		codectest.RunSuite[integration.TypedStrings](t, specTypedStrings)
+	})
+}
+
+func BenchmarkTypedStrings(b *testing.B) {
+	codectest.RunBenchSuite[integration.TypedStrings](b, specTypedStrings)
+}
+
+func FuzzTypedStrings_Codec(f *testing.F) {
+	codectest.RunFuzzSuite[integration.TypedStrings](f, specTypedStrings)
+}

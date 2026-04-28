@@ -127,6 +127,20 @@ message BoolMapHolder {
   map<bool, string> flags = 1 [(codec.field) = "Flags"];
 }
 
+// TypedStrings exercises (codec.cast) on string-typed fields. The
+// generator must wrap the slab-slice expression in the cast type on
+// the unmarshal side; without the wrap, Go rejects the assignment of
+// a plain string to a typed-string field. Singular and repeated
+// variants both exercised here; oneof string branches go through the
+// same code path (covered by OneofPayload's Text branch indirectly,
+// once a typed-string oneof case is added — out of scope today).
+message TypedStrings {
+  option (codec.type) = "TypedStrings";
+
+  string id = 1 [(codec.field) = "ID", (codec.cast) = "TypedID"];
+  repeated string tags = 2 [(codec.field) = "Tags", (codec.cast) = "TypedTag"];
+}
+
 message TimeHolder {
   option (codec.type) = "TimeHolder";
 

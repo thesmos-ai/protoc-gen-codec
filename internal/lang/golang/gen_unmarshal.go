@@ -448,7 +448,7 @@ func generateFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[string]*proto
 		g.P("if uint64(l-i) < vLen {")
 		emitErrShort(g, f)
 		g.P("}")
-		g.P(accessor, " = slab[slabOff+i : slabOff+i+int(vLen)]")
+		g.P(accessor, " = ", castStringSliceExpr(g, fileMap, f, "slab[slabOff+i : slabOff+i+int(vLen)]"))
 		g.P("i += int(vLen)")
 
 	case f.IsBytes:
@@ -649,7 +649,7 @@ func generateRepeatedFieldUnmarshal(g *protogen.GeneratedFile, fileMap map[strin
 		g.P("if uint64(l-i) < vLen {")
 		emitErrShort(g, f)
 		g.P("}")
-		g.P(accessor, " = append(", accessor, ", slab[slabOff+i : slabOff+i+int(vLen)])")
+		g.P(accessor, " = append(", accessor, ", ", castStringSliceExpr(g, fileMap, f, "slab[slabOff+i : slabOff+i+int(vLen)]"), ")")
 		g.P("i += int(vLen)")
 
 	case f.IsBytes && f.FixedLen > 0:
@@ -813,6 +813,24 @@ func castExpr(g *protogen.GeneratedFile, fileMap map[string]*protogen.File, f *c
 		return name + "(" + varName + ")"
 	}
 	return defaultCast(f.ProtoKind, varName)
+}
+
+// castStringSliceExpr wraps a slab-slice expression in the field's
+// cast type when one is set. The slab-slice yields a value of Go
+// type `string` (slab is `string`, so slab[a:b] is too); for an
+// untyped string field that's the right RHS, but for a typed-string
+// field (e.g. `type TenantID string`) Go requires explicit
+// conversion. The cast is the user's declared `(codec.cast) = "T"`
+// — if absent, the slice expression is returned as-is.
+//
+// Used by both the singular and repeated string unmarshal paths.
+// Marshal/Size use len()/copy() which already accept any
+// string-like type, so they don't need a parallel helper.
+func castStringSliceExpr(g *protogen.GeneratedFile, fileMap map[string]*protogen.File, f *core.FieldInfo, sliceExpr string) string {
+	if name := goCastName(g, fileMap, f); name != "" {
+		return name + "(" + sliceExpr + ")"
+	}
+	return sliceExpr
 }
 
 func castExpr64(g *protogen.GeneratedFile, fileMap map[string]*protogen.File, f *core.FieldInfo, readExpr string) string {
