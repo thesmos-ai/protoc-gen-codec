@@ -4,7 +4,14 @@
 serialization methods on **existing, hand-written types** rather than
 generating parallel types from the schema.
 
-This document describes the architecture common to all target languages.
+This document describes the language-neutral architecture. Today the
+only shipping target is Go; the layout below is structured so a
+future second target (e.g. TypeScript or Rust) would slot in
+alongside the Go emitter without touching the analyzer or
+annotation surface — but no second target exists yet, and any claims
+about cross-language stability should be treated as design intent
+rather than tested behaviour.
+
 Language-specific code-generation rules live alongside each generator:
 
 - [`generators/go.md`](generators/go.md) — the `protoc-gen-codec-go` binary

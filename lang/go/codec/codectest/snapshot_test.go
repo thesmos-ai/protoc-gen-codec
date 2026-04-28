@@ -24,24 +24,35 @@ import (
 	"testing"
 )
 
-// stubTB captures Helper() and Fatalf() calls so we can verify
-// outcomes without driving a real *testing.T (which would terminate
-// the test goroutine on Fatalf).
+// stubTB captures Helper(), Logf(), and Fatalf() calls so we can
+// verify outcomes without driving a real *testing.T (which would
+// terminate the test goroutine on Fatalf).
 type stubTB struct {
 	helperCalls int
+	logfMsgs    []string
 	fatalfMsgs  []string
 }
 
 func (s *stubTB) Helper() { s.helperCalls++ }
+func (s *stubTB) Logf(f string, a ...any) {
+	s.logfMsgs = append(s.logfMsgs, fmt.Sprintf(f, a...))
+}
 func (s *stubTB) Fatalf(f string, a ...any) {
 	s.fatalfMsgs = append(s.fatalfMsgs, fmt.Sprintf(f, a...))
 }
-func (s *stubTB) failed() bool { return len(s.fatalfMsgs) > 0 }
+func (s *stubTB) failed() bool  { return len(s.fatalfMsgs) > 0 }
+func (s *stubTB) noticed() bool { return len(s.logfMsgs) > 0 }
 func (s *stubTB) firstMsg() string {
 	if len(s.fatalfMsgs) == 0 {
 		return ""
 	}
 	return s.fatalfMsgs[0]
+}
+func (s *stubTB) firstNotice() string {
+	if len(s.logfMsgs) == 0 {
+		return ""
+	}
+	return s.logfMsgs[0]
 }
 
 // stubCodec is a minimal codec.Codec implementation backed by a
@@ -113,21 +124,62 @@ func TestAssertWireSnapshot_MatchingBytes_NoFatalf(t *testing.T) {
 	})
 }
 
-func TestAssertWireSnapshot_MissingFile_FatalfWithRefreshHint(t *testing.T) {
+func TestAssertWireSnapshot_MissingFile_Lenient_LogfNotFatalf(t *testing.T) {
 	dir := t.TempDir()
+
+	// Default lenient mode: -strict-codectest unset AND
+	// CODECTEST_STRICT cleared. The env var wins under our OR
+	// semantics, so a `make test-race` invocation with the env var
+	// set would shadow the flag toggle if we didn't clear it.
+	prev := *strictCodectestFlag
+	*strictCodectestFlag = false
+	t.Cleanup(func() { *strictCodectestFlag = prev })
+
+	if v, ok := os.LookupEnv("CODECTEST_STRICT"); ok {
+		t.Cleanup(func() { os.Setenv("CODECTEST_STRICT", v) })
+		os.Unsetenv("CODECTEST_STRICT")
+	}
+
+	chdirTo(t, dir, func() {
+		tb := &stubTB{}
+		AssertWireSnapshot[stubCodec, *stubCodec](tb, stubCodec{wire: []byte{0x01}})
+
+		if tb.failed() {
+			t.Fatalf("lenient mode must NOT Fatalf on missing snapshot; got: %v", tb.fatalfMsgs)
+		}
+		if !tb.noticed() {
+			t.Fatal("lenient mode must emit a Logf notice on missing snapshot")
+		}
+		notice := tb.firstNotice()
+		if !strings.Contains(notice, "-update-wire-snapshots") {
+			t.Errorf("lenient notice must reference the refresh flag; got: %s", notice)
+		}
+		if !strings.Contains(notice, "-strict-codectest") {
+			t.Errorf("lenient notice must mention -strict-codectest as the opt-in to fail; got: %s", notice)
+		}
+	})
+}
+
+func TestAssertWireSnapshot_MissingFile_Strict_Fatalf(t *testing.T) {
+	dir := t.TempDir()
+
+	// Strict mode opt-in.
+	prev := *strictCodectestFlag
+	*strictCodectestFlag = true
+	t.Cleanup(func() { *strictCodectestFlag = prev })
 
 	chdirTo(t, dir, func() {
 		tb := &stubTB{}
 		AssertWireSnapshot[stubCodec, *stubCodec](tb, stubCodec{wire: []byte{0x01}})
 
 		if !tb.failed() {
-			t.Fatal("expected Fatalf when snapshot file is missing")
+			t.Fatal("strict mode must Fatalf when snapshot file is missing")
 		}
 		if !strings.Contains(tb.firstMsg(), "-update-wire-snapshots") {
-			t.Errorf("missing-file fatalf must reference the -update-wire-snapshots flag; got: %s", tb.firstMsg())
+			t.Errorf("strict-mode fatalf must reference the -update-wire-snapshots flag; got: %s", tb.firstMsg())
 		}
 		if !strings.Contains(tb.firstMsg(), "testdata/wire/stubCodec.bin") {
-			t.Errorf("missing-file fatalf must include the snapshot path; got: %s", tb.firstMsg())
+			t.Errorf("strict-mode fatalf must include the snapshot path; got: %s", tb.firstMsg())
 		}
 	})
 }

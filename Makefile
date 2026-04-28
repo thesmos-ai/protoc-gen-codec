@@ -69,8 +69,18 @@ clean: ## Remove build artifacts and coverage output
 test: ## Run unit tests
 	$(GO) test -count=1 ./...
 
-test-race: ## Run unit tests under the race detector
-	$(GO) test -count=1 -race ./...
+# `make test-race` doubles as the strict-codectest gate: any missing
+# wire snapshot (or future data-dependent assertion) hard-fails here
+# even though the default lenient mode skips them with a Logf notice.
+# This is the project's own CI catching missing fixtures; downstream
+# consumers running `go test` see the lenient default.
+#
+# Uses CODECTEST_STRICT=1 (env var) instead of -strict-codectest (flag)
+# because the flag is only registered in test binaries that import
+# codectest — runtime-only test binaries like ./lang/go/codec/ would
+# reject an unrecognized flag. The env var works universally.
+test-race: ## Run unit tests under the race detector + strict codectest
+	CODECTEST_STRICT=1 $(GO) test -count=1 -race ./...
 
 # Discover fuzz targets per package and run each for FUZZTIME.
 test-fuzz: ## Run every fuzz target for FUZZTIME (default: 30s)

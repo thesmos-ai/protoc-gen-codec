@@ -79,7 +79,7 @@
 //
 // In practice this maps to two common patterns:
 //
-//  1. Marshal-side fan-out: one struct produced once, marshalled
+//  1. Marshal-side fan-out: one struct produced once, marshaled
 //     concurrently from many goroutines (e.g. a request payload
 //     fanning out to many subscribers). Safe.
 //

@@ -25,6 +25,38 @@
 // This package depends on pgregory.net/rapid for property-based testing.
 // Consumers of the runtime-only codec package are not transitively
 // exposed to rapid unless they import codectest explicitly.
+//
+// # Fail-open convention for data-dependent assertions
+//
+// Some assertions depend on a checked-in data file (snapshot,
+// fixture, etc.). The first such case is AssertWireSnapshot, which
+// reads testdata/wire/<TypeName>.bin. New assertions of this shape
+// are added in minor releases via RunSuite, which means downstream
+// consumers' CI must not break on first upgrade just because the
+// new data file doesn't exist yet.
+//
+// The convention: when the data file is missing, assertions emit a
+// non-fatal t.Logf notice and return; downstream CI sees a green
+// run with a visible "regenerate this" hint, and the consumer opts
+// in on their own schedule. When the data file exists but its
+// contents disagree with the live computation, the assertion always
+// hard-fails — that's a real regression, not a missing-data case.
+//
+// Two ways to opt in to strict mode:
+//
+//   - Pass `-strict-codectest` as a test flag. Idiomatic, but only
+//     works for test binaries that import codectest (the flag isn't
+//     registered in runtime-only test binaries).
+//   - Set `CODECTEST_STRICT=1` in the environment. Works across
+//     `go test ./...` runs that span packages, including those that
+//     don't import codectest.
+//
+// Recommended for the upstream project's own CI (so it catches
+// genuinely-missing snapshots), not for downstream consumers who
+// haven't opted in.
+//
+// Future data-dependent assertions follow the same pattern: missing
+// data = lenient skip + Logf, corrupted data = hard fail.
 package codectest
 
 import (
@@ -42,8 +74,14 @@ import (
 // TB is the common interface between *testing.T, *testing.B, and *rapid.T.
 // Assertions accept TB so they can run under both regular Go tests and
 // rapid property-based checks.
+//
+// Logf is included so assertions can emit non-fatal notices when running
+// in lenient mode (e.g. AssertWireSnapshot skipping a missing snapshot
+// file unless -strict-codectest is set). All three real implementers
+// (*testing.T, *testing.B, *rapid.T) already provide it.
 type TB interface {
 	Helper()
+	Logf(string, ...any)
 	Fatalf(string, ...any)
 }
 

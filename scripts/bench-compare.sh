@@ -58,9 +58,13 @@ if [[ -n "$ALLOC_REGRESSIONS" ]]; then
     exit 2
 fi
 
-# Fail on any sec/op positive delta > 5% (statistical significance is implicit
-# because non-significant changes are reported as "~", not "+N.NN%").
-# Uses POSIX awk: extract the +N.NN% token via match()+substr() (no gawk arrays).
+# Fail on sec/op positive delta:
+#   - >15% on sub-10ns benchmarks (wire primitives — variance dominates
+#     at this scale; a 5% gate produces noise-driven false positives
+#     because individual sample variance regularly hits ±10%)
+#   - >5% on everything else
+# Statistical significance is implicit (benchstat prints "~" for
+# non-significant deltas, not "+N.NN%").
 TIME_REGRESSIONS=$(awk '
     /vs base/ {
         if (match($0, /sec\/op/))         { section = "sec/op"; next }
@@ -71,13 +75,23 @@ TIME_REGRESSIONS=$(awk '
     /^geomean/ { section = ""; next }
     section && match($0, /\+[0-9]+\.[0-9]+%/) {
         tok = substr($0, RSTART+1, RLENGTH-2)   # strip leading + and trailing %
-        if (tok+0 > 5) print "[" section "] " $0
+        delta = tok + 0
+        # Field 2 is the baseline value (e.g. "3.121n", "538.3n", "12.34µ").
+        # Sub-10ns benches end in "n" with a numeric portion < 10. Anything
+        # that is not in this nanosecond regime gets the strict 5% gate.
+        threshold = 5
+        baseline = $2
+        if (baseline ~ /n$/) {
+            base_num = substr(baseline, 1, length(baseline) - 1) + 0
+            if (base_num < 10) threshold = 15
+        }
+        if (delta > threshold) print "[" section " >" threshold "%] " $0
     }
 ' "$BENCHSTAT_OUT_FILE" | head -40)
 
 if [[ -n "$TIME_REGRESSIONS" ]]; then
     echo ""
-    echo "TIME REGRESSION (>5% sec/op) vs $BASELINE:"
+    echo "TIME REGRESSION vs $BASELINE (>5% sec/op, >15% on sub-10ns benches):"
     echo "$TIME_REGRESSIONS"
     exit 3
 fi

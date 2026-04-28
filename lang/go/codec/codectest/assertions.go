@@ -36,6 +36,37 @@ var updateWireSnapshots = flag.Bool(
 	"refresh testdata/wire/*.bin from current MarshalCodec output",
 )
 
+// strictCodectestFlag and the CODECTEST_STRICT env var both gate
+// whether data-dependent assertions (currently AssertWireSnapshot,
+// future fixture/data-file assertions) hard-fail when the data is
+// missing, vs. emit a non-fatal notice and continue.
+//
+// Default OFF (lenient): a downstream consumer upgrading codectest
+// gets a Logf notice on first run instead of a CI failure, with
+// instructions for generating the missing data. This lets new
+// data-dependent assertions ship in minor releases without forcing
+// every consumer to act before their next CI run.
+//
+// Two ways to opt in to strict:
+//
+//   - Pass `-strict-codectest` as a test flag. Idiomatic for tests
+//     scoped to a single package that imports codectest.
+//   - Set `CODECTEST_STRICT=1` in the environment. Works across
+//     `go test ./...` runs that span packages, including runtime
+//     test binaries that don't import codectest (the flag isn't
+//     registered there, so go test would reject the flag).
+//
+// The protoc-gen-codec project's own `make check` uses the env var.
+var strictCodectestFlag = flag.Bool(
+	"strict-codectest",
+	false,
+	"fail (instead of log+skip) when codectest assertions encounter missing data files",
+)
+
+func strictCodectest() bool {
+	return *strictCodectestFlag || os.Getenv("CODECTEST_STRICT") == "1"
+}
+
 // Assertion-message convention (per testing-runbook Phase 4.3):
 // every Fatalf cites the contract it defends, not the value that failed.
 // "what guarantee was violated", not "which line fired". The dynamic
@@ -140,6 +171,17 @@ func AssertWireSnapshot[T any, PT interface {
 
 	want, rerr := os.ReadFile(path)
 	if rerr != nil {
+		// Lenient by default: emit a notice so the missing-snapshot
+		// case is visible in test output without breaking CI on first
+		// upgrade. Pass -strict-codectest to convert into a fatal.
+		if !strictCodectest() {
+			t.Logf(
+				"WireSnapshot: %s missing — generate with `go test -update-wire-snapshots` "+
+					"and commit the file. Pass -strict-codectest to fail instead of skipping.",
+				path,
+			)
+			return
+		}
 		t.Fatalf(
 			"read wire snapshot %s: %v\n"+
 				"if this is a new fixture, generate the snapshot with:\n"+

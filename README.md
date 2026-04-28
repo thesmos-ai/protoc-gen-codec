@@ -121,23 +121,15 @@ err = got.UnmarshalCodec(buf)        // deserialize
 
 That's it. No generated types, no reflection, no type registry — your `MyType` keeps its existing fields and methods, and gains seven codec methods (`MarshalCodec`, `MarshalToCodec`, `MarshalCodecInternal`, `UnmarshalCodec`, `UnmarshalCodecInternal`, `SizeCodec`, `ResetCodec`).
 
-For the full method semantics, supported field categories, and unsupported features, see [`docs/generators/go.md`](docs/generators/go.md). For a multi-language overview and architecture, see [`docs/architecture.md`](docs/architecture.md).
+For the full method semantics, supported field categories, and unsupported features, see [`docs/generators/go.md`](docs/generators/go.md). For the project architecture, see [`docs/architecture.md`](docs/architecture.md).
 
-## Multi-language support
+## Architecture
 
-The generator is structured for multiple target languages:
-
-```
-cmd/protoc-gen-codec-go/     # Go code emitter
-cmd/protoc-gen-codec-ts/     # TypeScript (future)
-cmd/protoc-gen-codec-rust/   # Rust (future)
-```
-
-All binaries share `internal/core/` for schema analysis and `codec/options.proto` for annotations. Language runtimes live under `lang/<lang>/codec/`; only the code emission differs per language.
+The schema analyzer (`internal/core/`) is language-neutral and operates only on `.proto` descriptor data — it has no knowledge of any target language. The Go-target emitter under `internal/lang/golang/` consumes the analyzer's output and emits `*.codec.go`. This split is intentional: a future second target would slot in next to `golang/` without changes to the analyzer or annotation surface (`codec/options.proto`). **Today, Go is the only shipping target**; the directory layout reflects the eventual shape, not current reality.
 
 ## Runtime
 
-Each generator ships a small runtime library that the generated code imports for wire primitives and error sentinels. Runtimes carry no dependencies beyond the target language's standard library. Testing helpers live in a separate sub-package (`codec/codectest/` for Go) so the runtime stays dependency-free for production use.
+The Go runtime (`lang/go/codec/`) is what generated code imports for wire primitives and error sentinels. It carries no dependencies beyond the Go standard library. Testing helpers live in a separate sub-package (`lang/go/codec/codectest/`) so the runtime stays dependency-free for production use.
 
 ## Testing your consumer types
 
